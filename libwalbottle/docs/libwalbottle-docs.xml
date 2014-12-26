@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.3//EN" "http://www.oasis-open.org/docbook/xml/4.3/docbookx.dtd" [
+	<!ENTITY % local.common.attrib "xmlns:xi  CDATA  #FIXED 'http://www.w3.org/2003/XInclude'">
+	<!ENTITY version SYSTEM "version.xml">
+]>
+<book id="index" xmlns:xi="http://www.w3.org/2003/XInclude">
+	<bookinfo>
+		<title>libwalbottle Reference Manual</title>
+		<releaseinfo>for libwalbottle &version;.<!-- The latest version of this documentation can be found online at
+			<ulink role="online-location" url="http://[SERVER]/libwalbottle/index.html">http://[SERVER]/libwalbottle/</ulink>.-->
+		</releaseinfo>
+	</bookinfo>
+
+	<part>
+		<title>libwalbottle Overview</title>
+		<chapter>
+			<title>Object Hierarchy</title>
+			<xi:include href="xml/tree_index.sgml"/>
+		</chapter>
+	</part>
+
+	<part>
+		<title>Core API</title>
+		<chapter>
+			<title>Core API</title>
+			<xi:include href="xml/wbl-version.xml"/>
+			<xi:include href="xml/wbl-schema.xml"/>
+		</chapter>
+	</part>
+
+	<part>
+		<title>Appendices</title>
+		<index id="api-index-full">
+			<title>API Index</title>
+			<xi:include href="xml/api-index-full.xml"><xi:fallback/></xi:include>
+		</index>
+		<index id="api-index-deprecated">
+			<title>Index of deprecated symbols</title>
+			<xi:include href="xml/api-index-deprecated.xml"><xi:fallback/></xi:include>
+		</index>
+		<!--<index role="0.1.0">
+			<title>Index of new symbols in 0.1.0</title>
+			<xi:include href="xml/api-index-0.1.0.xml"><xi:fallback/></xi:include>
+		</index>-->
+		<xi:include href="xml/annotation-glossary.xml"><xi:fallback /></xi:include>
+	</part>
+</book>

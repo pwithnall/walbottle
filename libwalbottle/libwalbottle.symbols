@@ -1,0 +1,12 @@
+wbl_schema_error_quark
+wbl_schema_node_get_type
+wbl_schema_node_ref
+wbl_schema_node_unref
+wbl_schema_get_type
+wbl_schema_new
+wbl_schema_load_from_data
+wbl_schema_load_from_file
+wbl_schema_load_from_stream
+wbl_schema_load_from_stream_async
+wbl_schema_load_from_stream_finish
+wbl_schema_get_root_schema

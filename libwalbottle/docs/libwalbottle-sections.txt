@@ -1,0 +1,39 @@
+<SECTION>
+<FILE>wbl-version</FILE>
+<TITLE>Version Information</TITLE>
+WBL_MAJOR_VERSION
+WBL_MINOR_VERSION
+WBL_MICRO_VERSION
+WBL_CHECK_VERSION
+</SECTION>
+
+<SECTION>
+<FILE>wbl-schema</FILE>
+<TITLE>WblSchema</TITLE>
+WblSchema
+WblSchemaClass
+WblSchemaError
+wbl_schema_new
+wbl_schema_load_from_data
+wbl_schema_load_from_file
+wbl_schema_load_from_stream
+wbl_schema_load_from_stream_async
+wbl_schema_load_from_stream_finish
+wbl_schema_get_root_schema
+WblSchemaNode
+wbl_schema_node_ref
+wbl_schema_node_unref
+<SUBSECTION Standard>
+WBL_SCHEMA
+WBL_IS_SCHEMA
+WBL_TYPE_SCHEMA
+wbl_schema_get_type
+WBL_SCHEMA_GET_CLASS
+WBL_SCHEMA_CLASS
+WBL_IS_SCHEMA_CLASS
+wbl_schema_error_quark
+WBL_SCHEMA_ERROR
+wbl_schema_node_get_type
+<SUBSECTION Private>
+WblSchemaPrivate
+</SECTION>

@@ -1,0 +1,46 @@
+Walbottle
+=========
+
+Walbottle is a project for generating JSON unit test vectors from JSON Schemas.
+It provides a library, libwalbottle, which implements JSON Schema parsing and
+test vector generation.
+
+See the test programs in libwalbottle/tests/ for simple examples of how to use
+the code.
+
+libwalbottle’s API is currently unstable and is likely to change wildly.
+
+Using Walbottle
+===============
+
+TODO
+
+Dependencies
+============
+
+ • glib-2.0 ≥ 2.31.0
+ • gio-2.0 ≥ 2.17.3
+ • json-glib
+
+Deprecation guards
+==================
+
+If LIBWALBOTTLE_DISABLE_DEPRECATED is defined when compiling against
+libwalbottle, all deprecated API will be removed from included headers.
+
+Licensing
+=========
+
+libwalbottle is licensed under the LGPL; see COPYING.LIB for more details.
+
+Bugs
+====
+
+Bug reports and (git formatted) patches should be e-mailed to one of the
+addresses listed in the ‘Contact’ section below. Thank you!
+
+Contact
+=======
+
+Philip Withnall <philip@tecnocode.co.uk>
+http://gitorious.org/walbottle/pages/Home

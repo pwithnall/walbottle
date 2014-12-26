@@ -1,0 +1,81 @@
+/* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
+/*
+ * Walbottle
+ * Copyright (C) Holger Berndt 2011 <hb@gnome.org>
+ * Copyright (C) Philip Withnall 2014 <philip@tecnocode.co.uk>
+ *
+ * Walbottle is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * Walbottle is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with Walbottle.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef WBL_VERSION_H
+#define WBL_VERSION_H
+
+/**
+ * SECTION:wbl-version
+ * @Short_description: Macros to check the libwalbottle version
+ * @Title: Version Information
+ *
+ * Walbottle provides compile-time version information.
+ *
+ * Since: UNRELEASED
+ */
+
+/**
+ * WBL_MAJOR_VERSION:
+ *
+ * Evaluates to the major version of the libwalbottle headers at compile time.
+ * (e.g. in libwalbottle version 1.2.3 this is 1).
+ *
+ * Since: UNRELEASED
+ */
+#define WBL_MAJOR_VERSION (@WBL_VERSION_MAJOR@)
+
+/**
+ * WBL_MINOR_VERSION:
+ *
+ * Evaluates to the minor version of the libwalbottle headers at compile time.
+ * (e.g. in libwalbottle version 1.2.3 this is 2).
+ *
+ * Since: UNRELEASED
+ */
+#define WBL_MINOR_VERSION (@WBL_VERSION_MINOR@)
+
+/**
+ * WBL_MICRO_VERSION:
+ *
+ * Evaluates to the micro version of the libwalbottle headers at compile time.
+ * (e.g. in libwalbottle version 1.2.3 this is 3).
+ *
+ * Since: UNRELEASED
+ */
+#define WBL_MICRO_VERSION (@WBL_VERSION_MICRO@)
+
+/**
+ * WBL_CHECK_VERSION:
+ * @major: major version (e.g. 1 for version 1.2.3)
+ * @minor: minor version (e.g. 2 for version 1.2.3)
+ * @micro: micro version (e.g. 3 for version 1.2.3)
+ *
+ * Evaluates to %TRUE if the version of the libwalbottle header files
+ * is the same as or newer than the passed-in version.
+ *
+ * Since: UNRELEASED
+ */
+#define WBL_CHECK_VERSION(major,minor,micro) \
+    (WBL_MAJOR_VERSION > (major) || \
+     (WBL_MAJOR_VERSION == (major) && WBL_MINOR_VERSION > (minor)) || \
+     (WBL_MAJOR_VERSION == (major) && WBL_MINOR_VERSION == (minor) && \
+      WBL_MICRO_VERSION >= (micro)))
+
+#endif /* !WBL_VERSION_H */
