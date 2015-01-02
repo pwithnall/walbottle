@@ -29,14 +29,15 @@ G_BEGIN_DECLS
 
 /**
  * WblSchemaError:
- * @WBL_SCHEMA_ERROR_MESSAGE_MISMATCH: In comparison mode, a message received from the client did not match the next message in the current trace file.
+ * @WBL_SCHEMA_ERROR_MALFORMED: Loaded JSON Schema does not conform to the JSON
+ *   Schema standard.
  *
  * Error codes for #WblSchema operations.
  *
  * Since: UNRELEASED
  */
 typedef enum {
-	WBL_SCHEMA_ERROR_MESSAGE_MISMATCH = 1,
+	WBL_SCHEMA_ERROR_MALFORMED = 1,
 } WblSchemaError;
 
 #define WBL_SCHEMA_ERROR		wbl_schema_error_quark ()

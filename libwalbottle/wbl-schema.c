@@ -170,7 +170,10 @@ validate_multiple_of (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) <= 0) {
-		/* TODO: invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("multipleOf must be a positive integer. "
+		               "See json-schema-validation§5.1.1."));
 	}
 }
 
@@ -197,7 +200,10 @@ validate_maximum (WblSchema *self,
                   GError **error)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64)) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("maximum must be an integer. "
+		               "See json-schema-validation§5.1.2."));
 	}
 }
 
@@ -208,11 +214,17 @@ validate_exclusive_maximum (WblSchema *self,
                             GError **error)
 {
 	if (!validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("exclusiveMaximum must be a boolean. "
+		               "See json-schema-validation§5.1.2."));
 	}
 
 	if (!json_object_has_member (root, "maximum")) {
-		/* TODO: invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("maximum must be present if exclusiveMaximum is "
+		               "present. See json-schema-validation§5.1.2."));
 	}
 }
 
@@ -257,7 +269,10 @@ validate_minimum (WblSchema *self,
                   GError **error)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64)) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("minimum must be an integer. "
+		               "See json-schema-validation§5.1.3."));
 	}
 }
 
@@ -268,11 +283,17 @@ validate_exclusive_minimum (WblSchema *self,
                             GError **error)
 {
 	if (!validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("exclusiveMinimum must be a boolean. "
+		               "See json-schema-validation§5.1.3."));
 	}
 
 	if (!json_object_has_member (root, "minimum")) {
-		/* TODO: invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("minimum must be present if exclusiveMinimum is "
+		               "present. See json-schema-validation§5.1.3."));
 	}
 }
 
@@ -318,7 +339,10 @@ validate_max_length (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("maxLength must be a non-negative integer. "
+		               "See json-schema-validation§5.2.1."));
 	}
 }
 
@@ -348,7 +372,10 @@ validate_min_length (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("minLength must be a non-negative integer. "
+		               "See json-schema-validation§5.2.2."));
 	}
 }
 
@@ -378,7 +405,10 @@ validate_pattern (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_STRING) ||
 	    !validate_regex (json_node_get_string (schema_node))) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("pattern must be a valid regular expression. "
+		               "See json-schema-validation§5.2.3."));
 	}
 }
 
@@ -454,7 +484,10 @@ validate_max_items (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("maxItems must be a non-negative integer. "
+		               "See json-schema-validation§5.3.2."));
 	}
 }
 
@@ -477,7 +510,10 @@ validate_min_items (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("minItems must be a non-negative integer. "
+		               "See json-schema-validation§5.3.3."));
 	}
 }
 
@@ -499,7 +535,10 @@ validate_unique_items (WblSchema *self,
                        GError **error)
 {
 	if (!validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("uniqueItems must be a boolean. "
+		               "See json-schema-validation§5.3.3."));
 	}
 }
 
@@ -522,7 +561,10 @@ validate_max_properties (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("maxProperties must be a non-negative integer. "
+		               "See json-schema-validation§5.4.1."));
 	}
 }
 
@@ -545,7 +587,10 @@ validate_min_properties (WblSchema *self,
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		/* TODO: Invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("minProperties must be a non-negative integer. "
+		               "See json-schema-validation§5.4.2."));
 	}
 }
 
@@ -787,11 +832,14 @@ finish_loading (WblSchema *self, GError **error)
 	klass = WBL_SCHEMA_GET_CLASS (self);
 	priv = wbl_schema_get_instance_private (self);
 
-	/* Construct the wrapper node. */
+	/* A schema must be a JSON object. json-schema-core§3.2. */
 	root = json_parser_get_root (priv->parser);
 
 	if (root == NULL || !JSON_NODE_HOLDS_OBJECT (root)) {
-		/* TODO: set error */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("Root node of schema is not an object. "
+		               "See json-schema-core§3.2."));
 		return;
 	}
 
