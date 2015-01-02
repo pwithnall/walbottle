@@ -23,8 +23,9 @@ LIBS = \
 
 @VALGRIND_CHECK_RULES@
 
-noinst_PROGRAMS = $(TEST_PROGS)
-
-#TEST_PROGS += schema
+TESTS = \
+	schema \
+	$(NULL)
+noinst_PROGRAMS = $(TESTS)
 
 -include $(top_srcdir)/git.mk
