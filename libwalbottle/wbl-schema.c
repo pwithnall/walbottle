@@ -895,7 +895,7 @@ load_from_stream_cb (GObject *source_object,
 	WblSchema *self;
 	WblSchemaPrivate *priv;
 	GTask *task = NULL;  /* owned */
-	GError *error = NULL;
+	GError *child_error = NULL;
 
 	self = WBL_SCHEMA (source_object);
 	priv = wbl_schema_get_instance_private (self);
@@ -905,18 +905,19 @@ load_from_stream_cb (GObject *source_object,
 	start_loading (self);
 
 	/* Finish loading from the stream. */
-	json_parser_load_from_stream_finish (priv->parser, result, &error);
+	json_parser_load_from_stream_finish (priv->parser,
+	                                     result, &child_error);
 
-	if (error != NULL) {
+	if (child_error != NULL) {
 		goto done;
 	}
 
 	/* Finish loading and validate. */
-	finish_loading (self, &error);
+	finish_loading (self, &child_error);
 
 done:
-	if (error != NULL) {
-		g_task_return_error (task, error);
+	if (child_error != NULL) {
+		g_task_return_error (task, child_error);
 	} else {
 		g_task_return_boolean (task, TRUE);
 	}
