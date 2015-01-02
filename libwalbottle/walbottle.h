@@ -21,7 +21,7 @@
 #define WBL_H
 
 /* Core files */
-#include <walbottle/wbl-server.h>
+#include <walbottle/wbl-schema.h>
 #include <walbottle/wbl-version.h>
 
 #endif /* !WBL_H */
