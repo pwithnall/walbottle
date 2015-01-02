@@ -704,25 +704,18 @@ real_validate_schema (WblSchema *self,
                       WblSchemaNode *schema,
                       GError **error)
 {
-	WblSchemaNode *root;  /* unowned */
 	guint i;
-
-	/* A schema must be a JSON object. json-schema-core§3.2. */
-	root = wbl_schema_get_root_schema (self);
-	if (root == NULL) {
-		/* TODO: error */
-	}
 
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
 		const KeywordData *keyword = &json_schema_keywords[i];
 		JsonNode *schema_node;  /* unowned */
 		GError *child_error = NULL;
 
-		schema_node = json_object_get_member (root->node,
+		schema_node = json_object_get_member (schema->node,
 		                                      keyword->name);
 
 		if (schema_node != NULL && keyword->validate != NULL) {
-			keyword->validate (self, root->node,
+			keyword->validate (self, schema->node,
 			                   schema_node, &child_error);
 
 			if (child_error != NULL) {
