@@ -12,7 +12,7 @@ AUTOMAKE_OPTIONS = 1.6
 DOC_MODULE=libwalbottle
 DOC_MODULE_VERSION=$(WBL_API_VERSION)
 
-# The top-level SGML file. You can change this if you want to.
+# The top-level XML file. You can change this if you want to.
 DOC_MAIN_SGML_FILE=$(DOC_MODULE)-docs.xml
 
 # The directory containing the source code. Relative to $(srcdir).
@@ -30,7 +30,7 @@ SCAN_OPTIONS=--rebuild-types --deprecated-guards="LIBWALBOTTLE_DISABLE_DEPRECATE
 
 # Extra options to supply to gtkdoc-mkdb.
 # e.g. MKDB_OPTIONS=--sgml-mode --output-format=xml
-MKDB_OPTIONS=--sgml-mode --output-format=xml --name-space=Wbl
+MKDB_OPTIONS=--xml-mode --output-format=xml --name-space=Wbl
 
 # Extra options to supply to gtkdoc-fixref. Not normally needed.
 # e.g. FIXXREF_OPTIONS=--extra-dir=../gdk-pixbuf/html --extra-dir=../gdk/html
