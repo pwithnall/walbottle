@@ -936,7 +936,7 @@ wbl_schema_load_from_stream_finish (WblSchema *self,
 }
 
 /**
- * wbl_schema_get_root_schema:
+ * wbl_schema_get_root:
  * @self: a #WblSchema
  *
  * Get the root schema from the parsed schema document. If no document has been
@@ -951,7 +951,7 @@ wbl_schema_load_from_stream_finish (WblSchema *self,
  * Since: UNRELEASED
  */
 WblSchemaNode *
-wbl_schema_get_root_schema (WblSchema *self)
+wbl_schema_get_root (WblSchema *self)
 {
 	WblSchemaPrivate *priv;
 

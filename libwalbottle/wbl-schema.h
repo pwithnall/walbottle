@@ -133,7 +133,7 @@ void wbl_schema_load_from_stream_finish (WblSchema *self,
                                          GError **error);
 
 WblSchemaNode *
-wbl_schema_get_root_schema (WblSchema *self);
+wbl_schema_get_root (WblSchema *self);
 
 G_END_DECLS
 
