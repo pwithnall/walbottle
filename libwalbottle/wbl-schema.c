@@ -436,20 +436,6 @@ apply_pattern (WblSchema *self,
 	/* TODO */
 }
 
-static gboolean
-validate_schema (JsonObject *obj)
-{
-	/* TODO */
-	return TRUE;
-}
-
-static gboolean
-validate_schema_array (JsonArray *arr)
-{
-	/* TODO */
-	return TRUE;
-}
-
 /* additionalItems and items. json-schema-validation§5.3.1. */
 static void
 validate_additional_items (WblSchema *self,
@@ -457,12 +443,52 @@ validate_additional_items (WblSchema *self,
                            JsonNode *schema_node,
                            GError **error)
 {
-	if ((!JSON_NODE_HOLDS_VALUE (schema_node) ||
-	     json_node_get_value_type (schema_node) != G_TYPE_BOOLEAN) &&
-	    (!JSON_NODE_HOLDS_OBJECT (schema_node) ||
-	     !validate_schema (json_node_get_object (schema_node)))) {
-		/* TODO: Invalid */
+	if (JSON_NODE_HOLDS_VALUE (schema_node) &&
+	    json_node_get_value_type (schema_node) == G_TYPE_BOOLEAN) {
+		/* Valid. */
+		return;
 	}
+
+	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		WblSchemaClass *klass;
+		GError *child_error = NULL;
+
+		klass = WBL_SCHEMA_GET_CLASS (self);
+
+		/* Validate the schema. */
+		if (klass->validate_schema != NULL) {
+			WblSchemaNode node;
+
+			node.ref_count = 1;
+			node.node = json_node_dup_object (schema_node);
+
+			klass->validate_schema (self, &node, &child_error);
+
+			json_object_unref (node.node);
+		}
+
+		if (child_error == NULL) {
+			/* Valid. */
+			return;
+		}
+
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             /* Translators: The parameter is another error
+		              * message. */
+		             _("additionalItems must be a boolean or a valid "
+		               "JSON Schema. See json-schema-validation§5.3.1: "
+		               "%s"), child_error->message);
+		g_error_free (child_error);
+
+		return;
+	}
+
+	/* Invalid type. */
+	g_set_error (error,
+	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+	             _("additionalItems must be a boolean or a valid JSON "
+	               "Schema. See json-schema-validation§5.3.1."));
 }
 
 static void
@@ -471,12 +497,111 @@ validate_items (WblSchema *self,
                 JsonNode *schema_node,
                 GError **error)
 {
-	if ((!JSON_NODE_HOLDS_OBJECT (schema_node) ||
-	     !validate_schema (json_node_get_object (schema_node))) &&
-	    (!JSON_NODE_HOLDS_ARRAY (schema_node) ||
-	     !validate_schema_array (json_node_get_array (schema_node)))) {
-		/* TODO: invalid */
+	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		WblSchemaClass *klass;
+		GError *child_error = NULL;
+
+		klass = WBL_SCHEMA_GET_CLASS (self);
+
+		/* Validate the schema. */
+		if (klass->validate_schema != NULL) {
+			WblSchemaNode node;
+
+			node.ref_count = 1;
+			node.node = json_node_dup_object (schema_node);
+
+			klass->validate_schema (self, &node, &child_error);
+
+			json_object_unref (node.node);
+		}
+
+		if (child_error == NULL) {
+			/* Valid. */
+			return;
+		}
+
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             /* Translators: The parameter is another error
+		              * message. */
+		             _("items must be a valid JSON Schema or an array "
+		               "of valid JSON Schemas. See "
+		               "json-schema-validation§5.3.1: %s"),
+		             child_error->message);
+		g_error_free (child_error);
+
+		return;
 	}
+
+	if (JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		WblSchemaClass *klass;
+		JsonArray *array;
+		guint i;
+
+		klass = WBL_SCHEMA_GET_CLASS (self);
+
+		array = json_node_get_array (schema_node);
+
+		for (i = 0; i < json_array_get_length (array); i++) {
+			GError *child_error = NULL;
+			JsonNode *array_node;
+
+			/* Get the node. */
+			array_node = json_array_get_element (array, i);
+
+			if (!JSON_NODE_HOLDS_OBJECT (array_node)) {
+				g_set_error (error,
+				             WBL_SCHEMA_ERROR,
+				             WBL_SCHEMA_ERROR_MALFORMED,
+				             _("items must be a valid JSON "
+				               "Schema or an array of valid "
+				               "JSON Schemas. See "
+				               "json-schema-validation§5.3.1."));
+
+				return;
+			}
+
+			/* Validate the schema. */
+			if (klass->validate_schema != NULL) {
+				WblSchemaNode node;
+
+				node.ref_count = 1;
+				node.node = json_node_dup_object (array_node);
+
+				klass->validate_schema (self, &node,
+				                        &child_error);
+
+				json_object_unref (node.node);
+			}
+
+			if (child_error == NULL) {
+				/* Valid. */
+				continue;
+			}
+
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             /* Translators: The parameter is another
+			              * error message. */
+			             _("items must be a valid JSON Schema or "
+			               "an array of valid JSON Schemas. See "
+			               "json-schema-validation§5.3.1: %s"),
+			             child_error->message);
+			g_error_free (child_error);
+
+			return;
+		}
+
+		/* Valid. */
+		return;
+	}
+
+	/* Invalid type. */
+	g_set_error (error,
+	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+	             _("items must be a valid JSON Schema or an array of valid "
+	               "JSON Schemas. See json-schema-validation§5.3.1."));
 }
 
 static void
