@@ -40,6 +40,12 @@
 
 #include "wbl-schema.h"
 
+/* Internal definition of a #WblSchemaNode. */
+struct _WblSchemaNode {
+	gint ref_count;  /* atomic */
+	JsonObject *node;  /* owned */
+};
+
 GQuark
 wbl_schema_error_quark (void)
 {

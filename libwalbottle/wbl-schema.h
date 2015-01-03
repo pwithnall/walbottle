@@ -23,7 +23,6 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <gio/gio.h>
-#include <json-glib/json-glib.h>  /* TODO: eliminate JSON public dep */
 
 G_BEGIN_DECLS
 
@@ -46,17 +45,15 @@ GQuark wbl_schema_error_quark (void) G_GNUC_CONST;
 
 /**
  * WblSchemaNode:
- * @ref_count: reference count, must be accessed atomically
- * @node: JSON node at the root of the schema
  *
  * A reference counted structure which represents a single schema or subschema.
  *
+ * All the fields in the #WblSchemaNode structure are private and should never
+ * be accessed directly.
+ *
  * Since: UNRELEASED
  */
-typedef struct {
-	gint ref_count;  /* atomic */
-	JsonObject *node;  /* owned */
-} WblSchemaNode;
+typedef struct _WblSchemaNode WblSchemaNode;
 
 GType wbl_schema_node_get_type (void) G_GNUC_CONST;
 
