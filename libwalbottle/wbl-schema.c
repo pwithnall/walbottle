@@ -96,11 +96,18 @@ wbl_schema_node_unref (WblSchemaNode *self)
 	}
 }
 
-static void wbl_schema_dispose (GObject *object);
+static void
+wbl_schema_dispose (GObject *object);
 
-static void real_validate_schema (WblSchema *self,
-                                  WblSchemaNode *schema,
-                                  GError **error);
+static void
+real_validate_schema (WblSchema *self,
+                      WblSchemaNode *schema,
+                      GError **error);
+static void
+real_apply_schema (WblSchema *self,
+                   WblSchemaNode *schema,
+                   JsonNode *instance,
+                   GError **error);
 
 struct _WblSchemaPrivate {
 	JsonParser *parser;  /* owned */
@@ -117,6 +124,7 @@ wbl_schema_class_init (WblSchemaClass *klass)
 	gobject_class->dispose = wbl_schema_dispose;
 
 	klass->validate_schema = real_validate_schema;
+	klass->apply_schema = real_apply_schema;
 }
 
 static void
@@ -478,7 +486,60 @@ apply_items (WblSchema *self,
              JsonNode *instance_node,
              GError **error)
 {
-	/* TODO */
+	JsonNode *node;  /* unowned */
+	gboolean additional_items_is_boolean;
+	gboolean additional_items_boolean;
+
+	/* Check the instance type. */
+	if (!JSON_NODE_HOLDS_ARRAY (instance_node)) {
+		return;
+	}
+
+	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		/* Validation always succeeds if items is an object. */
+		return;
+	}
+
+	node = json_object_get_member (root, "additionalItems");
+	additional_items_is_boolean = (node != NULL &&
+	                               JSON_NODE_HOLDS_VALUE (node) &&
+	                               json_node_get_value_type (node) ==
+	                               G_TYPE_BOOLEAN);
+	additional_items_boolean = additional_items_is_boolean ?
+	                           json_node_get_boolean (node) : FALSE;
+
+	if (node == NULL ||
+	    JSON_NODE_HOLDS_OBJECT (node) ||
+	    (additional_items_is_boolean && additional_items_boolean)) {
+		/* Validation always succeeds if additionalItems is a boolean
+		 * true or an object (or not present; as the default value is
+		 * an empty schema, which is an object). */
+		return;
+	}
+
+	if (additional_items_is_boolean && !additional_items_boolean &&
+	    JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		JsonArray *instance_array, *schema_array;  /* unowned */
+		guint instance_size, schema_size;
+
+		/* Validation succeeds if the instance size is less than or
+		 * equal to the size of items. */
+		instance_array = json_node_get_array (instance_node);
+		schema_array = json_node_get_array (schema_node);
+
+		instance_size = json_array_get_length (instance_array);
+		schema_size = json_array_get_length (schema_array);
+
+		if (instance_size > schema_size) {
+			/* Invalid. */
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+			             _("Array elements do not conform to items "
+			               "and additionalItems schema keywords. "
+			               "See json-schema-validation§5.3.1."));
+			return;
+		}
+	}
 }
 
 /* maxItems. json-schema-validation§5.3.2. */
@@ -723,6 +784,34 @@ real_validate_schema (WblSchema *self,
 		if (schema_node != NULL && keyword->validate != NULL) {
 			keyword->validate (self, schema->node,
 			                   schema_node, &child_error);
+
+			if (child_error != NULL) {
+				g_propagate_error (error, child_error);
+				return;
+			}
+		}
+	}
+}
+
+static void
+real_apply_schema (WblSchema *self,
+                   WblSchemaNode *schema,
+                   JsonNode *instance,
+                   GError **error)
+{
+	guint i;
+
+	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
+		const KeywordData *keyword = &json_schema_keywords[i];
+		JsonNode *schema_node;  /* unowned */
+		GError *child_error = NULL;
+
+		schema_node = json_object_get_member (schema->node,
+		                                      keyword->name);
+
+		if (schema_node != NULL && keyword->apply != NULL) {
+			keyword->apply (self, schema->node,
+			                schema_node, instance, &child_error);
 
 			if (child_error != NULL) {
 				g_propagate_error (error, child_error);
@@ -1008,4 +1097,37 @@ wbl_schema_get_root (WblSchema *self)
 	priv = wbl_schema_get_instance_private (self);
 
 	return priv->schema;
+}
+
+/**
+ * wbl_schema_apply:
+ * @self: a #WblSchema
+ * @instance: the JSON instance to validate against the schema
+ * @error: return location for a #GError, or %NULL
+ *
+ * Apply a JSON Schema to a JSON instance, validating whether the instance
+ * conforms to the schema. The instance may be any kind of JSON node, and does
+ * not necessarily have to be a JSON object.
+ *
+ * Since: UNRELEASED
+ */
+void
+wbl_schema_apply (WblSchema *self,
+                  JsonNode *instance,
+                  GError **error)
+{
+	WblSchemaClass *klass;
+	WblSchemaPrivate *priv;
+
+	g_return_if_fail (WBL_IS_SCHEMA (self));
+	g_return_if_fail (instance != NULL);
+	g_return_if_fail (error == NULL || *error == NULL);
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+	priv = wbl_schema_get_instance_private (self);
+
+	/* Apply the schema to the instance. */
+	if (klass->apply_schema != NULL) {
+		klass->apply_schema (self, priv->schema, instance, error);
+	}
 }

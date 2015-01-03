@@ -23,6 +23,7 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <gio/gio.h>
+#include <json-glib/json-glib.h>
 
 G_BEGIN_DECLS
 
@@ -30,6 +31,8 @@ G_BEGIN_DECLS
  * WblSchemaError:
  * @WBL_SCHEMA_ERROR_MALFORMED: Loaded JSON Schema does not conform to the JSON
  *   Schema standard.
+ * @WBL_SCHEMA_ERROR_INVALID: Instance does not conform to the given
+ *   JSON Schema.
  *
  * Error codes for #WblSchema operations.
  *
@@ -37,6 +40,7 @@ G_BEGIN_DECLS
  */
 typedef enum {
 	WBL_SCHEMA_ERROR_MALFORMED = 1,
+	WBL_SCHEMA_ERROR_INVALID,
 } WblSchemaError;
 
 #define WBL_SCHEMA_ERROR		wbl_schema_error_quark ()
@@ -88,6 +92,10 @@ typedef struct {
  * schema. The default implementation checks against JSON Schema, but overriding
  * implementations could check extension properties. If %NULL, no validation
  * will be performed.
+ * @apply_schema: Apply a parsed schema to a JSON instance, validating the
+ *   instance against the schema. The default implementation applies standard
+ *   JSON Schema rules, but overriding implementations could implement extension
+ *   properties. If %NULL, no application will be performed.
  *
  * Most of the fields in the #WblSchemaClass structure are private and should
  * never be accessed directly.
@@ -102,6 +110,10 @@ typedef struct {
 	void (*validate_schema) (WblSchema *self,
 	                         WblSchemaNode *root,
 	                         GError **error);
+	void (*apply_schema) (WblSchema *self,
+	                      WblSchemaNode *root,
+	                      JsonNode *instance,
+	                      GError **error);
 } WblSchemaClass;
 
 GType wbl_schema_get_type (void) G_GNUC_CONST;
@@ -132,6 +144,11 @@ void wbl_schema_load_from_stream_finish (WblSchema *self,
 
 WblSchemaNode *
 wbl_schema_get_root (WblSchema *self);
+
+void
+wbl_schema_apply (WblSchema *self,
+                  JsonNode *instance,
+                  GError **error);
 
 G_END_DECLS
 

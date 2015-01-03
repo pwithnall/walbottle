@@ -70,6 +70,64 @@ test_schema_parsing (void)
 	g_object_unref (schema);
 }
 
+/* Test applying a schema to an instance using items and additionalItems.
+ * Taken from json-schema-validation§5.3.1.3. */
+static void
+test_schema_application (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	JsonParser *parser = NULL;  /* owned */
+	guint i;
+	GError *error = NULL;
+
+	const gchar *valid_cases[] = {
+		"[]",
+		"[ [ 1, 2, 3, 4 ], [ 5, 6, 7, 8 ] ]",
+		"[ 1, 2, 3 ]",
+	};
+
+	const gchar *invalid_cases[] = {
+		"[ 1, 2, 3, 4 ]",
+		"[ null, { \"a\": \"b\" }, true, 31.000002020013 ]",
+	};
+
+	schema = wbl_schema_new ();
+	parser = json_parser_new ();
+
+	wbl_schema_load_from_data (schema,
+		"{"
+			"\"items\": [ {}, {}, {} ],"
+			"\"additionalItems\": false"
+		"}", -1, &error);
+	g_assert_no_error (error);
+
+	/* Valid cases. */
+	for (i = 0; i < G_N_ELEMENTS (valid_cases); i++) {
+		json_parser_load_from_data (parser, valid_cases[i], -1, &error);
+		g_assert_no_error (error);
+
+		wbl_schema_apply (schema,
+		                  json_parser_get_root (parser), &error);
+		g_assert_no_error (error);
+	}
+
+	/* Invalid cases. */
+	for (i = 0; i < G_N_ELEMENTS (invalid_cases); i++) {
+		json_parser_load_from_data (parser,
+		                            invalid_cases[i], -1, &error);
+		g_assert_no_error (error);
+
+		wbl_schema_apply (schema,
+		                  json_parser_get_root (parser), &error);
+		g_assert_error (error,
+		                WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID);
+		g_clear_error (&error);
+	}
+
+	g_object_unref (parser);
+	g_object_unref (schema);
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -85,6 +143,7 @@ main (int argc, char *argv[])
 	/* Schema tests. */
 	g_test_add_func ("/schema/construction", test_schema_construction);
 	g_test_add_func ("/schema/parsing", test_schema_parsing);
+	g_test_add_func ("/schema/application", test_schema_application);
 
 	return g_test_run ();
 }

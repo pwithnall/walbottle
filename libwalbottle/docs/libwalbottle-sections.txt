@@ -20,6 +20,7 @@ wbl_schema_load_from_stream
 wbl_schema_load_from_stream_async
 wbl_schema_load_from_stream_finish
 wbl_schema_get_root
+wbl_schema_apply
 WblSchemaNode
 wbl_schema_node_ref
 wbl_schema_node_unref
