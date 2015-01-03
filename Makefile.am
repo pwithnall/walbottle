@@ -105,7 +105,7 @@ EXTRA_DIST += m4/introspection.m4
 
 if HAVE_INTROSPECTION
 libwalbottle/Walbottle-@WBL_API_VERSION@.gir: libwalbottle/libwalbottle-@WBL_API_VERSION@.la
-libwalbottle_Walbottle_@WBL_API_VERSION@_gir_INCLUDES = GObject-2.0 Json-1.0
+libwalbottle_Walbottle_@WBL_API_VERSION@_gir_INCLUDES = GObject-2.0 Gio-2.0 Json-1.0
 libwalbottle_Walbottle_@WBL_API_VERSION@_gir_CFLAGS = \
 	$(GLIB_CFLAGS) \
 	$(JSON_GLIB_CFLAGS) \
