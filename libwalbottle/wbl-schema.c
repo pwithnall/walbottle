@@ -40,19 +40,17 @@
 
 #include "wbl-schema.h"
 
-/* Internal definition of a #WblSchemaNode. */
-struct _WblSchemaNode {
-	gint ref_count;  /* atomic */
-	JsonObject *node;  /* owned */
-};
-
 GQuark
 wbl_schema_error_quark (void)
 {
 	return g_quark_from_static_string ("wbl-schema-error-quark");
 }
 
-G_DEFINE_BOXED_TYPE (WblSchemaNode, wbl_schema_node, 
+/* Internal definition of a #WblSchemaNode. */
+struct _WblSchemaNode {
+	gint ref_count;  /* atomic */
+	JsonObject *node;  /* owned */
+};
 
 G_DEFINE_BOXED_TYPE (WblSchemaNode, wbl_schema_node,
                      wbl_schema_node_ref, wbl_schema_node_unref);
