@@ -401,7 +401,13 @@ apply_multiple_of (WblSchema *self,
 	    json_node_get_value_type (instance_node) == G_TYPE_INT64 &&
 	    (json_node_get_int (instance_node) %
 	     json_node_get_int (schema_node)) != 0) {
-		/* TODO: error */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Value must be a multiple of %" G_GINT64_FORMAT
+		               " due to the multipleOf schema keyword. "
+		               "See json-schema-validation§5.1.1."),
+		             json_node_get_int (schema_node));
+		return;
 	}
 }
 
@@ -490,9 +496,20 @@ apply_maximum (WblSchema *self,
 	}
 
 	/* Actually perform the validation. */
-	if ((!exclusive_maximum && instance > maximum) ||
-	    (exclusive_maximum && instance >= maximum)) {
-		/* TODO: invalid */
+	if (!exclusive_maximum && instance > maximum) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Value must be less than or equal to %"
+		               G_GINT64_FORMAT " due to the maximum schema "
+		               "keyword. See json-schema-validation§5.1.2."),
+		             maximum);
+	} else if (exclusive_maximum && instance >= maximum) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Value must be less than %" G_GINT64_FORMAT " "
+		               "due to the maximum and exclusiveMaximum schema "
+		               "keywords. See json-schema-validation§5.1.2."),
+		             maximum);
 	}
 }
 
@@ -590,9 +607,20 @@ apply_minimum (WblSchema *self,
 	}
 
 	/* Actually perform the validation. */
-	if ((!exclusive_minimum && instance < minimum) ||
-	    (exclusive_minimum && instance <= minimum)) {
-		/* TODO: invalid */
+	if (!exclusive_minimum && instance < minimum) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Value must be greater than or equal to %"
+		               G_GINT64_FORMAT " due to the minimum schema "
+		               "keyword. See json-schema-validation§5.1.3."),
+		             minimum);
+	} else if (exclusive_minimum && instance <= minimum) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Value must be greater than %" G_GINT64_FORMAT
+		               " due to the minimum and exclusiveMinimum schema"
+		               " keywords. See json-schema-validation§5.1.3."),
+		             minimum);
 	}
 }
 
@@ -656,7 +684,12 @@ apply_max_length (WblSchema *self,
 	    json_node_get_value_type (instance_node) == G_TYPE_STRING &&
 	    g_utf8_strlen (json_node_get_string (instance_node), -1) >
 	    json_node_get_int (schema_node)) {
-		/* TODO: invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Value must be at most %" G_GINT64_FORMAT " "
+		               "characters long due to the maxLength schema "
+		               "keyword. See json-schema-validation§5.2.1."),
+		             json_node_get_int (schema_node));
 	}
 }
 
@@ -718,7 +751,12 @@ apply_min_length (WblSchema *self,
 	    json_node_get_value_type (instance_node) == G_TYPE_STRING &&
 	    g_utf8_strlen (json_node_get_string (instance_node), -1) <
 	    json_node_get_int (schema_node)) {
-		/* TODO: invalid */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Value must be at least %" G_GINT64_FORMAT " "
+		               "characters long due to the maxLength schema "
+		               "keyword. See json-schema-validation§5.2.2."),
+		             json_node_get_int (schema_node));
 	}
 }
 
