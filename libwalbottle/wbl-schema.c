@@ -1397,7 +1397,8 @@ typedef void
                         JsonNode *schema_node,
                         GPtrArray *output);
 
-/* TODO: Docs */
+/* Structure holding information about a single JSON Schema keyword, as defined
+ * in json-schema-core§3.2. */
 typedef struct {
 	const gchar *name;
 	KeywordValidateFunc validate;  /* NULL if validation always succeeds */
@@ -1405,7 +1406,11 @@ typedef struct {
 	KeywordGenerateFunc generate;  /* NULL if generation produces nothing */
 } KeywordData;
 
-/* TODO: Docs */
+/* Information about all JSON Schema keywords defined in
+ *  - json-schema-core
+ *  - json-schema-validation
+ *  - json-schema-hypermedia
+ */
 static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§5.1.1 */
 	{ "multipleOf", validate_multiple_of, apply_multiple_of, generate_multiple_of },
@@ -1453,6 +1458,8 @@ static const KeywordData json_schema_keywords[] = {
 	 *  • description (json-schema-validation§6.1)
 	 *  • default (json-schema-validation§6.2)
 	 *  • format (json-schema-validation§7.1)
+	 *  • json-schema-core
+	 *  • json-schema-hypermedia
 	 */
 };
 
@@ -1549,7 +1556,14 @@ wbl_schema_new (void)
 
 /**
  * wbl_schema_load_from_data:
- * TODO
+ * @self: a #WblSchema
+ * @data: (array length=length): serialised JSON data to load
+ * @length: length of @data, or -1 if @data is nul-terminated
+ * @error: return location for a #GError, or %NULL
+ *
+ * Load and parse a JSON schema from the given serialised JSON @data.
+ *
+ * See wbl_schema_load_from_stream_async() for more details.
  *
  * Since: UNRELEASED
  */
@@ -1578,7 +1592,15 @@ wbl_schema_load_from_data (WblSchema *self,
 
 /**
  * wbl_schema_load_from_file:
- * TODO
+ * @self: a #WblSchema
+ * @filename: (type filename): path to a local JSON file to load
+ * @error: return location for a #GError, or %NULL
+ *
+ * Load and parse a JSON schema from the given local file containing serialised
+ * JSON data. To load a non-local file, or to use a URI, use
+ * wbl_schema_load_from_stream_async().
+ *
+ * See wbl_schema_load_from_stream_async() for more details.
  *
  * Since: UNRELEASED
  */
@@ -1655,7 +1677,16 @@ finish_loading (WblSchema *self, GError **error)
 
 /**
  * wbl_schema_load_from_stream:
- * TODO
+ * @self: a #WblSchema
+ * @stream: stream of serialised JSON data to load
+ * @cancellable: (nullable): a #GCancellable, or %NULL
+ * @error: return location for a #GError, or %NULL
+ *
+ * Load and parse a JSON schema from an input stream providing serialised JSON
+ * data. This is the synchronous version of wbl_schema_load_from_stream_async(),
+ * which is preferred for production code.
+ *
+ * See wbl_schema_load_from_stream_async() for more details.
  *
  * Since: UNRELEASED
  */
@@ -1733,7 +1764,29 @@ done:
 
 /**
  * wbl_schema_load_from_stream_async:
- * TODO
+ * @self: a #WblSchema
+ * @stream: stream of serialised JSON data to load
+ * @cancellable: (nullable): a #GCancellable, or %NULL
+ * @callback: (scope async) (nullable): callback to invoke when parsing is
+ *   complete, or %NULL
+ * @user_data: (closure callback): user data to pass to @callback
+ *
+ * Load and parse a JSON schema from an input stream providing serialised JSON
+ * data. The loading and parsing is done asynchronously and, once complete,
+ * @callback is invoked in the main context which was thread default at the time
+ * of calling this method.
+ *
+ * Call wbl_schema_load_from_stream_finish() from @callback to retrieve
+ * information about any parsing errors.
+ *
+ * If a schema is loaded successfully, it is guaranteed to be valid.
+ *
+ * Any previously loaded schemas will be unloaded when starting to load a new
+ * one, even if the new load operation fails (e.g. due to the new schema being
+ * invalid).
+ *
+ * This is the preferred method for loading a schema due to the potential
+ * blocking involved in the I/O.
  *
  * Since: UNRELEASED
  */
@@ -1763,7 +1816,12 @@ wbl_schema_load_from_stream_async (WblSchema *self,
 
 /**
  * wbl_schema_load_from_stream_finish:
- * TODO
+ * @self: a #WblSchema
+ * @result: result from the asynchronous operation
+ * @error: return location for a #GError, or %NULL
+ *
+ * Finish an asynchronous schema loading operation started with
+ * wbl_schema_load_from_stream_async().
  *
  * Since: UNRELEASED
  */
