@@ -1,7 +1,7 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
 /*
  * Walbottle
- * Copyright (C) Philip Withnall 2014 <philip@tecnocode.co.uk>
+ * Copyright (C) Philip Withnall 2014, 2015 <philip@tecnocode.co.uk>
  *
  * Walbottle is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -90,12 +90,16 @@ typedef struct {
  * WblSchemaClass:
  * @validate_schema: Walk over a parsed schema and validate that it is a valid
  * schema. The default implementation checks against JSON Schema, but overriding
- * implementations could check extension properties. If %NULL, no validation
+ * implementations could check extension keywords. If %NULL, no validation
  * will be performed.
  * @apply_schema: Apply a parsed schema to a JSON instance, validating the
  *   instance against the schema. The default implementation applies standard
- *   JSON Schema rules, but overriding implementations could implement extension
- *   properties. If %NULL, no application will be performed.
+ *   JSON Schema keywords, but overriding implementations could implement extension
+ *   keywords. If %NULL, no application will be performed.
+ * @generate_instances: Generate a set of JSON instances which are valid and
+ *   invalid for this JSON Schema. The default implementation generates for all
+ *   standard JSON Schema keywords, but overriding implementations could generate
+ *   for extension keywords. If %NULL, no instances will be generated.
  *
  * Most of the fields in the #WblSchemaClass structure are private and should
  * never be accessed directly.
@@ -114,6 +118,9 @@ typedef struct {
 	                      WblSchemaNode *root,
 	                      JsonNode *instance,
 	                      GError **error);
+	void (*generate_instances) (WblSchema *self,
+	                            WblSchemaNode *root,
+	                            GPtrArray *output);
 } WblSchemaClass;
 
 GType wbl_schema_get_type (void) G_GNUC_CONST;
@@ -149,6 +156,55 @@ void
 wbl_schema_apply (WblSchema *self,
                   JsonNode *instance,
                   GError **error);
+
+/**
+ * WblGenerateInstanceFlags:
+ * @WBL_GENERATE_INSTANCE_NONE: No flags set.
+ * @WBL_GENERATE_INSTANCE_IGNORE_VALID: Do not return valid instances.
+ * @WBL_GENERATE_INSTANCE_IGNORE_INVALID: Do not return invalid instances.
+ *
+ * Flags affecting the generation of JSON instances for schemas using
+ * wbl_schema_generate_instances().
+ *
+ * Since: UNRELEASED
+ */
+typedef enum {
+	WBL_GENERATE_INSTANCE_NONE = 0,
+	WBL_GENERATE_INSTANCE_IGNORE_VALID = (1 << 0),
+	WBL_GENERATE_INSTANCE_IGNORE_INVALID = (1 << 1),
+} WblGenerateInstanceFlags;
+
+/**
+ * WblGeneratedInstance:
+ *
+ * An allocated structure which represents a generated JSON instance which may
+ * be valid for a given JSON Schema. Associated metadata is stored with the
+ * instance, such as whether it is expected to be valid.
+ *
+ * All the fields in the #WblGeneratedInstance structure are private and should
+ * never be accessed directly.
+ *
+ * Since: UNRELEASED
+ */
+typedef struct _WblGeneratedInstance WblGeneratedInstance;
+
+GType
+wbl_generated_instance_get_type (void) G_GNUC_CONST;
+
+WblGeneratedInstance *
+wbl_generated_instance_new_from_string (const gchar *json,
+                                        gboolean valid);
+WblGeneratedInstance *
+wbl_generated_instance_copy (WblGeneratedInstance *self);
+void
+wbl_generated_instance_free (WblGeneratedInstance *self);
+
+const gchar *
+wbl_generated_instance_get_json (WblGeneratedInstance *self);
+
+GPtrArray *
+wbl_schema_generate_instances (WblSchema *self,
+                               WblGenerateInstanceFlags flags);
 
 G_END_DECLS
 
