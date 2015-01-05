@@ -162,7 +162,7 @@ test_schema_application (void)
 
 /* Test generating instances for a simple schema. */
 static void
-test_schema_instance_generation (void)
+test_schema_instance_generation_simple (void)
 {
 	WblSchema *schema = NULL;  /* owned */
 	GPtrArray/*<owned WblGeneratedInstace>*/ *instances = NULL;  /* owned */
@@ -217,6 +217,128 @@ test_schema_instance_generation (void)
 	g_object_unref (schema);
 }
 
+/* Test generating instances for the JSON Schema meta-schema.
+ * http://json-schema.org/schema */
+static void
+test_schema_instance_generation_schema (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstace>*/ *instances = NULL;  /* owned */
+	GError *error = NULL;
+
+	/* FIXME: This needs a lot of mollycoddling to get it doing the right
+	 * thing. */
+	const gchar *expected_instances[] = {
+		"{\"id\":''}",
+		"{\"id\":null}",
+		"{\"$schema\":''}",
+		"{\"$schema\":null}",
+		"{\"title\":''}",
+		"{\"title\":null}",
+		"{\"description\":''}",
+		"{\"description\":null}",
+		"{\"multipleOf\":-1}",
+		"{\"multipleOf\":0}",
+		"{\"multipleOf\":1}",
+		"{\"multipleOf\":0.1}",
+		"{\"multipleOf\":null}",
+		"{\"maximum\":0.1}",
+		"{\"maximum\":null}",
+		"{\"exclusiveMaximum\":true}",
+		"{\"exclusiveMaximum\":null}",
+		"{\"minimum\":0.1}",
+		"{\"minimum\":null}",
+		"{\"exclusiveMinimum\":true}",
+		"{\"exclusiveMinimum\":null}",
+		"{\"pattern\":''}",
+		"{\"pattern\":null}",
+		"{\"additionalItems\":null}",
+		"{\"uniqueItems\":true}",
+		"{\"uniqueItems\":null}",
+		"{\"additionalProperties\":null}",
+		"{\"definitions\":{}}",
+		"{\"definitions\":null}",
+		"{\"properties\":{}}",
+		"{\"properties\":null}",
+		"{\"patternProperties\":{}}",
+		"{\"patternProperties\":null}",
+		"{\"dependencies\":{}}",
+		"{\"dependencies\":null}",
+		"{\"enum\":[null]}",
+		"{\"enum\":[]}",
+		"{\"enum\":[null]}",
+		"{\"enum\":[null,null]}",
+		"{\"enum\":[]}",
+		"{\"enum\":null}",
+		"{\"type\":null}",
+		"{}",
+		"null",
+		NULL,  /* terminator */
+	};
+
+	schema = wbl_schema_new ();
+
+	wbl_schema_load_from_file (schema, "schema.json", &error);
+	g_assert_no_error (error);
+
+	instances = wbl_schema_generate_instances (schema,
+	                                           WBL_GENERATE_INSTANCE_NONE);
+	assert_generated_instances_match (instances, expected_instances);
+	g_ptr_array_unref (instances);
+
+	g_object_unref (schema);
+}
+
+/* Test generating instances for the JSON Hyper Schema meta-schema.
+ * http://json-schema.org/hyper-schema */
+static void
+test_schema_instance_generation_hyper_schema (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstace>*/ *instances = NULL;  /* owned */
+	GError *error = NULL;
+	guint i;
+
+	/* FIXME: This needs a lot of mollycoddling to get it doing the right
+	 * thing. */
+	const gchar *expected_instances[] = {
+		"{\"additionalItems\":null}",
+		"{\"additionalProperties\":null}",
+		"{\"links\":[]}",
+		"{\"links\":[null]}",
+		"{\"links\":[]}",
+		"{\"links\":null}",
+		"{\"fragmentResolution\":''}",
+		"{\"fragmentResolution\":null}",
+		"{\"media\":{\"type\":''}}",
+		"{\"media\":{\"type\":null}}",
+		"{\"media\":{\"binaryEncoding\":''}}",
+		"{\"media\":{\"binaryEncoding\":null}}",
+		"{\"media\":{}}",
+		"{\"media\":null}",
+		"{\"pathStart\":''}",
+		"{\"pathStart\":null}",
+		NULL,  /* terminator */
+	};
+
+	schema = wbl_schema_new ();
+
+	wbl_schema_load_from_file (schema, "hyper-schema.json", &error);
+	g_assert_no_error (error);
+
+	instances = wbl_schema_generate_instances (schema,
+	                                           WBL_GENERATE_INSTANCE_NONE);
+for (i = 0; i < instances->len; i++) {
+	WblGeneratedInstance *instance = instances->pdata[i];
+
+	g_message ("%s", wbl_generated_instance_get_json (instance));
+}
+	assert_generated_instances_match (instances, expected_instances);
+	g_ptr_array_unref (instances);
+
+	g_object_unref (schema);
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -233,8 +355,12 @@ main (int argc, char *argv[])
 	g_test_add_func ("/schema/construction", test_schema_construction);
 	g_test_add_func ("/schema/parsing", test_schema_parsing);
 	g_test_add_func ("/schema/application", test_schema_application);
-	g_test_add_func ("/schema/instance-generation",
-	                 test_schema_instance_generation);
+	g_test_add_func ("/schema/instance-generation/simple",
+	                 test_schema_instance_generation_simple);
+	g_test_add_func ("/schema/instance-generation/schema",
+	                 test_schema_instance_generation_schema);
+	g_test_add_func ("/schema/instance-generation/hyper-schema",
+	                 test_schema_instance_generation_hyper_schema);
 
 	return g_test_run ();
 }
