@@ -2032,6 +2032,111 @@ generate_one_of (WblSchema *self,
 	                       predicate_all_except_one, output);
 }
 
+/* not. json-schema-validation§5.5.6. */
+static void
+validate_not (WblSchema *self,
+              JsonObject *root,
+              JsonNode *schema_node,
+              GError **error)
+{
+	WblSchemaClass *klass;
+	GError *child_error = NULL;
+
+	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		/* Invalid. */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("not must be a valid JSON Schema. See "
+		               "json-schema-validation§5.5.6."));
+		return;
+	}
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	/* Validate the child schema. */
+	if (klass->validate_schema != NULL) {
+		WblSchemaNode node;
+
+		node.ref_count = 1;
+		node.node = json_node_dup_object (schema_node);
+
+		klass->validate_schema (self, &node, &child_error);
+
+		json_object_unref (node.node);
+	}
+
+	if (child_error != NULL) {
+		/* Invalid. */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             /* Translators: The parameter is another error
+		              * message. */
+		             _("not must be a valid JSON Schema. See "
+		               "json-schema-validation§5.5.6: "
+		               "%s"), child_error->message);
+		g_error_free (child_error);
+
+		return;
+	}
+}
+
+static void
+apply_not (WblSchema *self,
+           JsonObject *root,
+           JsonNode *schema_node,
+           JsonNode *instance_node,
+           GError **error)
+{
+	WblSchemaClass *klass;
+	GError *child_error = NULL;
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	if (klass->apply_schema != NULL) {
+		WblSchemaNode node;
+
+		node.ref_count = 1;
+		node.node = json_node_dup_object (schema_node);
+
+		klass->apply_schema (self, &node, instance_node, &child_error);
+
+		json_object_unref (node.node);
+	}
+
+	/* Fail if application succeeded. */
+	if (child_error == NULL) {
+		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Instance validates against the schemas in the "
+		               "not schema keyword. "
+		               "See json-schema-validation§5.5.6."));
+	}
+
+	g_clear_error (&child_error);
+}
+
+static void
+generate_not (WblSchema *self,
+              JsonObject *root,
+              JsonNode *schema_node,
+              GPtrArray *output)
+{
+	WblSchemaClass *klass;
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	/* Generate instances for the schema. */
+	if (klass->generate_instances != NULL) {
+		WblSchemaNode node;
+
+		node.ref_count = 1;
+		node.node = json_node_dup_object (schema_node);
+
+		klass->generate_instances (self, &node, output);
+
+		json_object_unref (node.node);
+	}
+}
+
 typedef void
 (*KeywordValidateFunc) (WblSchema *self,
                         JsonObject *root,
@@ -2101,6 +2206,8 @@ static const KeywordData json_schema_keywords[] = {
 	{ "anyOf", validate_any_of, apply_any_of, generate_any_of },
 	/* json-schema-validation§5.5.5 */
 	{ "oneOf", validate_one_of, apply_one_of, generate_one_of },
+	/* json-schema-validation§5.5.6 */
+	{ "not", validate_not, apply_not, generate_not },
 
 	/* TODO:
 	 *  • additionalProperties (json-schema-validation§5.4.4)
@@ -2108,7 +2215,6 @@ static const KeywordData json_schema_keywords[] = {
 	 *  • patternProperties (json-schema-validation§5.4.4)
 	 *  • dependencies (json-schema-validation§5.4.5)
 	 *  • enum (json-schema-validation§5.5.1)
-	 *  • not (json-schema-validation§5.5.6)
 	 *  • definitions (json-schema-validation§5.5.7)
 	 *  • title (json-schema-validation§6.1)
 	 *  • description (json-schema-validation§6.1)
