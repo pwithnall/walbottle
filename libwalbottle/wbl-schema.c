@@ -189,6 +189,99 @@ wbl_generated_instance_get_json (WblGeneratedInstance *self)
 	return self->json;
 }
 
+/* Primitive type handling. Reference: json-schema-core§3.5. */
+typedef enum {
+	WBL_PRIMITIVE_TYPE_ARRAY,
+	WBL_PRIMITIVE_TYPE_BOOLEAN,
+	WBL_PRIMITIVE_TYPE_INTEGER,
+	WBL_PRIMITIVE_TYPE_NUMBER,
+	WBL_PRIMITIVE_TYPE_NULL,
+	WBL_PRIMITIVE_TYPE_OBJECT,
+	WBL_PRIMITIVE_TYPE_STRING,
+} WblPrimitiveType;
+
+/* Indexed by #WblPrimitiveType. */
+static const gchar *wbl_primitive_type_names[] = {
+	"array",
+	"boolean",
+	"integer",
+	"number",
+	"null",
+	"object",
+	"string",
+};
+
+G_STATIC_ASSERT (G_N_ELEMENTS (wbl_primitive_type_names) ==
+                 WBL_PRIMITIVE_TYPE_STRING + 1);
+
+static WblPrimitiveType
+primitive_type_from_string (const gchar *str)
+{
+	guint i;
+
+	for (i = 0; i < G_N_ELEMENTS (wbl_primitive_type_names); i++) {
+		if (g_strcmp0 (str, wbl_primitive_type_names[i]) == 0) {
+			return (WblPrimitiveType) i;
+		}
+	}
+
+	g_assert_not_reached ();
+}
+
+static WblPrimitiveType
+primitive_type_from_json_node (JsonNode *node)
+{
+	switch (json_node_get_node_type (node)) {
+	case JSON_NODE_OBJECT:
+		return WBL_PRIMITIVE_TYPE_OBJECT;
+	case JSON_NODE_ARRAY:
+		return WBL_PRIMITIVE_TYPE_ARRAY;
+	case JSON_NODE_NULL:
+		return WBL_PRIMITIVE_TYPE_NULL;
+	case JSON_NODE_VALUE: {
+		GType value_type = json_node_get_value_type (node);
+
+		if (value_type == G_TYPE_BOOLEAN) {
+			return WBL_PRIMITIVE_TYPE_BOOLEAN;
+		} else if (value_type == G_TYPE_STRING) {
+			return WBL_PRIMITIVE_TYPE_STRING;
+		} else if (value_type == G_TYPE_DOUBLE) {
+			return WBL_PRIMITIVE_TYPE_NUMBER;
+		} else if (value_type == G_TYPE_INT64) {
+			return WBL_PRIMITIVE_TYPE_INTEGER;
+		} else {
+			g_assert_not_reached ();
+		}
+	}
+	default:
+		g_assert_not_reached ();
+	}
+}
+
+static gboolean
+validate_primitive_type (const gchar *str)
+{
+	guint i;
+
+	for (i = 0; i < G_N_ELEMENTS (wbl_primitive_type_names); i++) {
+		if (g_strcmp0 (str, wbl_primitive_type_names[i]) == 0) {
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+static gboolean
+primitive_type_is_a (WblPrimitiveType sub,
+                     WblPrimitiveType super)
+{
+	return (super == sub ||
+	        (super == WBL_PRIMITIVE_TYPE_NUMBER &&
+	         sub == WBL_PRIMITIVE_TYPE_INTEGER));
+}
+
+/* Schemas. */
 static void
 wbl_schema_dispose (GObject *object);
 
@@ -1380,6 +1473,125 @@ generate_required (WblSchema *self,
 	g_object_unref (builder);
 }
 
+/* type. json-schema-validation§5.5.2. */
+static void
+validate_type (WblSchema *self,
+               JsonObject *root,
+               JsonNode *schema_node,
+               GError **error)
+{
+	guint seen_types;
+	guint i;
+	JsonArray *schema_array;  /* unowned */
+
+	if (validate_value_type (schema_node, G_TYPE_STRING) &&
+	    validate_primitive_type (json_node_get_string (schema_node))) {
+		/* Valid. */
+		return;
+	}
+
+	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		goto invalid;
+	}
+
+	/* Check uniqueness of the array elements using @seen_types as a
+	 * bitmask indexed by #WblPrimitiveType. */
+	schema_array = json_node_get_array (schema_node);
+	seen_types = 0;
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		WblPrimitiveType child_type;
+		JsonNode *child_node;  /* unowned */
+		const gchar *child_str;
+
+		child_node = json_array_get_element (schema_array, i);
+
+		if (!validate_value_type (child_node, G_TYPE_STRING) ||
+		    !validate_primitive_type (json_node_get_string (child_node))) {
+			goto invalid;
+		}
+
+		child_str = json_node_get_string (child_node);
+		child_type = primitive_type_from_string (child_str);
+
+		if (seen_types & (1 << child_type)) {
+			goto invalid;
+		}
+
+		seen_types |= (1 << child_type);
+	}
+
+	/* Valid. */
+	return;
+
+invalid:
+	g_set_error (error,
+	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+	             _("type must be a string or array of unique strings, each "
+	               "a valid primitive type. "
+	               "See json-schema-validation§5.5.2."));
+}
+
+static void
+apply_type (WblSchema *self,
+            JsonObject *root,
+            JsonNode *schema_node,
+            JsonNode *instance_node,
+            GError **error)
+{
+	WblPrimitiveType schema_node_type, instance_node_type;
+	const gchar *schema_str;
+
+	schema_str = json_node_get_string (schema_node);
+	schema_node_type = primitive_type_from_string (schema_str);
+	instance_node_type = primitive_type_from_json_node (instance_node);
+
+	if (!primitive_type_is_a (instance_node_type, schema_node_type)) {
+		/* Invalid. */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Instance type does not conform to type schema "
+		               "keyword. See json-schema-validation§5.5.2."));
+		return;
+	}
+}
+
+static void
+generate_type (WblSchema *self,
+               JsonObject *root,
+               JsonNode *schema_node,
+               GPtrArray *output)
+{
+	WblPrimitiveType schema_node_type;
+	const gchar *schema_str, *valid, *invalid;
+
+	schema_str = json_node_get_string (schema_node);
+	schema_node_type = primitive_type_from_string (schema_str);
+
+	/* Add a valid instance. */
+	switch (schema_node_type) {
+	case WBL_PRIMITIVE_TYPE_ARRAY: valid = "[]"; break;
+	case WBL_PRIMITIVE_TYPE_BOOLEAN: valid = "true"; break;
+	case WBL_PRIMITIVE_TYPE_INTEGER: valid = "1"; break;
+	case WBL_PRIMITIVE_TYPE_NUMBER: valid = "0.1"; break;
+	case WBL_PRIMITIVE_TYPE_NULL: valid = "null"; break;
+	case WBL_PRIMITIVE_TYPE_OBJECT: valid = "{}"; break;
+	case WBL_PRIMITIVE_TYPE_STRING: valid = "''"; break;
+	default: g_assert_not_reached ();
+	}
+
+	generate_set_string (output, valid, TRUE);
+
+	/* And an invalid instance. */
+	if (schema_node_type == WBL_PRIMITIVE_TYPE_NULL) {
+		invalid = "false";
+	} else {
+		invalid = "null";
+	}
+
+	generate_set_string (output, invalid, FALSE);
+}
+
 typedef void
 (*KeywordValidateFunc) (WblSchema *self,
                         JsonObject *root,
@@ -1441,6 +1653,8 @@ static const KeywordData json_schema_keywords[] = {
 	{ "minProperties", validate_min_properties, apply_min_properties, generate_min_properties },
 	/* json-schema-validation§5.4.3 */
 	{ "required", validate_required, apply_required, generate_required },
+	/* json-schema-validation§5.5.2 */
+	{ "type", validate_type, apply_type, generate_type },
 
 	/* TODO:
 	 *  • additionalProperties (json-schema-validation§5.4.4)
@@ -1448,7 +1662,6 @@ static const KeywordData json_schema_keywords[] = {
 	 *  • patternProperties (json-schema-validation§5.4.4)
 	 *  • dependencies (json-schema-validation§5.4.5)
 	 *  • enum (json-schema-validation§5.5.1)
-	 *  • type (json-schema-validation§5.5.2)
 	 *  • allOf (json-schema-validation§5.5.3)
 	 *  • anyOf (json-schema-validation§5.5.4)
 	 *  • oneOf (json-schema-validation§5.5.5)

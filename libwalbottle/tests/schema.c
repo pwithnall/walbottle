@@ -171,6 +171,8 @@ test_schema_instance_generation (void)
 		"{\"firstName\":null}",
 		"{\"lastName\":null}",
 		"{\"firstName\":null,\"lastName\":null}",
+		"{}",
+		"null",
 		NULL,  /* terminator */
 	};
 
