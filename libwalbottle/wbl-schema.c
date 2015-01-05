@@ -136,6 +136,26 @@ wbl_schema_node_get_description (WblSchemaNode *self)
 	return json_object_get_string_member (self->node, "description");
 }
 
+/**
+ * wbl_schema_node_get_default:
+ * @self: a #WblSchemaNode
+ *
+ * Get the default value for instances of this schema or subschema, if set. This
+ * may not validate against the schema.
+ *
+ * Returns: (nullable): schema’s default value, or %NULL if unset
+ *
+ * Since: UNRELEASED
+ */
+JsonNode *
+wbl_schema_node_get_default (WblSchemaNode *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+	g_return_val_if_fail (self->ref_count > 0, NULL);
+
+	return json_object_get_member (self->node, "default");
+}
+
 /* Internal definition of a #WblGeneratedInstance. */
 struct _WblGeneratedInstance {
 	gchar *json;  /* owned */
@@ -2281,6 +2301,8 @@ static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§6.1 */
 	{ "title", validate_title, NULL, NULL },
 	{ "description", validate_description, NULL, NULL },
+	/* json-schema-validation§6.2 */
+	{ "default", NULL, NULL, NULL },
 
 	/* TODO:
 	 *  • additionalProperties (json-schema-validation§5.4.4)
@@ -2289,7 +2311,6 @@ static const KeywordData json_schema_keywords[] = {
 	 *  • dependencies (json-schema-validation§5.4.5)
 	 *  • enum (json-schema-validation§5.5.1)
 	 *  • definitions (json-schema-validation§5.5.7)
-	 *  • default (json-schema-validation§6.2)
 	 *  • format (json-schema-validation§7.1)
 	 *  • json-schema-core
 	 *  • json-schema-hypermedia

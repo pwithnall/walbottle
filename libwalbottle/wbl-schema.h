@@ -68,6 +68,8 @@ const gchar *
 wbl_schema_node_get_title (WblSchemaNode *self);
 const gchar *
 wbl_schema_node_get_description (WblSchemaNode *self);
+JsonNode *
+wbl_schema_node_get_default (WblSchemaNode *self);
 
 #define WBL_TYPE_SCHEMA			(wbl_schema_get_type ())
 #define WBL_SCHEMA(o)			(G_TYPE_CHECK_INSTANCE_CAST ((o), WBL_TYPE_SCHEMA, WblSchema))
