@@ -1737,6 +1737,393 @@ generate_required (WblSchema *self,
 	g_object_unref (builder);
 }
 
+/* additionalProperties, properties, patternProperties.
+ * json-schema-validation§5.4.4. */
+static void
+validate_additional_properties (WblSchema *self,
+                                JsonObject *root,
+                                JsonNode *schema_node,
+                                GError **error)
+{
+	WblSchemaClass *klass;
+	GError *child_error = NULL;
+
+	if (validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
+		/* Valid. */
+		return;
+	}
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("additionalProperties must be a boolean or a "
+		               "valid JSON Schema. "
+		               "See json-schema-validation§5.4.4."));
+		return;
+	}
+
+	/* Validate the child schema. */
+	if (klass->validate_schema != NULL) {
+		WblSchemaNode node;
+
+		node.ref_count = 1;
+		node.node = json_node_dup_object (schema_node);
+
+		klass->validate_schema (self, &node, &child_error);
+
+		json_object_unref (node.node);
+	}
+
+	if (child_error != NULL) {
+		/* Invalid. */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             /* Translators: The parameter is another error
+		              * message. */
+		             _("additionalProperties must be a boolean or a "
+		               "valid JSON Schema. "
+		               "See json-schema-validation§5.4.4: %s"),
+		             child_error->message);
+		g_error_free (child_error);
+
+		return;
+	}
+}
+
+static void
+validate_properties (WblSchema *self,
+                     JsonObject *root,
+                     JsonNode *schema_node,
+                     GError **error)
+{
+	WblSchemaClass *klass;
+	JsonObject *schema_object;  /* unowned */
+	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *l;  /* unowned */
+
+	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		/* Invalid. */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("properties must be an object of valid JSON "
+		               "Schemas. See json-schema-validation§5.4.4."));
+
+		return;
+	}
+
+	schema_object = json_node_get_object (schema_node);
+	member_names = json_object_get_members (schema_object);
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	for (l = member_names; l != NULL; l = l->next) {
+		JsonNode *child_node;  /* unowned */
+		GError *child_error = NULL;
+
+		child_node = json_object_get_member (schema_object, l->data);
+
+		if (!JSON_NODE_HOLDS_OBJECT (child_node)) {
+			/* Invalid. */
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             _("properties must be an object of "
+			               "valid JSON Schemas. See "
+			               "json-schema-validation§5.4.4."));
+
+			break;
+		}
+
+		/* Validate the child schema. */
+		if (klass->validate_schema != NULL) {
+			WblSchemaNode node;
+
+			node.ref_count = 1;
+			node.node = json_node_dup_object (child_node);
+
+			klass->validate_schema (self, &node, &child_error);
+
+			json_object_unref (node.node);
+		}
+
+		if (child_error != NULL) {
+			/* Invalid. */
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             /* Translators: The parameter is another
+			              * error message. */
+			             _("properties must be an object of "
+			               "valid JSON Schemas. See "
+			               "json-schema-validation§5.4.4: "
+			               "%s"), child_error->message);
+			g_error_free (child_error);
+
+			break;
+		}
+	}
+
+	g_list_free (member_names);
+}
+
+static void
+validate_pattern_properties (WblSchema *self,
+                             JsonObject *root,
+                             JsonNode *schema_node,
+                             GError **error)
+{
+	WblSchemaClass *klass;
+	JsonObject *schema_object;  /* unowned */
+	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *l;  /* unowned */
+
+	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		/* Invalid. */
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("patternProperties must be an object of valid "
+		               "JSON Schemas. See "
+		               "json-schema-validation§5.4.4."));
+
+		return;
+	}
+
+	schema_object = json_node_get_object (schema_node);
+	member_names = json_object_get_members (schema_object);
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	for (l = member_names; l != NULL; l = l->next) {
+		JsonNode *child_node;  /* unowned */
+		const gchar *member_name;
+		GError *child_error = NULL;
+
+		member_name = l->data;
+		child_node = json_object_get_member (schema_object,
+		                                     member_name);
+
+		/* Validate the member name is a valid regex and the value is
+		 * a valid JSON Schema. */
+		if (!validate_regex (member_name) ||
+		    !JSON_NODE_HOLDS_OBJECT (child_node)) {
+			/* Invalid. */
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             _("patternProperties must be an object of "
+			               "valid regular expressions mapping to "
+			               "valid JSON Schemas. See "
+			               "json-schema-validation§5.4.4."));
+
+			break;
+		}
+
+		/* Validate the child schema. */
+		if (klass->validate_schema != NULL) {
+			WblSchemaNode node;
+
+			node.ref_count = 1;
+			node.node = json_node_dup_object (child_node);
+
+			klass->validate_schema (self, &node, &child_error);
+
+			json_object_unref (node.node);
+		}
+
+		if (child_error != NULL) {
+			/* Invalid. */
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             /* Translators: The parameter is another
+			              * error message. */
+			             _("patternProperties must be an object of "
+			               "valid regular expressions mapping to "
+			               "valid JSON Schemas. See "
+			               "json-schema-validation§5.4.4: "
+			               "%s"), child_error->message);
+			g_error_free (child_error);
+
+			break;
+		}
+	}
+
+	g_list_free (member_names);
+}
+
+/* Version of g_list_remove() which does string comparison of @data, rather
+ * than pointer comparison. */
+static GList *
+list_remove_string (GList *list, const gchar *data)
+{
+	GList *l;
+
+	l = g_list_find_custom (list, data, (GCompareFunc) g_strcmp0);
+	if (l != NULL) {
+		return g_list_delete_link (list, l);
+	}
+
+	return list;
+}
+
+static void
+apply_properties (WblSchema *self,
+                  JsonObject *root,
+                  JsonNode *schema_node,
+                  JsonNode *instance_node,
+                  GError **error)
+{
+	JsonNode *ap_node;  /* unowned */
+	JsonNode *pp_node;  /* unowned */
+	gboolean ap_is_false;
+	JsonObject *instance_object;  /* unowned */
+	JsonObject *properties_object;  /* unowned */
+	JsonObject *pp_object = NULL;  /* unowned; nullable */
+	GList/*<unowned utf8>*/ *set_s = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *set_p = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *set_pp = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+
+	/* If additionalProperties is missing, its default value is an empty
+	 * schema. json-schema-validation§5.4.4.3. */
+	ap_node = json_object_get_member (root, "additionalProperties");
+	ap_is_false = (ap_node != NULL &&
+	               validate_value_type (ap_node, G_TYPE_BOOLEAN) &&
+	               !json_node_get_boolean (ap_node));
+
+	/* As per json-schema-validation§5.4.4.2, validation always succeeds if
+	 * additionalProperties is effectively true. */
+	if (!ap_is_false) {
+		return;
+	}
+
+	/* Validation succeeds if the instance is not an object. */
+	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
+		return;
+	}
+
+	instance_object = json_node_get_object (instance_node);
+	properties_object = json_node_get_object (schema_node);
+	pp_node = json_object_get_member (root, "patternProperties");
+	pp_object = (pp_node != NULL) ? json_node_get_object (pp_node) : NULL;
+
+	/* Follow the algorithm in json-schema-validation§5.4.4.4. */
+	set_s = json_object_get_members (instance_object);
+	set_p = json_object_get_members (properties_object);
+	if (pp_object != NULL) {
+		set_pp = json_object_get_members (pp_object);
+	}
+
+	/* Remove from @set_s all elements of @set_p, if any. */
+	for (l = set_p; l != NULL; l = l->next) {
+		const gchar *member = l->data;
+
+		set_s = list_remove_string (set_s, member);
+	}
+
+	/* For each regex in @set_pp, remove all elements of @set_s which this
+	 * regex matches. */
+	for (l = set_pp; l != NULL; l = l->next) {
+		const gchar *regex_str = l->data;
+		GRegex *regex = NULL;  /* owned */
+		GList/*<unowned utf8>*/ *k = NULL;  /* unowned */
+		GError *child_error = NULL;
+
+		/* Construct the regex. Should never fail due to being validated
+		 * in validate_pattern_properties(). */
+		regex = g_regex_new (regex_str, 0, 0, &child_error);
+		g_assert_no_error (child_error);
+
+		for (k = set_s; k != NULL; k = k->next) {
+			const gchar *member = k->data;
+
+			if (g_regex_match (regex, member, 0, NULL)) {
+				GList *prev = k->prev;
+				set_s = g_list_delete_link (set_s, k);
+				k = prev;
+			}
+		}
+
+		g_regex_unref (regex);
+	}
+
+	/* Validation of the instance succeeds if @set_s is empty. */
+	if (set_s != NULL) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Object properties do not conform to "
+		               "additionalProperties, properties and "
+		               "patternProperties schema keywords. "
+		               "See json-schema-validation§5.4.4."));
+	}
+
+	g_list_free (set_pp);
+	g_list_free (set_p);
+	g_list_free (set_s);
+}
+
+static void
+generate_properties (WblSchema *self,
+                     JsonObject *root,
+                     JsonNode *schema_node,
+                     GPtrArray *output)
+{
+	WblSchemaClass *klass;
+	JsonObject *schema_object;  /* unowned */
+	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+	GPtrArray/*<owned WblGeneratedInstance>*/ *_output = NULL;  /* owned */
+
+	schema_object = json_node_get_object (schema_node);
+	member_names = json_object_get_members (schema_object);
+	_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	/* Generate instances for all property schemas and wrap them in
+	 * objects. */
+	for (l = member_names; l != NULL; l = l->next) {
+		JsonNode *child_node;  /* unowned */
+		const gchar *member_name;
+
+		member_name = l->data;
+		child_node = json_object_get_member (schema_object,
+		                                     member_name);
+
+		if (klass->generate_instances != NULL) {
+			WblSchemaNode node;
+			guint i;
+
+			/* Generate the child instances. */
+			node.ref_count = 1;
+			node.node = json_node_dup_object (child_node);
+
+			klass->generate_instances (self, &node, _output);
+
+			json_object_unref (node.node);
+
+			/* Wrap them in objects. */
+			for (i = 0; i < _output->len; i++) {
+				gchar *json = NULL;  /* owned */
+				const gchar *instance_json;
+				WblGeneratedInstance *instance;  /* unowned */
+
+				instance = _output->pdata[i];
+				instance_json = wbl_generated_instance_get_json (instance);
+				json = g_strdup_printf ("{\"%s\":%s}",
+				                        member_name,
+				                        instance_json);
+
+				generate_take_string (output, json, TRUE);
+			}
+
+			g_ptr_array_set_size (_output, 0);
+		}
+	}
+
+	g_ptr_array_unref (_output);
+	g_list_free (member_names);
+}
+
 /* type. json-schema-validation§5.5.2. */
 static void
 validate_type (WblSchema *self,
@@ -2288,6 +2675,10 @@ static const KeywordData json_schema_keywords[] = {
 	{ "minProperties", validate_min_properties, apply_min_properties, generate_min_properties },
 	/* json-schema-validation§5.4.3 */
 	{ "required", validate_required, apply_required, generate_required },
+	/* json-schema-validation§5.4.4 */
+	{ "additionalProperties", validate_additional_properties, NULL, NULL },
+	{ "properties", validate_properties, apply_properties, generate_properties },
+	{ "patternProperties", validate_pattern_properties, NULL, NULL },
 	/* json-schema-validation§5.5.2 */
 	{ "type", validate_type, apply_type, generate_type },
 	/* json-schema-validation§5.5.3 */
@@ -2305,9 +2696,6 @@ static const KeywordData json_schema_keywords[] = {
 	{ "default", NULL, NULL, NULL },
 
 	/* TODO:
-	 *  • additionalProperties (json-schema-validation§5.4.4)
-	 *  • properties (json-schema-validation§5.4.4)
-	 *  • patternProperties (json-schema-validation§5.4.4)
 	 *  • dependencies (json-schema-validation§5.4.5)
 	 *  • enum (json-schema-validation§5.5.1)
 	 *  • definitions (json-schema-validation§5.5.7)

@@ -160,6 +160,7 @@ test_schema_application (void)
 	g_object_unref (schema);
 }
 
+/* Test generating instances for a simple schema. */
 static void
 test_schema_instance_generation (void)
 {
@@ -171,6 +172,15 @@ test_schema_instance_generation (void)
 		"{\"firstName\":null}",
 		"{\"lastName\":null}",
 		"{\"firstName\":null,\"lastName\":null}",
+		"{\"firstName\":''}",
+		"{\"firstName\":null}",
+		"{\"lastName\":''}",
+		"{\"lastName\":null}",
+		"{\"age\":-1}",
+		"{\"age\":0}",
+		"{\"age\":1}",
+		"{\"age\":1}",
+		"{\"age\":null}",
 		"{}",
 		"null",
 		NULL,  /* terminator */
