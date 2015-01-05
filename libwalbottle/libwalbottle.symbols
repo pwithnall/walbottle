@@ -2,6 +2,8 @@ wbl_schema_error_quark
 wbl_schema_node_get_type
 wbl_schema_node_ref
 wbl_schema_node_unref
+wbl_schema_node_get_title
+wbl_schema_node_get_description
 wbl_schema_get_type
 wbl_schema_new
 wbl_schema_load_from_data

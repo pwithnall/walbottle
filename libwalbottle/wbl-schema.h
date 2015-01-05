@@ -64,6 +64,11 @@ GType wbl_schema_node_get_type (void) G_GNUC_CONST;
 WblSchemaNode *wbl_schema_node_ref (WblSchemaNode *self);
 void wbl_schema_node_unref (WblSchemaNode *self);
 
+const gchar *
+wbl_schema_node_get_title (WblSchemaNode *self);
+const gchar *
+wbl_schema_node_get_description (WblSchemaNode *self);
+
 #define WBL_TYPE_SCHEMA			(wbl_schema_get_type ())
 #define WBL_SCHEMA(o)			(G_TYPE_CHECK_INSTANCE_CAST ((o), WBL_TYPE_SCHEMA, WblSchema))
 #define WBL_SCHEMA_CLASS(k)		(G_TYPE_CHECK_CLASS_CAST((k), WBL_TYPE_SCHEMA, WblSchemaClass))

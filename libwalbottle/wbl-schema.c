@@ -96,6 +96,46 @@ wbl_schema_node_unref (WblSchemaNode *self)
 	}
 }
 
+/**
+ * wbl_schema_node_get_title:
+ * @self: a #WblSchemaNode
+ *
+ * Get the title metadata of this schema or subschema, if set. This should
+ * briefly state the purpose of the instance produced by this schema.
+ *
+ * Returns: (nullable): schema’s title, or %NULL if unset
+ *
+ * Since: UNRELEASED
+ */
+const gchar *
+wbl_schema_node_get_title (WblSchemaNode *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+	g_return_val_if_fail (self->ref_count > 0, NULL);
+
+	return json_object_get_string_member (self->node, "title");
+}
+
+/**
+ * wbl_schema_node_get_description:
+ * @self: a #WblSchemaNode
+ *
+ * Get the description metadata of this schema or subschema, if set. This should
+ * explain in depth the purpose of the instance produced by this schema.
+ *
+ * Returns: (nullable): schema’s description, or %NULL if unset
+ *
+ * Since: UNRELEASED
+ */
+const gchar *
+wbl_schema_node_get_description (WblSchemaNode *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+	g_return_val_if_fail (self->ref_count > 0, NULL);
+
+	return json_object_get_string_member (self->node, "description");
+}
+
 /* Internal definition of a #WblGeneratedInstance. */
 struct _WblGeneratedInstance {
 	gchar *json;  /* owned */
@@ -2137,6 +2177,36 @@ generate_not (WblSchema *self,
 	}
 }
 
+/* title. json-schema-validation§6.1. */
+static void
+validate_title (WblSchema *self,
+                JsonObject *root,
+                JsonNode *schema_node,
+                GError **error)
+{
+	if (!validate_value_type (schema_node, G_TYPE_STRING)) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("title must be a string. "
+		               "See json-schema-validation§6.1."));
+	}
+}
+
+/* description. json-schema-validation§6.1. */
+static void
+validate_description (WblSchema *self,
+                      JsonObject *root,
+                      JsonNode *schema_node,
+                      GError **error)
+{
+	if (!validate_value_type (schema_node, G_TYPE_STRING)) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("description must be a string. "
+		               "See json-schema-validation§6.1."));
+	}
+}
+
 typedef void
 (*KeywordValidateFunc) (WblSchema *self,
                         JsonObject *root,
@@ -2208,6 +2278,9 @@ static const KeywordData json_schema_keywords[] = {
 	{ "oneOf", validate_one_of, apply_one_of, generate_one_of },
 	/* json-schema-validation§5.5.6 */
 	{ "not", validate_not, apply_not, generate_not },
+	/* json-schema-validation§6.1 */
+	{ "title", validate_title, NULL, NULL },
+	{ "description", validate_description, NULL, NULL },
 
 	/* TODO:
 	 *  • additionalProperties (json-schema-validation§5.4.4)
@@ -2216,8 +2289,6 @@ static const KeywordData json_schema_keywords[] = {
 	 *  • dependencies (json-schema-validation§5.4.5)
 	 *  • enum (json-schema-validation§5.5.1)
 	 *  • definitions (json-schema-validation§5.5.7)
-	 *  • title (json-schema-validation§6.1)
-	 *  • description (json-schema-validation§6.1)
 	 *  • default (json-schema-validation§6.2)
 	 *  • format (json-schema-validation§7.1)
 	 *  • json-schema-core
