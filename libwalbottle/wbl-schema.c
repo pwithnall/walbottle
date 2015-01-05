@@ -366,6 +366,72 @@ validate_value_type (JsonNode *node, GType value_type)
 	        json_node_get_value_type (node) == value_type);
 }
 
+/* Validate a node is a non-empty array of valid JSON schemas.
+ * If any of the schemas is invalid, return the first validation error as
+ * @schema_error. */
+static gboolean
+validate_schema_array (WblSchema *self,
+                       JsonNode *schema_node,
+                       GError **schema_error)
+{
+	WblSchemaClass *klass;
+	JsonArray *schema_array;  /* unowned */
+	guint i;
+
+	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		return FALSE;
+	}
+
+	schema_array = json_node_get_array (schema_node);
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	if (json_array_get_length (schema_array) == 0) {
+		return FALSE;
+	}
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+		GError *child_error = NULL;
+
+		child_node = json_array_get_element (schema_array, i);
+
+		if (!JSON_NODE_HOLDS_OBJECT (child_node)) {
+			return FALSE;
+		}
+
+		/* Validate the child schema. */
+		if (klass->validate_schema != NULL) {
+			WblSchemaNode node;
+
+			node.ref_count = 1;
+			node.node = json_node_dup_object (child_node);
+
+			klass->validate_schema (self, &node, &child_error);
+
+			json_object_unref (node.node);
+		}
+
+		if (child_error != NULL) {
+			/* Invalid. */
+			g_set_error (schema_error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             /* Translators: The parameter is another
+			              * error message. */
+			             _("allOf must be a non-empty array of "
+			               "valid JSON Schemas. See "
+			               "json-schema-validation§5.5.3: "
+			               "%s"), child_error->message);
+			g_error_free (child_error);
+
+			return FALSE;
+		}
+	}
+
+	/* Valid. */
+	return TRUE;
+}
+
 /* A couple of utility functions for generation. */
 static void
 generate_set_string (GPtrArray *output,
@@ -1599,43 +1665,9 @@ validate_all_of (WblSchema *self,
                  JsonNode *schema_node,
                  GError **error)
 {
-	WblSchemaClass *klass;
-	JsonArray *schema_array;  /* unowned */
-	guint i;
+	GError *child_error = NULL;
 
-	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
-		goto invalid;
-	}
-
-	schema_array = json_node_get_array (schema_node);
-	klass = WBL_SCHEMA_GET_CLASS (self);
-
-	if (json_array_get_length (schema_array) == 0) {
-		goto invalid;
-	}
-
-	for (i = 0; i < json_array_get_length (schema_array); i++) {
-		JsonNode *child_node;  /* unowned */
-		GError *child_error = NULL;
-
-		child_node = json_array_get_element (schema_array, i);
-
-		if (!JSON_NODE_HOLDS_OBJECT (child_node)) {
-			goto invalid;
-		}
-
-		/* Validate the child schema. */
-		if (klass->validate_schema != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (child_node);
-
-			klass->validate_schema (self, &node, &child_error);
-
-			json_object_unref (node.node);
-		}
-
+	if (!validate_schema_array (self, schema_node, &child_error)) {
 		if (child_error != NULL) {
 			/* Invalid. */
 			g_set_error (error,
@@ -1648,18 +1680,15 @@ validate_all_of (WblSchema *self,
 			               "json-schema-validation§5.5.3: "
 			               "%s"), child_error->message);
 			g_error_free (child_error);
-
-			return;
+		} else {
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             _("allOf must be a non-empty array of "
+			               "valid JSON Schemas. "
+			               "See json-schema-validation§5.5.3."));
 		}
 	}
-
-	/* Valid. */
-	return;
-
-invalid:
-	g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-	             _("allOf must be a non-empty array of valid JSON Schemas. "
-	               "See json-schema-validation§5.5.3."));
 }
 
 static void
@@ -1807,6 +1836,181 @@ generate_all_of (WblSchema *self,
 	g_ptr_array_unref (_output);
 }
 
+/* anyOf. json-schema-validation§5.5.4. */
+static void
+validate_any_of (WblSchema *self,
+                 JsonObject *root,
+                 JsonNode *schema_node,
+                 GError **error)
+{
+	GError *child_error = NULL;
+
+	if (!validate_schema_array (self, schema_node, &child_error)) {
+		if (child_error != NULL) {
+			/* Invalid. */
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             /* Translators: The parameter is another
+			              * error message. */
+			             _("anyOf must be a non-empty array of "
+			               "valid JSON Schemas. See "
+			               "json-schema-validation§5.5.4: "
+			               "%s"), child_error->message);
+			g_error_free (child_error);
+		} else {
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_MALFORMED,
+			             _("anyOf must be a non-empty array of "
+			               "valid JSON Schemas. "
+			               "See json-schema-validation§5.5.4."));
+		}
+	}
+}
+
+static void
+apply_any_of (WblSchema *self,
+              JsonObject *root,
+              JsonNode *schema_node,
+              JsonNode *instance_node,
+              GError **error)
+{
+	WblSchemaClass *klass;
+	JsonArray *schema_array;  /* unowned */
+	guint i;
+
+	schema_array = json_node_get_array (schema_node);
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+		GError *child_error = NULL;
+
+		child_node = json_array_get_element (schema_array, i);
+
+		if (klass->apply_schema != NULL) {
+			WblSchemaNode node;
+
+			node.ref_count = 1;
+			node.node = json_node_dup_object (child_node);
+
+			klass->apply_schema (self, &node, instance_node,
+			                     &child_error);
+
+			json_object_unref (node.node);
+		}
+
+		/* Succeed at the first success. */
+		if (child_error == NULL) {
+			return;
+		}
+
+		g_clear_error (&child_error);
+	}
+
+	/* Failure. */
+	g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+	             _("Instance does not validate against any of the schemas "
+	               "in the anyOf schema keyword. "
+	               "See json-schema-validation§5.5.4."));
+}
+
+static void
+generate_any_of (WblSchema *self,
+                 JsonObject *root,
+                 JsonNode *schema_node,
+                 GPtrArray *output)
+{
+	WblSchemaClass *klass;
+	JsonArray *schema_array;  /* unowned */
+	guint i, j, n_schemas;
+	GPtrArray/*<owned WblGeneratedInstance>*/ *_output = NULL;  /* owned */
+	JsonParser *parser = NULL;  /* owned */
+
+	schema_array = json_node_get_array (schema_node);
+	n_schemas = json_array_get_length (schema_array);
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	/* Generate instances for all schemas. */
+	_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+
+	for (i = 0; i < n_schemas; i++) {
+		JsonNode *child_node;  /* unowned */
+
+		child_node = json_array_get_element (schema_array, i);
+
+		if (klass->generate_instances != NULL) {
+			WblSchemaNode node;
+
+			node.ref_count = 1;
+			node.node = json_node_dup_object (child_node);
+
+			klass->generate_instances (self, &node, _output);
+
+			json_object_unref (node.node);
+		}
+	}
+
+	/* Find some instances which match none of the schemas and others which
+	 * match exactly one.
+	 *
+	 * FIXME: Is this the best strategy to get maximum coverage? */
+	parser = json_parser_new ();
+
+	for (j = 0; j < _output->len; j++) {
+		WblGeneratedInstance *instance;  /* unowned */
+		const gchar *instance_str;
+		JsonNode *instance_node;  /* unowned */
+		guint n_unmatching_schemas;
+		GError *child_error = NULL;
+
+		/* Get the instance. */
+		instance = _output->pdata[j];
+		instance_str = wbl_generated_instance_get_json (instance);
+		json_parser_load_from_data (parser, instance_str, -1,
+		                            &child_error);
+		g_assert_no_error (child_error);
+
+		instance_node = json_parser_get_root (parser);
+		n_unmatching_schemas = 0;
+
+		/* Check it against each schema. */
+		for (i = 0; i < n_schemas; i++) {
+			JsonNode *child_node;  /* unowned */
+
+			child_node = json_array_get_element (schema_array, i);
+
+			if (klass->apply_schema != NULL) {
+				WblSchemaNode node;
+
+				node.ref_count = 1;
+				node.node = json_node_dup_object (child_node);
+
+				klass->apply_schema (self, &node, instance_node,
+				                     &child_error);
+
+				if (child_error != NULL) {
+					n_unmatching_schemas++;
+				}
+
+				g_clear_error (&child_error);
+				json_object_unref (node.node);
+			}
+		}
+
+		/* Does it match none or one of the schemas? */
+		if (n_unmatching_schemas == n_schemas - 1 ||
+		    n_unmatching_schemas == n_schemas) {
+			g_ptr_array_add (output,
+			                 wbl_generated_instance_copy (instance));
+		}
+	}
+
+	g_object_unref (parser);
+	g_ptr_array_unref (_output);
+}
+
 typedef void
 (*KeywordValidateFunc) (WblSchema *self,
                         JsonObject *root,
@@ -1872,6 +2076,8 @@ static const KeywordData json_schema_keywords[] = {
 	{ "type", validate_type, apply_type, generate_type },
 	/* json-schema-validation§5.5.3 */
 	{ "allOf", validate_all_of, apply_all_of, generate_all_of },
+	/* json-schema-validation§5.5.4 */
+	{ "anyOf", validate_any_of, apply_any_of, generate_any_of },
 
 	/* TODO:
 	 *  • additionalProperties (json-schema-validation§5.4.4)
@@ -1879,7 +2085,6 @@ static const KeywordData json_schema_keywords[] = {
 	 *  • patternProperties (json-schema-validation§5.4.4)
 	 *  • dependencies (json-schema-validation§5.4.5)
 	 *  • enum (json-schema-validation§5.5.1)
-	 *  • anyOf (json-schema-validation§5.5.4)
 	 *  • oneOf (json-schema-validation§5.5.5)
 	 *  • not (json-schema-validation§5.5.6)
 	 *  • definitions (json-schema-validation§5.5.7)
