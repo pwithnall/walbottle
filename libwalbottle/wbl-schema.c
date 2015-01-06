@@ -725,6 +725,43 @@ generate_null_properties (GPtrArray *output,
 	g_object_unref (builder);
 }
 
+static void
+generate_filled_string (GPtrArray *output,
+                        gsize length,  /* in Unicode characters */
+                        gunichar fill,
+                        gboolean valid)
+{
+	gchar *str = NULL;  /* owned */
+	gchar fill_utf8[6];
+	gint fill_len;  /* in bytes */
+	gsize i;  /* in bytes */
+
+	/* Convert the character to UTF-8 and convert the string length to
+	 * bytes. */
+	fill_len = g_unichar_to_utf8 (fill, fill_utf8);
+
+	if (G_MAXSIZE / fill_len <= length) {
+		return;
+	}
+
+	length *= fill_len;
+
+	/* Allocate a string. This might be huge. */
+	str = g_malloc (length + 1  /* nul terminator */);
+
+	/* Fill with the unichar. */
+	for (i = 0; i < length; i += fill_len) {
+		memcpy (str + i, fill_utf8, fill_len);
+	}
+
+	/* Fill the rest with nul bytes. */
+	for (i -= fill_len; i < length + 1; i++) {
+		str[i] = '\0';
+	}
+
+	generate_take_string (output, str, valid);
+}
+
 static gchar *  /* transfer full */
 json_int_to_string (gint64 i)
 {
@@ -1035,8 +1072,6 @@ apply_max_length (WblSchema *self,
                   JsonNode *instance_node,
                   GError **error)
 {
-	/* TODO: Double-check that g_utf8_strlen() matches
-	 * section 5.2.1.2; i.e. RFC 4627. */
 	if (JSON_NODE_HOLDS_VALUE (instance_node) &&
 	    json_node_get_value_type (instance_node) == G_TYPE_STRING &&
 	    g_utf8_strlen (json_node_get_string (instance_node), -1) >
@@ -1057,25 +1092,24 @@ generate_max_length (WblSchema *self,
                      GPtrArray *output)
 {
 	gint64 max_length;
-	gchar *str = NULL;  /* owned */
 
 	max_length = json_node_get_int (schema_node);
 
-	/* TODO: Unichars, or just characters? */
+	/* Generate strings which are @max_length and (@max_length + 1) ASCII
+	 * characters long. */
+	generate_filled_string (output, max_length, '0', TRUE);
+
 	if (max_length < G_MAXINT64) {
-		str = g_malloc (max_length + 1  /* nul terminator */);
-		memset (str, '0', max_length);
-		str[max_length] = '\0';
-		generate_take_string (output, str, TRUE);
+		generate_filled_string (output, max_length + 1, '0', FALSE);
 	}
 
-	if (max_length < G_MAXINT64 - 1) {
-		str = g_malloc (max_length +
-		                1  /* overflow */ +
-		                1  /* nul terminator */);
-		memset (str, '0', max_length + 1);
-		str[max_length + 1] = '\0';
-		generate_take_string (output, str, FALSE);
+	/* Generate strings which are @max_length and (@max_length + 1)
+	 * non-ASCII (multi-byte UTF-8) characters long. */
+	generate_filled_string (output, max_length, 0x1F435  /* 🐵 */, TRUE);
+
+	if (max_length < G_MAXINT64) {
+		generate_filled_string (output, max_length + 1,
+		                        0x1F435  /* 🐵 */, FALSE);
 	}
 }
 
@@ -1102,8 +1136,6 @@ apply_min_length (WblSchema *self,
                   JsonNode *instance_node,
                   GError **error)
 {
-	/* TODO: Double-check that g_utf8_strlen() matches
-	 * section 5.2.1.2; i.e. RFC 4627. */
 	if (JSON_NODE_HOLDS_VALUE (instance_node) &&
 	    json_node_get_value_type (instance_node) == G_TYPE_STRING &&
 	    g_utf8_strlen (json_node_get_string (instance_node), -1) <
@@ -1124,24 +1156,25 @@ generate_min_length (WblSchema *self,
                      GPtrArray *output)
 {
 	gint64 min_length;
-	gchar *str = NULL;  /* owned */
 
 	min_length = json_node_get_int (schema_node);
 
-	/* TODO: Unichars, or just characters? */
-	if (min_length < G_MAXINT64) {
-		str = g_malloc (min_length + 1  /* nul terminator */);
-		memset (str, '0', min_length);
-		str[min_length] = '\0';
-		generate_take_string (output, str, TRUE);
+	/* Generate strings which are @min_length and (@min_length - 1) ASCII
+	 * characters long. */
+	generate_filled_string (output, min_length, '0', TRUE);
+
+	if (min_length > 0) {
+		generate_filled_string (output, min_length - 1, '0', FALSE);
 	}
 
-	str = g_malloc (min_length +
-	                -1  /* underflow */ +
-	                1  /* nul terminator */);
-	memset (str, '0', min_length - 1);
-	str[min_length - 1] = '\0';
-	generate_take_string (output, str, FALSE);
+	/* Generate strings which are @min_length and (@min_length - 1)
+	 * non-ASCII (multi-byte UTF-8) characters long. */
+	generate_filled_string (output, min_length, 0x1F435  /* 🐵 */, TRUE);
+
+	if (min_length > 0) {
+		generate_filled_string (output, min_length - 1,
+		                        0x1F435  /* 🐵 */, FALSE);
+	}
 }
 
 /* pattern. json-schema-validation§5.2.3. */
