@@ -1200,7 +1200,36 @@ apply_pattern (WblSchema *self,
                JsonNode *instance_node,
                GError **error)
 {
-	/* TODO */
+	const gchar *regex_str;
+	const gchar *instance_str;
+	GRegex *regex = NULL;  /* owned */
+	GError *child_error = NULL;
+
+	/* Validation succeeds if the instance is the wrong type. */
+	if (!validate_value_type (instance_node, G_TYPE_STRING)) {
+		return;
+	}
+
+	instance_str = json_node_get_string (schema_node);
+
+	/* Any errors in the regex should have been caught in
+	 * validate_pattern() */
+	regex_str = json_node_get_string (schema_node);
+	regex = g_regex_new (regex_str, 0, 0, &child_error);
+	g_assert_no_error (child_error);
+
+	if (!g_regex_match (regex, instance_str, 0, NULL)) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             /* Translators: The parameter is a regular
+		              * expression. */
+		             _("Value must match the regular expression ‘%s’ "
+		               "from the pattern schema keyword. "
+		               "See json-schema-validation§5.2.3."),
+		             regex_str);
+	}
+
+	g_regex_unref (regex);
 }
 
 static void
