@@ -2099,12 +2099,58 @@ validate_required (WblSchema *self,
                    JsonNode *schema_node,
                    GError **error)
 {
-#if 0
-	if (!JSON_NODE_HOLDS_ARRAY (schema_node) ||
-	    !validate_required (schema_node)) {
-		/* TODO: Invalid */
+	JsonArray *schema_array;  /* unowned */
+	guint i;
+	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
+	gboolean valid = TRUE;
+
+	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		valid = FALSE;
+		goto done;
 	}
-#endif
+
+	schema_array = json_node_get_array (schema_node);
+
+	if (json_array_get_length (schema_array) == 0) {
+		valid = FALSE;
+		goto done;
+	}
+
+	/* TODO: What about UTF-8 decomposition? */
+	set = g_hash_table_new (g_str_hash, g_str_equal);
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+		const gchar *child_str;
+
+		child_node = json_array_get_element (schema_array, i);
+
+		/* Check it’s a string. */
+		if (!validate_value_type (child_node, G_TYPE_STRING)) {
+			valid = FALSE;
+			break;
+		}
+
+		/* Check for uniqueness. */
+		child_str = json_node_get_string (child_node);
+
+		if (g_hash_table_contains (set, child_str)) {
+			valid = FALSE;
+			break;
+		}
+
+		g_hash_table_add (set, (gpointer) child_str);
+	}
+
+	g_hash_table_unref (set);
+
+done:
+	if (!valid) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("required must be a non-empty array of unique "
+		               "strings. See json-schema-validation§5.4.3."));
+	}
 }
 
 static void
@@ -2114,7 +2160,55 @@ apply_required (WblSchema *self,
                 JsonNode *instance_node,
                 GError **error)
 {
-	/* TODO */
+	JsonArray *schema_array;  /* unowned */
+	JsonObject *instance_object;  /* unowned */
+	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *instance_member_names = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+	guint i;
+
+	/* Quick type check. */
+	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
+		return;
+	}
+
+	schema_array = json_node_get_array (schema_node);
+	instance_object = json_node_get_object (instance_node);
+	instance_member_names = json_object_get_members (instance_object);
+
+	/* TODO: UTF-8 decomposition? */
+	set = g_hash_table_new (g_str_hash, g_str_equal);
+
+	/* Put the required member names in the @set. */
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+
+		child_node = json_array_get_element (schema_array, i);
+		g_hash_table_add (set,
+		                  (gpointer) json_node_get_string (child_node));
+	}
+
+	/* Check each of the member names against the @set. */
+	for (l = instance_member_names; l != NULL; l = l->next) {
+		const gchar *member_name;
+
+		member_name = l->data;
+
+		if (!g_hash_table_contains (set, member_name)) {
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+			             /* Translators: The parameter is a JSON
+			              * property name. */
+			             _("Object must have property ‘%s’ due to "
+			               "the required schema keyword. "
+			               "See json-schema-validation§5.4.3."),
+			             member_name);
+			break;
+		}
+	}
+
+	g_hash_table_unref (set);
+	g_list_free (instance_member_names);
 }
 
 static void
