@@ -69,7 +69,7 @@ test_schema_construction (void)
 /* Test simple parsing of a JSON Schema.
  * Example taken from http://json-schema.org/examples.html. */
 static void
-test_schema_parsing (void)
+test_schema_parsing_simple (void)
 {
 	WblSchema *schema = NULL;  /* owned */
 	GError *error = NULL;
@@ -95,6 +95,42 @@ test_schema_parsing (void)
 			"},"
 			"\"required\": [\"firstName\", \"lastName\"]"
 		"}", -1, &error);
+	g_assert_no_error (error);
+
+	g_assert (wbl_schema_get_root (schema) != NULL);
+
+	g_object_unref (schema);
+}
+
+/* Test parsing the JSON Schema meta-schema.
+ * http://json-schema.org/schema */
+static void
+test_schema_parsing_schema (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	GError *error = NULL;
+
+	schema = wbl_schema_new ();
+
+	wbl_schema_load_from_file (schema, "schema.json", &error);
+	g_assert_no_error (error);
+
+	g_assert (wbl_schema_get_root (schema) != NULL);
+
+	g_object_unref (schema);
+}
+
+/* Test parsing the JSON Hyper Schema meta-schema.
+ * http://json-schema.org/hyper-schema */
+static void
+test_schema_parsing_hyper_schema (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	GError *error = NULL;
+
+	schema = wbl_schema_new ();
+
+	wbl_schema_load_from_file (schema, "hyper-schema.json", &error);
 	g_assert_no_error (error);
 
 	g_assert (wbl_schema_get_root (schema) != NULL);
@@ -357,7 +393,10 @@ main (int argc, char *argv[])
 
 	/* Schema tests. */
 	g_test_add_func ("/schema/construction", test_schema_construction);
-	g_test_add_func ("/schema/parsing", test_schema_parsing);
+	g_test_add_func ("/schema/parsing/simple", test_schema_parsing_simple);
+	g_test_add_func ("/schema/parsing/schema", test_schema_parsing_schema);
+	g_test_add_func ("/schema/parsing/hyper-schema",
+	                 test_schema_parsing_hyper_schema);
 	g_test_add_func ("/schema/application", test_schema_application);
 	g_test_add_func ("/schema/instance-generation/simple",
 	                 test_schema_instance_generation_simple);
