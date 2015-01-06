@@ -1527,7 +1527,25 @@ apply_max_items (WblSchema *self,
                  JsonNode *instance_node,
                  GError **error)
 {
-	/* TODO */
+	JsonArray *instance_array;  /* unowned */
+	gint64 max_items, instance_items;
+
+	/* Check the type first. */
+	if (!JSON_NODE_HOLDS_ARRAY (instance_node)) {
+		return;
+	}
+
+	max_items = json_node_get_int (schema_node);
+	instance_array = json_node_get_array (instance_node);
+	instance_items = json_array_get_length (instance_array);
+
+	if (instance_items > max_items) {
+		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Array must have at most %" G_GINT64_FORMAT " "
+		               "elements due to the maxItems schema keyword. "
+		               "See json-schema-validation§5.3.2."),
+		             max_items);
+	}
 }
 
 static void
@@ -1570,7 +1588,25 @@ apply_min_items (WblSchema *self,
                  JsonNode *instance_node,
                  GError **error)
 {
-	/* TODO */
+	JsonArray *instance_array;  /* unowned */
+	gint64 min_items, instance_items;
+
+	/* Check the type first. */
+	if (!JSON_NODE_HOLDS_ARRAY (instance_node)) {
+		return;
+	}
+
+	min_items = json_node_get_int (schema_node);
+	instance_array = json_node_get_array (instance_node);
+	instance_items = json_array_get_length (instance_array);
+
+	if (instance_items < min_items) {
+		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Array must have at least %" G_GINT64_FORMAT " "
+		               "elements due to the minItems schema keyword. "
+		               "See json-schema-validation§5.3.3."),
+		             min_items);
+	}
 }
 
 static void
