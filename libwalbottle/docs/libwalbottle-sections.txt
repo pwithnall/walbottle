@@ -25,6 +25,7 @@ wbl_schema_generate_instances
 WblSchemaNode
 wbl_schema_node_ref
 wbl_schema_node_unref
+wbl_schema_node_get_root
 wbl_schema_node_get_title
 wbl_schema_node_get_description
 wbl_schema_node_get_default

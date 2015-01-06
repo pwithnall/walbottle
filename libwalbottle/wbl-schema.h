@@ -64,6 +64,8 @@ GType wbl_schema_node_get_type (void) G_GNUC_CONST;
 WblSchemaNode *wbl_schema_node_ref (WblSchemaNode *self);
 void wbl_schema_node_unref (WblSchemaNode *self);
 
+JsonObject *
+wbl_schema_node_get_root (WblSchemaNode *self);
 const gchar *
 wbl_schema_node_get_title (WblSchemaNode *self);
 const gchar *

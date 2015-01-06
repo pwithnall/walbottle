@@ -97,6 +97,25 @@ wbl_schema_node_unref (WblSchemaNode *self)
 }
 
 /**
+ * wbl_schema_node_get_root:
+ * @self: a #WblSchemaNode
+ *
+ * Get the JSON object forming the root node of this schema or subschema.
+ *
+ * Returns: (transfer none): schema’s root node
+ *
+ * Since: UNRELEASED
+ */
+JsonObject *
+wbl_schema_node_get_root (WblSchemaNode *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+	g_return_val_if_fail (self->ref_count > 0, NULL);
+
+	return self->node;
+}
+
+/**
  * wbl_schema_node_get_title:
  * @self: a #WblSchemaNode
  *
