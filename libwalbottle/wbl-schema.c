@@ -341,6 +341,270 @@ primitive_type_is_a (WblPrimitiveType sub,
 	         sub == WBL_PRIMITIVE_TYPE_INTEGER));
 }
 
+/* JSON instance equality via hash tables, json-schema-core§3.6. */
+static guint
+node_hash (gconstpointer key)
+{
+	JsonNode *node;  /* unowned */
+	WblPrimitiveType type;
+
+	/* Arbitrary magic values, chosen to hopefully not collide when combined
+	 * with other hash values (e.g. for %WBL_PRIMITIVE_TYPE_ARRAY). */
+	const guint true_hash = 175;
+	const guint false_hash = 8823;
+	const guint null_hash = 33866;
+	const guint empty_array_hash = 7735;
+	const guint empty_object_hash = 23545;
+
+	node = (JsonNode *) key;
+	type = primitive_type_from_json_node (node);
+
+	switch (type) {
+	case WBL_PRIMITIVE_TYPE_BOOLEAN:
+		return json_node_get_boolean (node) ? true_hash : false_hash;
+	case WBL_PRIMITIVE_TYPE_NULL:
+		return null_hash;
+	case WBL_PRIMITIVE_TYPE_STRING:
+		return g_str_hash (json_node_get_string (node));
+	case WBL_PRIMITIVE_TYPE_INTEGER: {
+		gint64 v = json_node_get_int (node);
+		return g_int64_hash (&v);
+	}
+	case WBL_PRIMITIVE_TYPE_NUMBER: {
+		gdouble v = json_node_get_double (node);
+		return g_double_hash (&v);
+	}
+	case WBL_PRIMITIVE_TYPE_ARRAY: {
+		JsonArray *a;  /* unowned */
+		guint len;
+		JsonNode *first_element;  /* unowned */
+
+		/* FIXME: Don’t know how effective this is. We shouldn’t just
+		 * use the array length, as single-element arrays are common.
+		 * Combine it with the hash of the first element to get
+		 * something suitably well distributed. */
+		a = json_node_get_array (node);
+		len = json_array_get_length (a);
+
+		if (len == 0) {
+			return empty_array_hash;
+		}
+
+		first_element = json_array_get_element (a, 0);
+
+		return (len | node_hash (first_element));
+	}
+	case WBL_PRIMITIVE_TYPE_OBJECT: {
+		JsonObject *o;  /* unowned */
+		guint size;
+
+		/* FIXME: Objects are a bit more complex: their members are
+		 * unordered, so we can’t pluck out the first one without (e.g.)
+		 * retrieving all member names and ordering them alphabetically
+		 * first. That’s too expensive, so just stick with size */
+		o = json_node_get_object (node);
+		size = json_object_get_size (o);
+
+		/* Try and reduce collisions with low-valued integer values. */
+		size += empty_object_hash;
+
+		return g_int_hash (&size);
+	}
+	default:
+		g_assert_not_reached ();
+	}
+}
+
+/* Check whether two sets of JSON object member names are equal. The comparison
+ * is unordered.
+ *
+ * TODO: Should we handle UTF-8 specially here? Decomposition? */
+static gboolean
+member_names_equal (GList/*<unowned utf8>*/ *member_names_a  /* unowned */,
+                    GList/*<unowned utf8>*/ *member_names_b  /* unowned */)
+{
+	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+	gboolean retval = TRUE;
+
+	/* Special case for empty objects. */
+	if (member_names_a == NULL || member_names_b == NULL) {
+		return (member_names_a == member_names_b);
+	}
+
+	/* Add all the names from @member_names_a to a set, then remove all the
+	 * names from @member_names_b and throw an error if any of them don’t
+	 * exist. */
+	set = g_hash_table_new (g_str_hash, g_str_equal);
+
+	for (l = member_names_a; l != NULL; l = l->next) {
+		g_hash_table_add (set, l->data);
+	}
+
+	for (l = member_names_b; l != NULL; l = l->next) {
+		if (!g_hash_table_remove (set, l->data)) {
+			retval = FALSE;
+			break;
+		}
+	}
+
+	/* Check the sizes: as we’ve removed all the matching elements, the set
+	 * should now be empty. */
+	if (g_hash_table_size (set) != 0) {
+		retval = FALSE;
+	}
+
+	g_hash_table_unref (set);
+
+	return retval;
+}
+
+/* Reference: json-schema-core§3.6. */
+static gboolean
+node_equal (gconstpointer a,
+            gconstpointer b)
+{
+	JsonNode *node_a, *node_b;  /* unowned */
+	WblPrimitiveType type_a, type_b;
+
+	node_a = (JsonNode *) a;
+	node_b = (JsonNode *) b;
+
+	type_a = primitive_type_from_json_node (node_a);
+	type_b = primitive_type_from_json_node (node_b);
+
+	/* Eliminate mismatched types rapidly. */
+	if (!primitive_type_is_a (type_a, type_b) &&
+	    !primitive_type_is_a (type_b, type_a)) {
+		return FALSE;
+	}
+
+	switch (type_a) {
+	case WBL_PRIMITIVE_TYPE_NULL:
+		return TRUE;
+	case WBL_PRIMITIVE_TYPE_BOOLEAN:
+		return (json_node_get_boolean (node_a) ==
+		        json_node_get_boolean (node_b));
+	case WBL_PRIMITIVE_TYPE_STRING:
+		/* TODO: Check what ‘have the same value’ means for JSON
+		 * strings. */
+		return (g_strcmp0 (json_node_get_string (node_a),
+		                   json_node_get_string (node_b)) == 0);
+	case WBL_PRIMITIVE_TYPE_NUMBER:
+	case WBL_PRIMITIVE_TYPE_INTEGER: {
+		gdouble val_a, val_b;
+
+		/* Integer comparison doesn’t need to involve doubles. */
+		if (type_a == WBL_PRIMITIVE_TYPE_INTEGER &&
+		    type_b == WBL_PRIMITIVE_TYPE_INTEGER) {
+			return (json_node_get_int (node_a) ==
+			        json_node_get_int (node_b));
+		}
+
+		/* Everything else does. We can use bitwise double equality
+		 * here, since we’re not doing any calculations which could
+		 * introduce floating point error. We expect that the doubles
+		 * in the JSON nodes come directly from strtod() or similar,
+		 * so should be bitwise equal for equal string
+		 * representations.
+		 *
+		 * Interesting background reading:
+		 * http://randomascii.wordpress.com/2012/06/26/\
+		 *   doubles-are-not-floats-so-dont-compare-them/
+		 */
+		if (type_a == WBL_PRIMITIVE_TYPE_INTEGER) {
+			val_a = json_node_get_int (node_a);
+		} else {
+			val_a = json_node_get_double (node_a);
+		}
+
+		if (type_b == WBL_PRIMITIVE_TYPE_INTEGER) {
+			val_b = json_node_get_int (node_b);
+		} else {
+			val_b = json_node_get_double (node_b);
+		}
+
+		return (val_a == val_b);
+	}
+	case WBL_PRIMITIVE_TYPE_ARRAY: {
+		JsonArray *array_a, *array_b;  /* unowned */
+		guint length_a, length_b, i;
+
+		array_a = json_node_get_array (node_a);
+		array_b = json_node_get_array (node_b);
+
+		/* Check lengths. */
+		length_a = json_array_get_length (array_a);
+		length_b = json_array_get_length (array_b);
+
+		if (length_a != length_b) {
+			return FALSE;
+		}
+
+		/* Check elements. */
+		for (i = 0; i < length_a; i++) {
+			JsonNode *child_a, *child_b;  /* unowned */
+
+			child_a = json_array_get_element (array_a, i);
+			child_b = json_array_get_element (array_b, i);
+
+			if (!node_equal (child_a, child_b)) {
+				return FALSE;
+			}
+		}
+
+		return TRUE;
+	}
+	case WBL_PRIMITIVE_TYPE_OBJECT: {
+		JsonObject *object_a, *object_b;
+		guint size_a, size_b;
+		GList/*<unowned utf8>*/ *member_names_a = NULL;  /* owned */
+		GList/*<unowned utf8>*/ *member_names_b = NULL;  /* owned */
+		GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+		gboolean retval = TRUE;
+
+		object_a = json_node_get_object (node_a);
+		object_b = json_node_get_object (node_b);
+
+		/* Check sizes. */
+		size_a = json_object_get_size (object_a);
+		size_b = json_object_get_size (object_b);
+
+		if (size_a != size_b) {
+			return FALSE;
+		}
+
+		/* Check member names. */
+		member_names_a = json_object_get_members (object_a);
+		member_names_b = json_object_get_members (object_b);
+
+		if (!member_names_equal (member_names_a, member_names_b)) {
+			retval = FALSE;
+		}
+
+		/* Check member values. */
+		for (l = member_names_a; l != NULL && retval; l = l->next) {
+			JsonNode *child_a, *child_b;  /* unowned */
+
+			child_a = json_object_get_member (object_a, l->data);
+			child_b = json_object_get_member (object_b, l->data);
+
+			if (!node_equal (child_a, child_b)) {
+				retval = FALSE;
+				break;
+			}
+		}
+
+		g_list_free (member_names_b);
+		g_list_free (member_names_a);
+
+		return retval;
+	}
+	default:
+		g_assert_not_reached ();
+	}
+}
+
 /* Schemas. */
 static void
 wbl_schema_dispose (GObject *object);
@@ -1648,7 +1912,45 @@ apply_unique_items (WblSchema *self,
                     JsonNode *instance_node,
                     GError **error)
 {
-	/* TODO */
+	gboolean unique_items;
+	JsonArray *instance_array;  /* unowned */
+	GHashTable/*<unowned JsonNode,
+	             unowned JsonNode>*/ *unique_hash = NULL;  /* owned */
+	guint i;
+
+	/* Check type. */
+	if (!JSON_NODE_HOLDS_ARRAY (instance_node)) {
+		return;
+	}
+
+	unique_items = json_node_get_boolean (schema_node);
+
+	if (!unique_items) {
+		return;
+	}
+
+	/* Check the array elements are unique. */
+	instance_array = json_node_get_array (instance_node);
+	unique_hash = g_hash_table_new (node_hash, node_equal);
+
+	for (i = 0; i < json_array_get_length (instance_array); i++) {
+		JsonNode *child_node;  /* unowned */
+
+		child_node = json_array_get_element (instance_array, i);
+
+		if (g_hash_table_contains (unique_hash, child_node)) {
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+			             _("Array must have unique elements due to "
+			               "the uniqueItems schema keyword. "
+			               "See json-schema-validation§5.3.4."));
+			break;
+		}
+
+		g_hash_table_add (unique_hash, child_node);
+	}
+
+	g_hash_table_unref (unique_hash);
 }
 
 static void
