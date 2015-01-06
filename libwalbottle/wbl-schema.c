@@ -690,6 +690,56 @@ validate_value_type (JsonNode *node, GType value_type)
 	        json_node_get_value_type (node) == value_type);
 }
 
+/* Validate a node is a non-empty array of unique strings. */
+static gboolean
+validate_non_empty_unique_string_array (JsonNode *schema_node)
+{
+	JsonArray *schema_array;  /* unowned */
+	guint i;
+	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
+	gboolean valid = TRUE;
+
+	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		return FALSE;
+	}
+
+	schema_array = json_node_get_array (schema_node);
+
+	if (json_array_get_length (schema_array) == 0) {
+		return FALSE;
+	}
+
+	/* TODO: What about UTF-8 decomposition? */
+	set = g_hash_table_new (g_str_hash, g_str_equal);
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+		const gchar *child_str;
+
+		child_node = json_array_get_element (schema_array, i);
+
+		/* Check it’s a string. */
+		if (!validate_value_type (child_node, G_TYPE_STRING)) {
+			valid = FALSE;
+			break;
+		}
+
+		/* Check for uniqueness. */
+		child_str = json_node_get_string (child_node);
+
+		if (g_hash_table_contains (set, child_str)) {
+			valid = FALSE;
+			break;
+		}
+
+		g_hash_table_add (set, (gpointer) child_str);
+	}
+
+	g_hash_table_unref (set);
+
+	return valid;
+}
+
 /* Validate a node is a non-empty array of valid JSON schemas.
  * If any of the schemas is invalid, return the first validation error as
  * @schema_error. */
@@ -1030,6 +1080,31 @@ static gchar *  /* transfer full */
 json_int_to_string (gint64 i)
 {
 	return g_strdup_printf ("%" G_GINT64_FORMAT, i);
+}
+
+/* Check whether @obj has a property named after each string in @property_array,
+ * which must be a non-empty array of unique strings. */
+static gboolean
+object_has_properties (JsonObject *obj,
+                       JsonArray *property_array)
+{
+	guint i, property_array_length;
+
+	property_array_length = json_array_get_length (property_array);
+
+	for (i = 0; i < property_array_length; i++) {
+		JsonNode *property;  /* unowned */
+		const gchar *property_str;
+
+		property = json_array_get_element (property_array, i);
+		property_str = json_node_get_string (property);
+
+		if (!json_object_has_member (obj, property_str)) {
+			return FALSE;
+		}
+	}
+
+	return TRUE;
 }
 
 /* multipleOf. json-schema-validation§5.1.1. */
@@ -2099,53 +2174,7 @@ validate_required (WblSchema *self,
                    JsonNode *schema_node,
                    GError **error)
 {
-	JsonArray *schema_array;  /* unowned */
-	guint i;
-	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
-	gboolean valid = TRUE;
-
-	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
-		valid = FALSE;
-		goto done;
-	}
-
-	schema_array = json_node_get_array (schema_node);
-
-	if (json_array_get_length (schema_array) == 0) {
-		valid = FALSE;
-		goto done;
-	}
-
-	/* TODO: What about UTF-8 decomposition? */
-	set = g_hash_table_new (g_str_hash, g_str_equal);
-
-	for (i = 0; i < json_array_get_length (schema_array); i++) {
-		JsonNode *child_node;  /* unowned */
-		const gchar *child_str;
-
-		child_node = json_array_get_element (schema_array, i);
-
-		/* Check it’s a string. */
-		if (!validate_value_type (child_node, G_TYPE_STRING)) {
-			valid = FALSE;
-			break;
-		}
-
-		/* Check for uniqueness. */
-		child_str = json_node_get_string (child_node);
-
-		if (g_hash_table_contains (set, child_str)) {
-			valid = FALSE;
-			break;
-		}
-
-		g_hash_table_add (set, (gpointer) child_str);
-	}
-
-	g_hash_table_unref (set);
-
-done:
-	if (!valid) {
+	if (!validate_non_empty_unique_string_array (schema_node)) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
 		             _("required must be a non-empty array of unique "
@@ -2652,6 +2681,188 @@ generate_properties (WblSchema *self,
 
 	g_ptr_array_unref (_output);
 	g_list_free (member_names);
+}
+
+/* dependencies. json-schema-validation§5.4.5. */
+static void
+validate_dependencies (WblSchema *self,
+                       JsonObject *root,
+                       JsonNode *schema_node,
+                       GError **error)
+{
+	JsonObject *schema_object;  /* unowned */
+	GList/*<unowned JsonNode>*/ *schema_values = NULL;  /* owned */
+	GList/*<unowned JsonNode>*/ *l = NULL;  /* unowned */
+	gboolean valid = TRUE;
+
+	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		valid = FALSE;
+		goto done;
+	}
+
+	schema_object = json_node_get_object (schema_node);
+	schema_values = json_object_get_values (schema_object);
+
+	for (l = schema_values; l != NULL; l = l->next) {
+		JsonNode *child_node;  /* unowned */
+
+		child_node = l->data;
+
+		if (JSON_NODE_HOLDS_OBJECT (child_node)) {
+			WblSchemaClass *klass;
+			GError *child_error = NULL;
+
+			klass = WBL_SCHEMA_GET_CLASS (self);
+
+			/* Must be a valid JSON Schema. */
+			if (klass->validate_schema != NULL) {
+				WblSchemaNode node;
+
+				node.ref_count = 1;
+				node.node = json_node_dup_object (child_node);
+
+				klass->validate_schema (self, &node,
+				                        &child_error);
+
+				json_object_unref (node.node);
+			}
+
+			if (child_error != NULL) {
+				g_error_free (child_error);
+				valid = FALSE;
+				break;
+			}
+		} else if (JSON_NODE_HOLDS_ARRAY (child_node)) {
+			/* Must be a non-empty array of unique strings. */
+			if (!validate_non_empty_unique_string_array (child_node)) {
+				valid = FALSE;
+				break;
+			}
+		} else {
+			valid = FALSE;
+			break;
+		}
+	}
+
+	g_list_free (schema_values);
+
+done:
+	if (!valid) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("dependencies must be an object of valid JSON "
+		               "Schemas or non-empty arrays of unique strings. "
+		               "See json-schema-validation§5.4.5."));
+	}
+}
+
+static void
+apply_dependencies (WblSchema *self,
+                    JsonObject *root,
+                    JsonNode *schema_node,
+                    JsonNode *instance_node,
+                    GError **error)
+{
+	WblSchemaClass *klass;
+	JsonObject *schema_object;  /* unowned */
+	JsonObject *instance_object;  /* unowned */
+	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+
+	/* Check type. */
+	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
+		return;
+	}
+
+	instance_object = json_node_get_object (instance_node);
+	schema_object = json_node_get_object (schema_node);
+	member_names = json_object_get_members (schema_object);
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	for (l = member_names; l != NULL; l = l->next) {
+		const gchar *member_name;
+		JsonNode *child_node;  /* unowned */
+
+		member_name = l->data;
+		child_node = json_object_get_member (schema_object,
+		                                     member_name);
+
+		/* Does the instance have a property by this name? */
+		if (!json_object_has_member (instance_object, member_name)) {
+			continue;
+		}
+
+		if (JSON_NODE_HOLDS_OBJECT (child_node)) {
+			/* Schema dependency.
+			 * json-schema-validation§5.4.5.2.1.
+			 *
+			 * Instance must validate successfully against this
+			 * schema. */
+			GError *child_error = NULL;
+
+			if (klass->apply_schema != NULL) {
+				WblSchemaNode node;
+
+				node.ref_count = 1;
+				node.node = json_node_dup_object (child_node);
+
+				klass->apply_schema (self, &node, instance_node,
+				                     &child_error);
+
+				json_object_unref (node.node);
+			}
+
+			if (child_error != NULL) {
+				g_set_error (error,
+				             WBL_SCHEMA_ERROR,
+				             WBL_SCHEMA_ERROR_INVALID,
+				             _("Object does not validate "
+				               "against the schemas in the "
+				               "dependencies schema keyword. "
+				               "See "
+				               "json-schema-validation§5.4.5."));
+				break;
+			}
+		} else if (JSON_NODE_HOLDS_ARRAY (child_node)) {
+			JsonArray *child_array;  /* unowned */
+
+			/* Property dependency.
+			 * json-schema-validation§5.4.5.2.2.
+			 *
+			 * Instance must have all properties listed in the
+			 * @child_node array. */
+			child_array = json_node_get_array (child_node);
+
+			if (!object_has_properties (instance_object,
+			                            child_array)) {
+				g_set_error (error,
+				             WBL_SCHEMA_ERROR,
+				             WBL_SCHEMA_ERROR_INVALID,
+				             /* Translators: The parameter is a
+				              * JSON property name. */
+				             _("Object does not have "
+				               "properties for all elements in "
+				               "the ‘%s’ dependencies array in "
+				               "the dependencies schema "
+				               "keyword. See "
+				               "json-schema-validation§5.4.5."),
+				             member_name);
+				break;
+			}
+		}
+	}
+
+	g_list_free (member_names);
+}
+
+static void
+generate_dependencies (WblSchema *self,
+                       JsonObject *root,
+                       JsonNode *schema_node,
+                       GPtrArray *output)
+{
+	/* FIXME: Tricky to implement without a combinatorial explosion of
+	 * test vectors. Need to think about it. */
 }
 
 /* enum. json-schema-validation§5.5.1. */
@@ -3323,6 +3534,8 @@ static const KeywordData json_schema_keywords[] = {
 	{ "additionalProperties", validate_additional_properties, NULL, NULL },
 	{ "properties", validate_properties, apply_properties, generate_properties },
 	{ "patternProperties", validate_pattern_properties, NULL, NULL },
+	/* json-schema-validation§5.4.5 */
+	{ "dependencies", validate_dependencies, apply_dependencies, generate_dependencies },
 	/* json-schema-validation§5.5.1 */
 	{ "enum", validate_enum, apply_enum, generate_enum },
 	/* json-schema-validation§5.5.2 */
@@ -3342,7 +3555,6 @@ static const KeywordData json_schema_keywords[] = {
 	{ "default", NULL, NULL, NULL },
 
 	/* TODO:
-	 *  • dependencies (json-schema-validation§5.4.5)
 	 *  • definitions (json-schema-validation§5.5.7)
 	 *  • format (json-schema-validation§7.1)
 	 *  • json-schema-core
