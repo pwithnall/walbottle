@@ -2654,6 +2654,120 @@ generate_properties (WblSchema *self,
 	g_list_free (member_names);
 }
 
+/* enum. json-schema-validation§5.5.1. */
+static void
+validate_enum (WblSchema *self,
+               JsonObject *root,
+               JsonNode *schema_node,
+               GError **error)
+{
+	JsonArray *schema_array;  /* unowned */
+	GHashTable/*<unowned JsonNode,
+	             unowned JsonNode>*/ *set = NULL;  /* owned */
+	guint i;
+	gboolean valid = TRUE;
+
+	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		valid = FALSE;
+		goto done;
+	}
+
+	/* Check length. */
+	schema_array = json_node_get_array (schema_node);
+
+	if (json_array_get_length (schema_array) == 0) {
+		valid = FALSE;
+		goto done;
+	}
+
+	/* Check elements for uniqueness. */
+	set = g_hash_table_new (node_hash, node_equal);
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+
+		child_node = json_array_get_element (schema_array, i);
+
+		if (g_hash_table_contains (set, child_node)) {
+			valid = FALSE;
+			break;
+		}
+
+		g_hash_table_add (set, child_node);
+	}
+
+	g_hash_table_unref (set);
+
+done:
+	if (!valid) {
+		g_set_error (error,
+		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
+		             _("enum must be a non-empty array of unique "
+		               "elements. See json-schema-validation§5.5.1."));
+	}
+}
+
+static void
+apply_enum (WblSchema *self,
+            JsonObject *root,
+            JsonNode *schema_node,
+            JsonNode *instance_node,
+            GError **error)
+{
+	JsonArray *schema_array;  /* unowned */
+	guint i;
+
+	schema_array = json_node_get_array (schema_node);
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+
+		child_node = json_array_get_element (schema_array, i);
+
+		if (node_equal (instance_node, child_node)) {
+			/* Success: the instance matches this enum element. */
+			return;
+		}
+	}
+
+	/* Failure: the instance matched none of the enum elements. */
+	g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+	             _("Instance does not equal any of the elements of the "
+	               "enum schema keyword. "
+	               "See json-schema-validation§5.5.1."));
+}
+
+static void
+generate_enum (WblSchema *self,
+               JsonObject *root,
+               JsonNode *schema_node,
+               GPtrArray *output)
+{
+	JsonArray *schema_array;  /* unowned */
+	JsonGenerator *generator = NULL;  /* owned */
+	guint i;
+
+	/* Output one instance of each of the child nodes. */
+	schema_array = json_node_get_array (schema_node);
+	generator = json_generator_new ();
+
+	for (i = 0; i < json_array_get_length (schema_array); i++) {
+		JsonNode *child_node;  /* unowned */
+
+		child_node = json_array_get_element (schema_array, i);
+
+		json_generator_set_root (generator, child_node);
+		generate_take_string (output,
+		                      json_generator_to_data (generator, NULL),
+		                      TRUE);
+	}
+
+	g_object_unref (generator);
+
+	/* FIXME: Also output an instance which matches none of the enum
+	 * members? How would we generate one of those? */
+}
+
 /* type. json-schema-validation§5.5.2. */
 static void
 validate_type (WblSchema *self,
@@ -3209,6 +3323,8 @@ static const KeywordData json_schema_keywords[] = {
 	{ "additionalProperties", validate_additional_properties, NULL, NULL },
 	{ "properties", validate_properties, apply_properties, generate_properties },
 	{ "patternProperties", validate_pattern_properties, NULL, NULL },
+	/* json-schema-validation§5.5.1 */
+	{ "enum", validate_enum, apply_enum, generate_enum },
 	/* json-schema-validation§5.5.2 */
 	{ "type", validate_type, apply_type, generate_type },
 	/* json-schema-validation§5.5.3 */
@@ -3227,7 +3343,6 @@ static const KeywordData json_schema_keywords[] = {
 
 	/* TODO:
 	 *  • dependencies (json-schema-validation§5.4.5)
-	 *  • enum (json-schema-validation§5.5.1)
 	 *  • definitions (json-schema-validation§5.5.7)
 	 *  • format (json-schema-validation§7.1)
 	 *  • json-schema-core
