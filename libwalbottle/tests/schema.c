@@ -337,7 +337,6 @@ test_schema_instance_generation_hyper_schema (void)
 	WblSchema *schema = NULL;  /* owned */
 	GPtrArray/*<owned WblGeneratedInstace>*/ *instances = NULL;  /* owned */
 	GError *error = NULL;
-	guint i;
 
 	/* FIXME: This needs a lot of mollycoddling to get it doing the right
 	 * thing. */
@@ -368,11 +367,6 @@ test_schema_instance_generation_hyper_schema (void)
 
 	instances = wbl_schema_generate_instances (schema,
 	                                           WBL_GENERATE_INSTANCE_NONE);
-for (i = 0; i < instances->len; i++) {
-	WblGeneratedInstance *instance = instances->pdata[i];
-
-	g_message ("%s", wbl_generated_instance_get_json (instance));
-}
 	assert_generated_instances_match (instances, expected_instances);
 	g_ptr_array_unref (instances);
 
