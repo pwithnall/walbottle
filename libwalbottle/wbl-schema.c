@@ -1989,7 +1989,25 @@ apply_max_properties (WblSchema *self,
                       JsonNode *instance_node,
                       GError **error)
 {
-	/* TODO */
+	JsonObject *instance_object;  /* unowned */
+	gint64 max_properties, instance_properties;
+
+	/* Check the type first. */
+	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
+		return;
+	}
+
+	max_properties = json_node_get_int (schema_node);
+	instance_object = json_node_get_object (instance_node);
+	instance_properties = json_object_get_size (instance_object);
+
+	if (instance_properties > max_properties) {
+		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Object must have at most %" G_GINT64_FORMAT " "
+		               "properties due to the maxProperties schema "
+		               "keyword. See json-schema-validation§5.4.1."),
+		             max_properties);
+	}
 }
 
 static void
@@ -2034,7 +2052,25 @@ apply_min_properties (WblSchema *self,
                       JsonNode *instance_node,
                       GError **error)
 {
-	/* TODO */
+	JsonObject *instance_object;  /* unowned */
+	gint64 min_properties, instance_properties;
+
+	/* Check the type first. */
+	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
+		return;
+	}
+
+	min_properties = json_node_get_int (schema_node);
+	instance_object = json_node_get_object (instance_node);
+	instance_properties = json_object_get_size (instance_object);
+
+	if (instance_properties < min_properties) {
+		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+		             _("Object must have at least %" G_GINT64_FORMAT " "
+		               "properties due to the minProperties schema "
+		               "keyword. See json-schema-validation§5.4.2."),
+		             min_properties);
+	}
 }
 
 static void
