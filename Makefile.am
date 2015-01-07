@@ -135,6 +135,34 @@ utilities_json_validate_LDADD = \
 	$(AM_LIBADD) \
 	$(NULL)
 
+# json-schema-validate utility
+bin_PROGRAMS += utilities/json-schema-validate
+
+utilities_json_schema_validate_SOURCES = \
+	utilities/json-schema-validate.c \
+	$(NULL)
+utilities_json_schema_validate_CPPFLAGS = \
+	-I$(top_srcdir) \
+	-I$(top_srcdir)/libwalbottle \
+	-I$(top_builddir)/libwalbottle \
+	-DG_LOG_DOMAIN=\"json-schema-validate\" \
+	$(DISABLE_DEPRECATED) \
+	$(AM_CPPFLAGS) \
+	$(NULL)
+utilities_json_schema_validate_CFLAGS = \
+	$(GLIB_CFLAGS) \
+	$(JSON_GLIB_CFLAGS) \
+	$(WARN_CFLAGS) \
+	$(AM_CFLAGS) \
+	$(NULL)
+utilities_json_schema_validate_LDADD = \
+	libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
+	$(GLIB_LIBS) \
+	$(JSON_GLIB_LIBS) \
+	$(WARN_LDFLAGS) \
+	$(AM_LIBADD) \
+	$(NULL)
+
 # Macros
 EXTRA_DIST += \
 	m4/ax_append_compile_flags.m4 \
