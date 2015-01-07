@@ -98,7 +98,7 @@ main (int argc, char *argv[])
 		g_printerr ("%s\n", message);
 		g_free (message);
 
-		g_error_free (error);
+		g_clear_error (&error);
 
 		retval = EXIT_INVALID_OPTIONS;
 		goto done;
@@ -130,10 +130,13 @@ main (int argc, char *argv[])
 			if (retval == EXIT_SUCCESS) {
 				retval = EXIT_INVALID_JSON;
 			}
-			g_error_free (error);
+			g_clear_error (&error);
 
 			if (!option_ignore_errors) {
 				goto done;
+			} else {
+				g_object_unref (parser);
+				continue;
 			}
 		}
 
@@ -168,10 +171,13 @@ main (int argc, char *argv[])
 			if (retval == EXIT_SUCCESS) {
 				retval = EXIT_INVALID_SCHEMA;
 			}
-			g_error_free (error);
+			g_clear_error (&error);
 
 			if (!option_ignore_errors) {
 				goto done;
+			} else {
+				g_object_unref (schema);
+				continue;
 			}
 		}
 
@@ -231,7 +237,7 @@ main (int argc, char *argv[])
 				if (retval == EXIT_SUCCESS) {
 					retval = EXIT_SCHEMA_VALIDATION_FAILED;
 				}
-				g_error_free (error);
+				g_clear_error (&error);
 
 				if (!option_ignore_errors) {
 					goto done;
