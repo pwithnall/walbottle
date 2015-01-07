@@ -61,6 +61,11 @@ GOBJECT_INTROSPECTION_CHECK([0.9.7])
 
 VAPIGEN_CHECK()
 
+AC_PATH_PROG([GLIB_COMPILE_RESOURCES],[glib-compile-resources])
+AS_IF([test "$GLIB_COMPILE_RESOURCES" == ""],[
+	AC_MSG_ERROR([glib-compile-resources not found])
+])
+
 AC_SUBST([AM_CPPFLAGS])
 AC_SUBST([AM_CFLAGS])
 AC_SUBST([AM_CXXFLAGS])

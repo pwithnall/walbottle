@@ -14,7 +14,8 @@ lib_LTLIBRARIES = libwalbottle/libwalbottle-@WBL_API_VERSION@.la
 wblincludedir = $(includedir)/libwalbottle-@WBL_API_VERSION@/walbottle
 wbl_headers = \
 	libwalbottle/wbl-schema.h \
-	libwalbottle/wbl-version.h
+	libwalbottle/wbl-meta-schema.h \
+	libwalbottle/wbl-version.h \
 	$(NULL)
 
 # The following headers are private, and shouldn't be installed:
@@ -27,6 +28,15 @@ wblinclude_HEADERS = \
 
 wbl_sources = \
 	libwalbottle/wbl-schema.c \
+	libwalbottle/wbl-meta-schema.c \
+	$(NULL)
+
+meta_schema_sources = \
+	libwalbottle/wbl-meta-schemas.c \
+	$(NULL)
+meta_schema_json = \
+	libwalbottle/meta-schema.json \
+	libwalbottle/hyper-meta-schema.json \
 	$(NULL)
 
 main_header = libwalbottle/walbottle.h
@@ -35,6 +45,9 @@ public_headers = $(wblinclude_HEADERS)
 libwalbottle_libwalbottle_@WBL_API_VERSION@_la_SOURCES = \
 	$(private_headers) \
 	$(wbl_sources) \
+	$(NULL)
+nodist_libwalbottle_libwalbottle_@WBL_API_VERSION@_la_SOURCES = \
+	$(meta_schema_sources) \
 	$(NULL)
 
 libwalbottle_libwalbottle_@WBL_API_VERSION@_la_CPPFLAGS = \
@@ -70,6 +83,17 @@ libwalbottle_libwalbottle_@WBL_API_VERSION@_la_LDFLAGS = \
 	$(NULL)
 
 EXTRA_DIST += libwalbottle/libwalbottle.symbols
+
+CLEANFILES += $(meta_schema_sources)
+EXTRA_DIST += \
+	libwalbottle/wbl-meta-schemas.gresource.xml \
+	$(meta_schema_json) \
+	$(NULL)
+
+$(meta_schema_sources): libwalbottle/wbl-meta-schemas.gresource.xml $(meta_schema_json)
+	$(AM_V_GEN) $(GLIB_COMPILE_RESOURCES) \
+		--c-name=wbl_meta_schemas --generate-source \
+		--sourcedir=$(top_srcdir)/libwalbottle $<
 
 # Check if walbottle.h includes all the public headers
 check-local: check-headers

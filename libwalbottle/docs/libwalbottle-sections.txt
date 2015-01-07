@@ -50,3 +50,11 @@ wbl_generated_instance_get_type
 <SUBSECTION Private>
 WblSchemaPrivate
 </SECTION>
+
+<SECTION>
+<FILE>wbl-meta-schema</FILE>
+<TITLE>WblMetaSchema</TITLE>
+WblMetaSchemaType
+wbl_meta_schema_load
+wbl_meta_schema_load_schema
+</SECTION>

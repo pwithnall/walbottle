@@ -25,6 +25,7 @@
 			<title>Core API</title>
 			<xi:include href="xml/wbl-version.xml"/>
 			<xi:include href="xml/wbl-schema.xml"/>
+			<xi:include href="xml/wbl-meta-schema.xml"/>
 		</chapter>
 	</part>
 

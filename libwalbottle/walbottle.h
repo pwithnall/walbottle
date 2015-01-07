@@ -22,6 +22,7 @@
 
 /* Core files */
 #include <walbottle/wbl-schema.h>
+#include <walbottle/wbl-meta-schema.h>
 #include <walbottle/wbl-version.h>
 
 #endif /* !WBL_H */

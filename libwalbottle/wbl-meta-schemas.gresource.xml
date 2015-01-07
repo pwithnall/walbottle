@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+	<gresource prefix="/org/walbottle/meta-schemas">
+		<file compressed="true">meta-schema.json</file>
+		<file compressed="true">hyper-meta-schema.json</file>
+	</gresource>
+</gresources>

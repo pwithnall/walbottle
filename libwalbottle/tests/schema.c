@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "wbl-schema.h"
+#include "wbl-meta-schema.h"
 
 /* Utility method to assert that the generated instances in two arrays match,
  * ignoring order. */
@@ -110,9 +111,8 @@ test_schema_parsing_schema (void)
 	WblSchema *schema = NULL;  /* owned */
 	GError *error = NULL;
 
-	schema = wbl_schema_new ();
-
-	wbl_schema_load_from_file (schema, "schema.json", &error);
+	schema = wbl_meta_schema_load_schema (WBL_META_SCHEMA_META_SCHEMA,
+	                                      &error);
 	g_assert_no_error (error);
 
 	g_assert (wbl_schema_get_root (schema) != NULL);
@@ -128,9 +128,8 @@ test_schema_parsing_hyper_schema (void)
 	WblSchema *schema = NULL;  /* owned */
 	GError *error = NULL;
 
-	schema = wbl_schema_new ();
-
-	wbl_schema_load_from_file (schema, "hyper-schema.json", &error);
+	schema = wbl_meta_schema_load_schema (WBL_META_SCHEMA_HYPER_META_SCHEMA,
+	                                      &error);
 	g_assert_no_error (error);
 
 	g_assert (wbl_schema_get_root (schema) != NULL);
@@ -316,9 +315,8 @@ test_schema_instance_generation_schema (void)
 		NULL,  /* terminator */
 	};
 
-	schema = wbl_schema_new ();
-
-	wbl_schema_load_from_file (schema, "schema.json", &error);
+	schema = wbl_meta_schema_load_schema (WBL_META_SCHEMA_META_SCHEMA,
+	                                      &error);
 	g_assert_no_error (error);
 
 	instances = wbl_schema_generate_instances (schema,
@@ -360,9 +358,8 @@ test_schema_instance_generation_hyper_schema (void)
 		NULL,  /* terminator */
 	};
 
-	schema = wbl_schema_new ();
-
-	wbl_schema_load_from_file (schema, "hyper-schema.json", &error);
+	schema = wbl_meta_schema_load_schema (WBL_META_SCHEMA_HYPER_META_SCHEMA,
+	                                      &error);
 	g_assert_no_error (error);
 
 	instances = wbl_schema_generate_instances (schema,
