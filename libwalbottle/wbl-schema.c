@@ -3193,6 +3193,14 @@ validate_type (WblSchema *self,
 		goto invalid;
 	}
 
+	/* FIXME: The specification (json-schema-validation§5.5.2.1) does not
+	 * require that the array is non-empty, as it does for some other
+	 * arrays. However, it would make sense for this to be a requirement.
+	 *
+	 * For the moment, allow empty type arrays, and fail validation of all
+	 * instances against them. This should be queried with the specification
+	 * authors though. */
+
 	/* Check uniqueness of the array elements using @seen_types as a
 	 * bitmask indexed by #WblPrimitiveType. */
 	schema_array = json_node_get_array (schema_node);
@@ -3231,6 +3239,44 @@ invalid:
 	               "See json-schema-validation§5.5.2."));
 }
 
+/* Convert a #JsonNode for the type keyword into a (potentially empty) array of
+ * the #WblPrimitiveTypes it contains. If the keyword is a string, the array
+ * will contain a single element. */
+static GArray *  /* transfer full */
+type_node_to_array (JsonNode *schema_node)
+{
+	WblPrimitiveType schema_node_type;
+	const gchar *schema_str;
+	GArray/*<WblPrimitiveType>*/ *schema_types = NULL;  /* owned */
+	guint i;
+
+	schema_types = g_array_new (FALSE, FALSE, sizeof (WblPrimitiveType));
+
+	if (JSON_NODE_HOLDS_VALUE (schema_node)) {
+		schema_str = json_node_get_string (schema_node);
+		schema_node_type = primitive_type_from_string (schema_str);
+
+		g_array_append_val (schema_types, schema_node_type);
+	} else {
+		JsonArray *schema_array;  /* unowned */
+
+		schema_array = json_node_get_array (schema_node);
+
+		for (i = 0; i < json_array_get_length (schema_array); i++) {
+			JsonNode *child_node;  /* unowned */
+
+			child_node = json_array_get_element (schema_array, i);
+
+			schema_str = json_node_get_string (child_node);
+			schema_node_type = primitive_type_from_string (schema_str);
+
+			g_array_append_val (schema_types, schema_node_type);
+		}
+	}
+
+	return schema_types;
+}
+
 static void
 apply_type (WblSchema *self,
             JsonObject *root,
@@ -3238,21 +3284,37 @@ apply_type (WblSchema *self,
             JsonNode *instance_node,
             GError **error)
 {
-	WblPrimitiveType schema_node_type, instance_node_type;
-	const gchar *schema_str;
+	WblPrimitiveType instance_node_type;
+	GArray/*<WblPrimitiveType>*/ *schema_types = NULL;  /* owned */
+	guint i;
 
-	schema_str = json_node_get_string (schema_node);
-	schema_node_type = primitive_type_from_string (schema_str);
+	/* Extract the type strings to an array of #WblPrimitiveTypes. */
+	schema_types = type_node_to_array (schema_node);
+
+	/* Validate the instance node type against the schema types. */
 	instance_node_type = primitive_type_from_json_node (instance_node);
 
-	if (!primitive_type_is_a (instance_node_type, schema_node_type)) {
-		/* Invalid. */
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Instance type does not conform to type schema "
-		               "keyword. See json-schema-validation§5.5.2."));
-		return;
+	for (i = 0; i < schema_types->len; i++) {
+		WblPrimitiveType schema_node_type;
+
+		schema_node_type = g_array_index (schema_types,
+		                                  WblPrimitiveType, i);
+
+		if (primitive_type_is_a (instance_node_type,
+		                         schema_node_type)) {
+			/* Success. */
+			goto done;
+		}
 	}
+
+	/* Type not found. Invalid. */
+	g_set_error (error,
+	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
+	             _("Instance type does not conform to type schema "
+	               "keyword. See json-schema-validation§5.5.2."));
+
+done:
+	g_array_unref (schema_types);
 }
 
 static void
@@ -3261,34 +3323,44 @@ generate_type (WblSchema *self,
                JsonNode *schema_node,
                GPtrArray *output)
 {
-	WblPrimitiveType schema_node_type;
-	const gchar *schema_str, *valid, *invalid;
+	const gchar *valid, *invalid;
 
-	schema_str = json_node_get_string (schema_node);
-	schema_node_type = primitive_type_from_string (schema_str);
+	GArray/*<WblPrimitiveType>*/ *schema_types = NULL;  /* owned */
+	guint i;
 
-	/* Add a valid instance. */
-	switch (schema_node_type) {
-	case WBL_PRIMITIVE_TYPE_ARRAY: valid = "[]"; break;
-	case WBL_PRIMITIVE_TYPE_BOOLEAN: valid = "true"; break;
-	case WBL_PRIMITIVE_TYPE_INTEGER: valid = "1"; break;
-	case WBL_PRIMITIVE_TYPE_NUMBER: valid = "0.1"; break;
-	case WBL_PRIMITIVE_TYPE_NULL: valid = "null"; break;
-	case WBL_PRIMITIVE_TYPE_OBJECT: valid = "{}"; break;
-	case WBL_PRIMITIVE_TYPE_STRING: valid = "''"; break;
-	default: g_assert_not_reached ();
+	/* Extract the type strings to an array of #WblPrimitiveTypes. */
+	schema_types = type_node_to_array (schema_node);
+
+	/* Generate instances for each of them. */
+	for (i = 0; i < schema_types->len; i++) {
+		WblPrimitiveType schema_node_type;
+
+		schema_node_type = g_array_index (schema_types,
+		                                  WblPrimitiveType, i);
+
+		/* Add a valid instance. */
+		switch (schema_node_type) {
+		case WBL_PRIMITIVE_TYPE_ARRAY: valid = "[]"; break;
+		case WBL_PRIMITIVE_TYPE_BOOLEAN: valid = "true"; break;
+		case WBL_PRIMITIVE_TYPE_INTEGER: valid = "1"; break;
+		case WBL_PRIMITIVE_TYPE_NUMBER: valid = "0.1"; break;
+		case WBL_PRIMITIVE_TYPE_NULL: valid = "null"; break;
+		case WBL_PRIMITIVE_TYPE_OBJECT: valid = "{}"; break;
+		case WBL_PRIMITIVE_TYPE_STRING: valid = "''"; break;
+		default: g_assert_not_reached ();
+		}
+
+		generate_set_string (output, valid, TRUE);
+
+		/* And an invalid instance. */
+		if (schema_node_type == WBL_PRIMITIVE_TYPE_NULL) {
+			invalid = "false";
+		} else {
+			invalid = "null";
+		}
+
+		generate_set_string (output, invalid, FALSE);
 	}
-
-	generate_set_string (output, valid, TRUE);
-
-	/* And an invalid instance. */
-	if (schema_node_type == WBL_PRIMITIVE_TYPE_NULL) {
-		invalid = "false";
-	} else {
-		invalid = "null";
-	}
-
-	generate_set_string (output, invalid, FALSE);
 }
 
 /* allOf. json-schema-validation§5.5.3. */
