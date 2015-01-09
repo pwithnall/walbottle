@@ -360,6 +360,75 @@ primitive_type_is_a (WblPrimitiveType sub,
 	         sub == WBL_PRIMITIVE_TYPE_INTEGER));
 }
 
+/* JSON Schema number (integer or float) comparison.
+ *
+ * Compare the numbers stored in two nodes, returning a strcmp()-like value.
+ * The nodes must each contain an integer or a double, but do not have to
+ * contain the same type. */
+static gint
+number_node_comparison (JsonNode *a,
+                        JsonNode *b)
+{
+	GType a_type, b_type;
+	gint retval;
+
+	a_type = json_node_get_value_type (a);
+	b_type = json_node_get_value_type (b);
+
+	/* Note: These comparisons cannot use arithmetic, both because that
+	 * would introduce floating point errors; and also because it could
+	 * cause overflow or underflow. */
+	if (a_type == G_TYPE_INT64 && b_type == G_TYPE_INT64) {
+		gint64 a_value, b_value;
+
+		/* Integer comparison is possible. */
+		a_value = json_node_get_int (a);
+		b_value = json_node_get_int (b);
+
+		if (a_value < b_value) {
+			retval = -1;
+		} else if (a_value > b_value) {
+			retval = 1;
+		} else {
+			retval = 0;
+		}
+	} else {
+		gdouble a_value, b_value;
+
+		/* Have to compare by doubles. */
+		a_value = json_node_get_double (a);
+		b_value = json_node_get_double (b);
+
+		if (a_value < b_value) {
+			retval = -1;
+		} else if (a_value > b_value) {
+			retval = 1;
+		} else {
+			retval = 0;
+		}
+	}
+
+	return retval;
+}
+
+/* Convert a JSON Schema number node (float or integer) to a string. */
+static gchar *  /* transfer full */
+number_node_to_string (JsonNode *node)
+{
+	GType node_type;
+
+	node_type = json_node_get_value_type (node);
+
+	if (node_type == G_TYPE_INT64) {
+		return g_strdup_printf ("%" G_GINT64_FORMAT,
+		                        json_node_get_int (node));
+	} else if (node_type == G_TYPE_DOUBLE) {
+		return g_strdup_printf ("%f", json_node_get_double (node));
+	} else {
+		g_assert_not_reached ();
+	}
+}
+
 /* JSON string equality via hash tables.
  *
  * Note: Member names are compared byte-wise, without applying any Unicode
@@ -1114,6 +1183,12 @@ json_int_to_string (gint64 i)
 	return g_strdup_printf ("%" G_GINT64_FORMAT, i);
 }
 
+static gchar *  /* transfer full */
+json_double_to_string (gdouble i)
+{
+	return g_strdup_printf ("%f", i);
+}
+
 /* Check whether @obj has a property named after each string in @property_array,
  * which must be a non-empty array of unique strings. */
 static gboolean
@@ -1146,11 +1221,13 @@ validate_multiple_of (WblSchema *self,
                       JsonNode *schema_node,
                       GError **error)
 {
-	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
-	    json_node_get_int (schema_node) <= 0) {
+	if ((!validate_value_type (schema_node, G_TYPE_INT64) ||
+	     json_node_get_int (schema_node) <= 0) &&
+	    (!validate_value_type (schema_node, G_TYPE_DOUBLE) ||
+	     json_node_get_double (schema_node) <= 0.0)) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("multipleOf must be a positive integer. "
+		             _("multipleOf must be a positive number. "
 		               "See json-schema-validation§5.1.1."));
 	}
 }
@@ -1162,17 +1239,58 @@ apply_multiple_of (WblSchema *self,
                    JsonNode *instance_node,
                    GError **error)
 {
-	if (JSON_NODE_HOLDS_VALUE (instance_node) &&
-	    json_node_get_value_type (instance_node) == G_TYPE_INT64 &&
-	    (json_node_get_int (instance_node) %
-	     json_node_get_int (schema_node)) != 0) {
+	gboolean retval;
+	GType instance_type, schema_type;
+
+	if (!JSON_NODE_HOLDS_VALUE (instance_node)) {
+		return;
+	}
+
+	instance_type = json_node_get_value_type (instance_node);
+	schema_type = json_node_get_value_type (schema_node);
+
+	/* Type check. */
+	if (instance_type != G_TYPE_INT64 &&
+	    instance_type != G_TYPE_DOUBLE) {
+		return;
+	}
+
+	if (instance_type == G_TYPE_INT64 &&
+	    schema_type == G_TYPE_INT64) {
+		/* Integer comparison. */
+		retval = ((json_node_get_int (instance_node) %
+		          json_node_get_int (schema_node)) == 0);
+	} else {
+		gdouble instance_value, schema_value;
+		gdouble factor;
+
+		/* Double comparison. */
+		if (instance_type == G_TYPE_INT64) {
+			instance_value = json_node_get_int (instance_node);
+		} else {
+			instance_value = json_node_get_double (instance_node);
+		}
+
+		if (schema_type == G_TYPE_INT64) {
+			schema_value = json_node_get_int (schema_node);
+		} else {
+			schema_value = json_node_get_double (schema_node);
+		}
+
+		factor = instance_value / schema_value;
+		retval = (((gint64) factor) == factor);
+	}
+
+	if (!retval) {
+		gchar *str = NULL;  /* owned */
+
+		str = number_node_to_string (schema_node);
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be a multiple of %" G_GINT64_FORMAT
-		               " due to the multipleOf schema keyword. "
-		               "See json-schema-validation§5.1.1."),
-		             json_node_get_int (schema_node));
-		return;
+		             _("Value must be a multiple of %s "
+		               "due to the multipleOf schema keyword. "
+		               "See json-schema-validation§5.1.1."), str);
+		g_free (str);
 	}
 }
 
@@ -1182,19 +1300,48 @@ generate_multiple_of (WblSchema *self,
                       JsonNode *schema_node,
                       GPtrArray *output)
 {
-	gint64 multiplicand;
+	GType schema_type;
 
-	multiplicand = json_node_get_int (schema_node);
+	schema_type = json_node_get_value_type (schema_node);
 
+	/* Standard outputs. */
 	generate_set_string (output, "0", TRUE);
-	generate_take_string (output, json_int_to_string (multiplicand), TRUE);
-	generate_take_string (output, json_int_to_string (multiplicand * 2),
-	                      TRUE);
+	generate_set_string (output, "0.0", TRUE);
 
-	if (multiplicand != 1) {
+	if (schema_type == G_TYPE_INT64) {
+		gint64 multiplicand;
+
+		multiplicand = json_node_get_int (schema_node);
+
 		generate_take_string (output,
-		                      json_int_to_string (multiplicand + 1),
-		                      FALSE);
+		                      json_int_to_string (multiplicand), TRUE);
+		generate_take_string (output,
+		                      json_int_to_string (multiplicand * 2),
+		                      TRUE);
+
+		if (multiplicand != 1) {
+			generate_take_string (output,
+			                      json_int_to_string (multiplicand + 1),
+			                      FALSE);
+		}
+	} else if (schema_type == G_TYPE_DOUBLE) {
+		gdouble multiplicand;
+
+		multiplicand = json_node_get_double (schema_node);
+
+		generate_take_string (output,
+		                      json_double_to_string (multiplicand), TRUE);
+		generate_take_string (output,
+		                      json_double_to_string (multiplicand * 2.0),
+		                      TRUE);
+
+		if (multiplicand != 0.1) {
+			generate_take_string (output,
+			                      json_double_to_string (multiplicand + 0.1),
+			                      FALSE);
+		}
+	} else {
+		g_assert_not_reached ();
 	}
 }
 
