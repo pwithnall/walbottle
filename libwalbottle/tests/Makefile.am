@@ -30,6 +30,7 @@ EXTRA_DIST = \
 
 TESTS = \
 	schema \
+	schema-keywords \
 	$(NULL)
 noinst_PROGRAMS = $(TESTS)
 
