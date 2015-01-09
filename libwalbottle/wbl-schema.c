@@ -1367,10 +1367,11 @@ validate_maximum (WblSchema *self,
                   JsonNode *schema_node,
                   GError **error)
 {
-	if (!validate_value_type (schema_node, G_TYPE_INT64)) {
+	if (!validate_value_type (schema_node, G_TYPE_INT64) &&
+	    !validate_value_type (schema_node, G_TYPE_DOUBLE)) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("maximum must be an integer. "
+		             _("maximum must be a number. "
 		               "See json-schema-validation§5.1.2."));
 	}
 }
@@ -1403,41 +1404,45 @@ apply_maximum (WblSchema *self,
                JsonNode *instance_node,
                GError **error)
 {
-	gint64 maximum, instance;
+	gchar *maximum_str = NULL;  /* owned */
 	gboolean exclusive_maximum = FALSE;  /* json-schema-validation§5.1.2.3 */
 	JsonNode *node;  /* unowned */
+	gint comparison;
 
 	/* Check the instance is of the right type. */
-	if (!JSON_NODE_HOLDS_VALUE (instance_node) ||
-	    json_node_get_value_type (instance_node) != G_TYPE_INT64) {
+	if (!validate_value_type (instance_node, G_TYPE_INT64) &&
+	    !validate_value_type (instance_node, G_TYPE_DOUBLE)) {
 		return;
 	}
 
 	/* Gather various parameters. */
-	maximum = json_node_get_int (schema_node);
-	instance = json_node_get_int (instance_node);
-
 	node = json_object_get_member (root, "exclusiveMaximum");
 	if (node != NULL) {
 		exclusive_maximum = json_node_get_boolean (node);
 	}
 
+	maximum_str = number_node_to_string (schema_node);
+
 	/* Actually perform the validation. */
-	if (!exclusive_maximum && instance > maximum) {
+	comparison = number_node_comparison (instance_node, schema_node);
+
+	if (!exclusive_maximum && comparison > 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be less than or equal to %"
-		               G_GINT64_FORMAT " due to the maximum schema "
+		             _("Value must be less than or equal to %s "
+		               "due to the maximum schema "
 		               "keyword. See json-schema-validation§5.1.2."),
-		             maximum);
-	} else if (exclusive_maximum && instance >= maximum) {
+		             maximum_str);
+	} else if (exclusive_maximum && comparison >= 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be less than %" G_GINT64_FORMAT " "
+		             _("Value must be less than %s "
 		               "due to the maximum and exclusiveMaximum schema "
 		               "keywords. See json-schema-validation§5.1.2."),
-		             maximum);
+		             maximum_str);
 	}
+
+	g_free (maximum_str);
 }
 
 static void
@@ -1446,28 +1451,62 @@ generate_maximum (WblSchema *self,
                   JsonNode *schema_node,
                   GPtrArray *output)
 {
-	gint64 maximum;
 	gboolean exclusive_maximum = FALSE;  /* json-schema-validation§5.1.2.3 */
 	JsonNode *node;  /* unowned */
-
-	maximum = json_node_get_int (schema_node);
 
 	node = json_object_get_member (root, "exclusiveMaximum");
 	if (node != NULL) {
 		exclusive_maximum = json_node_get_boolean (node);
 	}
 
-	if (maximum > G_MININT64 && exclusive_maximum) {
-		generate_take_string (output, json_int_to_string (maximum - 1),
-		                      TRUE);
-	}
+	/* Generate the instances. */
+	if (json_node_get_value_type (schema_node) == G_TYPE_INT64) {
+		gint64 maximum;
 
-	generate_take_string (output, json_int_to_string (maximum),
-	                      !exclusive_maximum);
+		maximum = json_node_get_int (schema_node);
 
-	if (maximum < G_MAXINT64 && !exclusive_maximum) {
-		generate_take_string (output, json_int_to_string (maximum + 1),
-		                      FALSE);
+		if (maximum > G_MININT64 && exclusive_maximum) {
+			generate_take_string (output,
+			                      json_int_to_string (maximum - 1),
+			                      TRUE);
+		}
+
+		generate_take_string (output, json_int_to_string (maximum),
+		                      !exclusive_maximum);
+		generate_take_string (output,
+		                      json_double_to_string ((gdouble) maximum),
+		                      !exclusive_maximum);
+
+		if (maximum < G_MAXINT64 && !exclusive_maximum) {
+			generate_take_string (output,
+			                      json_int_to_string (maximum + 1),
+			                      FALSE);
+		}
+	} else {
+		gdouble maximum;
+		gint64 rounded;
+
+		maximum = json_node_get_double (schema_node);
+		rounded = (gint64) maximum;  /* truncation is fine */
+
+		if (maximum > G_MINDOUBLE && exclusive_maximum) {
+			generate_take_string (output,
+			                      json_double_to_string (maximum - DBL_EPSILON),
+			                      TRUE);
+		}
+
+		generate_take_string (output,
+		                      json_double_to_string (maximum),
+		                      !exclusive_maximum);
+		generate_take_string (output,
+		                      json_int_to_string (rounded),
+		                      !exclusive_maximum);
+
+		if (maximum < G_MAXINT64 && !exclusive_maximum) {
+			generate_take_string (output,
+			                      json_double_to_string (maximum + DBL_EPSILON),
+			                      FALSE);
+		}
 	}
 }
 
@@ -1478,10 +1517,11 @@ validate_minimum (WblSchema *self,
                   JsonNode *schema_node,
                   GError **error)
 {
-	if (!validate_value_type (schema_node, G_TYPE_INT64)) {
+	if (!validate_value_type (schema_node, G_TYPE_INT64) &&
+	    !validate_value_type (schema_node, G_TYPE_DOUBLE)) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("minimum must be an integer. "
+		             _("minimum must be a number. "
 		               "See json-schema-validation§5.1.3."));
 	}
 }
@@ -1514,41 +1554,45 @@ apply_minimum (WblSchema *self,
                JsonNode *instance_node,
                GError **error)
 {
-	gint64 minimum, instance;
+	gchar *minimum_str = NULL;  /* owned */
 	gboolean exclusive_minimum = FALSE;  /* json-schema-validation§5.1.3.3 */
 	JsonNode *node;  /* unowned */
+	gint comparison;
 
 	/* Check the instance is of the right type. */
-	if (!JSON_NODE_HOLDS_VALUE (instance_node) ||
-	    json_node_get_value_type (instance_node) != G_TYPE_INT64) {
+	if (!validate_value_type (instance_node, G_TYPE_INT64) &&
+	    !validate_value_type (instance_node, G_TYPE_DOUBLE)) {
 		return;
 	}
 
 	/* Gather various parameters. */
-	minimum = json_node_get_int (schema_node);
-	instance = json_node_get_int (instance_node);
-
 	node = json_object_get_member (root, "exclusiveMinimum");
 	if (node != NULL) {
 		exclusive_minimum = json_node_get_boolean (node);
 	}
 
+	minimum_str = number_node_to_string (schema_node);
+
 	/* Actually perform the validation. */
-	if (!exclusive_minimum && instance < minimum) {
+	comparison = number_node_comparison (instance_node, schema_node);
+
+	if (!exclusive_minimum && comparison < 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be greater than or equal to %"
-		               G_GINT64_FORMAT " due to the minimum schema "
+		             _("Value must be greater than or equal to %s "
+		               "due to the minimum schema "
 		               "keyword. See json-schema-validation§5.1.3."),
-		             minimum);
-	} else if (exclusive_minimum && instance <= minimum) {
+		             minimum_str);
+	} else if (exclusive_minimum && comparison <= 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be greater than %" G_GINT64_FORMAT
-		               " due to the minimum and exclusiveMinimum schema"
-		               " keywords. See json-schema-validation§5.1.3."),
-		             minimum);
+		             _("Value must be greater than %s "
+		               "due to the minimum and exclusiveMinimum schema "
+		               "keywords. See json-schema-validation§5.1.3."),
+		             minimum_str);
 	}
+
+	g_free (minimum_str);
 }
 
 static void
@@ -1557,28 +1601,63 @@ generate_minimum (WblSchema *self,
                   JsonNode *schema_node,
                   GPtrArray *output)
 {
-	gint64 minimum;
 	gboolean exclusive_minimum = FALSE;  /* json-schema-validation§5.1.3.3 */
 	JsonNode *node;  /* unowned */
 
-	minimum = json_node_get_int (schema_node);
-
+	/* Grab useful data. */
 	node = json_object_get_member (root, "exclusiveMinimum");
 	if (node != NULL) {
 		exclusive_minimum = json_node_get_boolean (node);
 	}
 
-	if (minimum > G_MININT64 && !exclusive_minimum) {
-		generate_take_string (output, json_int_to_string (minimum - 1),
-		                      FALSE);
-	}
+	/* Generate the instances. */
+	if (json_node_get_value_type (schema_node) == G_TYPE_INT64) {
+		gint64 minimum;
 
-	generate_take_string (output, json_int_to_string (minimum),
-	                      !exclusive_minimum);
+		minimum = json_node_get_int (schema_node);
 
-	if (minimum < G_MAXINT64 && exclusive_minimum) {
-		generate_take_string (output, json_int_to_string (minimum + 1),
-		                      TRUE);
+		if (minimum > G_MININT64 && !exclusive_minimum) {
+			generate_take_string (output,
+			                      json_int_to_string (minimum - 1),
+			                      FALSE);
+		}
+
+		generate_take_string (output, json_int_to_string (minimum),
+		                      !exclusive_minimum);
+		generate_take_string (output,
+		                      json_double_to_string ((gdouble) minimum),
+		                      !exclusive_minimum);
+
+		if (minimum < G_MAXINT64 && exclusive_minimum) {
+			generate_take_string (output,
+			                      json_int_to_string (minimum + 1),
+			                      TRUE);
+		}
+	} else {
+		gdouble minimum;
+		gint64 rounded;
+
+		minimum = json_node_get_double (schema_node);
+		rounded = (gint64) minimum;  /* truncation is fine */
+
+		if (minimum > G_MINDOUBLE && !exclusive_minimum) {
+			generate_take_string (output,
+			                      json_double_to_string (minimum - DBL_EPSILON),
+			                      FALSE);
+		}
+
+		generate_take_string (output,
+		                      json_double_to_string (minimum),
+		                      !exclusive_minimum);
+		generate_take_string (output,
+		                      json_int_to_string (rounded),
+		                      !exclusive_minimum);
+
+		if (minimum < G_MAXINT64 && exclusive_minimum) {
+			generate_take_string (output,
+			                      json_double_to_string (minimum + DBL_EPSILON),
+			                      TRUE);
+		}
 	}
 }
 
