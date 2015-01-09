@@ -21,11 +21,6 @@ LIBS = \
 	$(JSON_GLIB_LIBS) \
 	$(NULL)
 
-EXTRA_DIST = \
-	schema.json \
-	hyper-schema.json \
-	$(NULL)
-
 @VALGRIND_CHECK_RULES@
 
 TESTS = \
