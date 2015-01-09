@@ -1161,16 +1161,31 @@ generate_filled_string (GPtrArray *output,
 
 	length *= fill_len;
 
-	/* Allocate a string. This might be huge. */
-	str = g_malloc (length + 1  /* nul terminator */);
+	/* Check there is enough room for a nul terminator and
+	 * quotation marks. */
+	if (G_MAXSIZE - 3 < length) {
+		return;
+	}
 
-	/* Fill with the unichar. */
-	for (i = 0; i < length; i += fill_len) {
+	/* Allocate a string. This might be huge. */
+	str = g_malloc (length +
+	                2 +  /* quotation marks */
+	                1  /* nul terminator */);
+
+	/* Starting quotation mark. */
+	i = 0;
+	str[i++] = '"';
+
+	/* Fill with the unichar. Note: @length is divisible by @fill_len. */
+	for (; i < length + 1; i += fill_len) {
 		memcpy (str + i, fill_utf8, fill_len);
 	}
 
+	/* Terminating quotation mark. */
+	str[i++] = '"';
+
 	/* Fill the rest with nul bytes. */
-	for (i -= fill_len; i < length + 1; i++) {
+	for (; i < length + 2 + 1; i++) {
 		str[i] = '\0';
 	}
 
