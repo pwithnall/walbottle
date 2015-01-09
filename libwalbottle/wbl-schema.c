@@ -1457,7 +1457,7 @@ generate_maximum (WblSchema *self,
 		exclusive_maximum = json_node_get_boolean (node);
 	}
 
-	if (maximum > G_MININT64) {
+	if (maximum > G_MININT64 && exclusive_maximum) {
 		generate_take_string (output, json_int_to_string (maximum - 1),
 		                      TRUE);
 	}
@@ -1465,7 +1465,7 @@ generate_maximum (WblSchema *self,
 	generate_take_string (output, json_int_to_string (maximum),
 	                      !exclusive_maximum);
 
-	if (maximum < G_MAXINT64) {
+	if (maximum < G_MAXINT64 && !exclusive_maximum) {
 		generate_take_string (output, json_int_to_string (maximum + 1),
 		                      FALSE);
 	}
@@ -1568,7 +1568,7 @@ generate_minimum (WblSchema *self,
 		exclusive_minimum = json_node_get_boolean (node);
 	}
 
-	if (minimum > G_MININT64) {
+	if (minimum > G_MININT64 && !exclusive_minimum) {
 		generate_take_string (output, json_int_to_string (minimum - 1),
 		                      FALSE);
 	}
@@ -1576,7 +1576,7 @@ generate_minimum (WblSchema *self,
 	generate_take_string (output, json_int_to_string (minimum),
 	                      !exclusive_minimum);
 
-	if (minimum < G_MAXINT64) {
+	if (minimum < G_MAXINT64 && exclusive_minimum) {
 		generate_take_string (output, json_int_to_string (minimum + 1),
 		                      TRUE);
 	}
