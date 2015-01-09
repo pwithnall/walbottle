@@ -360,6 +360,24 @@ primitive_type_is_a (WblPrimitiveType sub,
 	         sub == WBL_PRIMITIVE_TYPE_INTEGER));
 }
 
+/* JSON string equality via hash tables.
+ *
+ * Note: Member names are compared byte-wise, without applying any Unicode
+ * decomposition or normalisation. This is not explicitly mentioned in the JSON
+ * standard (ECMA-404), but is assumed. */
+static guint
+string_hash (gconstpointer key)
+{
+	return g_str_hash (key);
+}
+
+static gboolean
+string_equal (gconstpointer a,
+              gconstpointer b)
+{
+	return g_str_equal (a, b);
+}
+
 /* JSON instance equality via hash tables, json-schema-core§3.6. */
 static guint
 node_hash (gconstpointer key)
@@ -384,7 +402,7 @@ node_hash (gconstpointer key)
 	case WBL_PRIMITIVE_TYPE_NULL:
 		return null_hash;
 	case WBL_PRIMITIVE_TYPE_STRING:
-		return g_str_hash (json_node_get_string (node));
+		return string_hash (json_node_get_string (node));
 	case WBL_PRIMITIVE_TYPE_INTEGER: {
 		gint64 v = json_node_get_int (node);
 		return g_int64_hash (&v);
@@ -435,9 +453,7 @@ node_hash (gconstpointer key)
 }
 
 /* Check whether two sets of JSON object member names are equal. The comparison
- * is unordered.
- *
- * TODO: Should we handle UTF-8 specially here? Decomposition? */
+ * is unordered. */
 static gboolean
 member_names_equal (GList/*<unowned utf8>*/ *member_names_a  /* unowned */,
                     GList/*<unowned utf8>*/ *member_names_b  /* unowned */)
@@ -454,7 +470,7 @@ member_names_equal (GList/*<unowned utf8>*/ *member_names_a  /* unowned */,
 	/* Add all the names from @member_names_a to a set, then remove all the
 	 * names from @member_names_b and throw an error if any of them don’t
 	 * exist. */
-	set = g_hash_table_new (g_str_hash, g_str_equal);
+	set = g_hash_table_new (string_hash, string_equal);
 
 	for (l = member_names_a; l != NULL; l = l->next) {
 		g_hash_table_add (set, l->data);
@@ -505,10 +521,8 @@ node_equal (gconstpointer a,
 		return (json_node_get_boolean (node_a) ==
 		        json_node_get_boolean (node_b));
 	case WBL_PRIMITIVE_TYPE_STRING:
-		/* TODO: Check what ‘have the same value’ means for JSON
-		 * strings. */
-		return (g_strcmp0 (json_node_get_string (node_a),
-		                   json_node_get_string (node_b)) == 0);
+		return string_equal (json_node_get_string (node_a),
+		                     json_node_get_string (node_b));
 	case WBL_PRIMITIVE_TYPE_NUMBER:
 	case WBL_PRIMITIVE_TYPE_INTEGER: {
 		gdouble val_a, val_b;
@@ -728,8 +742,7 @@ validate_non_empty_unique_string_array (JsonNode *schema_node)
 		return FALSE;
 	}
 
-	/* TODO: What about UTF-8 decomposition? */
-	set = g_hash_table_new (g_str_hash, g_str_equal);
+	set = g_hash_table_new (string_hash, string_equal);
 
 	for (i = 0; i < json_array_get_length (schema_array); i++) {
 		JsonNode *child_node;  /* unowned */
@@ -2224,8 +2237,7 @@ apply_required (WblSchema *self,
 	instance_object = json_node_get_object (instance_node);
 	instance_member_names = json_object_get_members (instance_object);
 
-	/* TODO: UTF-8 decomposition? */
-	set = g_hash_table_new (g_str_hash, g_str_equal);
+	set = g_hash_table_new (string_hash, string_equal);
 
 	/* Put the required member names in the @set. */
 	for (i = 0; i < json_array_get_length (schema_array); i++) {
