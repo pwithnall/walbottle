@@ -1743,7 +1743,7 @@ apply_pattern (WblSchema *self,
 		return;
 	}
 
-	instance_str = json_node_get_string (schema_node);
+	instance_str = json_node_get_string (instance_node);
 
 	/* Any errors in the regex should have been caught in
 	 * validate_pattern() */
