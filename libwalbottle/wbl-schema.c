@@ -24,9 +24,8 @@
  * @include: libwalbottle/wbl-schema.h
  *
  * TODO:
- *  - Schema parsing
- *  - Online validation of JSON values against a schema
- *  - Test case generation from a schema
+ *  - Subschema validation with section 8
+ *  - Retrieving subschemas in the public API
  *
  * Since: UNRELEASED
  */
