@@ -32,8 +32,6 @@ assert_generated_instances_match (GPtrArray/*<owned WblGeneratedInstance>*/ *act
 {
 	guint i;
 
-	g_assert_cmpuint (actual->len, ==, g_strv_length ((gchar **) expected));
-
 	for (i = 0; i < actual->len; i++) {
 		const gchar *actual_json;
 		gboolean found = FALSE;
@@ -54,6 +52,8 @@ assert_generated_instances_match (GPtrArray/*<owned WblGeneratedInstance>*/ *act
 		}
 		g_assert (found);
 	}
+
+	g_assert_cmpuint (actual->len, ==, g_strv_length ((gchar **) expected));
 }
 
 /* Test that construction and finalisation of a WblSchema works. */
