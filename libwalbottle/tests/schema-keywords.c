@@ -449,6 +449,283 @@ test_schema_keywords_pattern (void)
 	                       invalid_instances, expected_instances);
 }
 
+/* maxProperties. json-schema-validation§5.4.1. */
+static void
+test_schema_keywords_max_properties (void)
+{
+	const gchar *valid_schema = "{ \"maxProperties\": 2 }";
+	const gchar *invalid_schemas[] = {
+		"{ \"maxProperties\": null }",  /* incorrect type */
+		"{ \"maxProperties\": false }",  /* incorrect type */
+		"{ \"maxProperties\": -1 }",  /* negative */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{}",  /* empty object */
+		"{ \"test\": null, \"test2\": null }",  /* boundary */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"{ \"a\": 1, \"b\": 2, \"c\": 3 }",  /* too many properties */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{\"0\":null,\"1\":null}",
+		"{\"0\":null,\"1\":null,\"2\":null}",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* minProperties. json-schema-validation§5.4.2. */
+static void
+test_schema_keywords_min_properties (void)
+{
+	const gchar *valid_schema = "{ \"minProperties\": 2 }";
+	const gchar *invalid_schemas[] = {
+		"{ \"minProperties\": null }",  /* incorrect type */
+		"{ \"minProperties\": false }",  /* incorrect type */
+		"{ \"minProperties\": -1 }",  /* negative */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{ \"a\": 1, \"b\": 2, \"c\": 3 }",  /* lots */
+		"{ \"a\": 1, \"b\": 2 }",  /* boundary */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"{}",  /* empty object */
+		"{ \"a\": 1 }",  /* too few properties */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{\"0\":null}",
+		"{\"0\":null,\"1\":null}",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* required. json-schema-validation§5.4.3. */
+static void
+test_schema_keywords_required (void)
+{
+	const gchar *valid_schema = "{ \"required\": [ \"a\", \"b\" ] }";
+	const gchar *invalid_schemas[] = {
+		"{ \"required\": null }",  /* incorrect type */
+		"{ \"required\": false }",  /* incorrect type */
+		"{ \"required\": [] }",  /* empty array */
+		"{ \"required\": [ null ] }",  /* non-string element */
+		"{ \"required\": [ \"a\", \"a\" ] }",  /* duplicate elements */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{ \"a\": 1, \"b\": 2, \"c\": 3 }",  /* extra properties */
+		"{ \"a\": 1, \"b\": 2 }",  /* exact properties */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"{}",  /* empty object */
+		"{ \"a\": 1 }",  /* too few properties */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{\"a\":null}",
+		"{\"b\":null}",
+		"{\"a\":null,\"b\":null}",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* additionalProperties set to true. json-schema-validation§5.4.4. */
+static void
+test_schema_keywords_additional_properties_true (void)
+{
+	const gchar *valid_schema = "{ \"additionalProperties\": true, "
+	                              "\"properties\": {} }";
+	const gchar *invalid_schemas[] = {
+		"{ \"additionalProperties\": null }",  /* incorrect type */
+		"{ \"additionalProperties\": 0 }",  /* incorrect type */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{}",  /* matching properties */
+		"{ \"a\": 1 }",  /* extra properties */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Always valid if additionalProperties is true. */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{}",
+		/* FIXME */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* additionalProperties set to a schema. json-schema-validation§5.4.4. */
+static void
+test_schema_keywords_additional_properties_schema (void)
+{
+	const gchar *valid_schema = "{ \"additionalProperties\": "
+	                                  "{ \"required\": [ \"a\"] }, "
+	                              "\"properties\": {} }";
+	const gchar *invalid_schemas[] = {
+		"{ \"additionalProperties\": "
+		  "{ \"additionalProperties\": null} }",  /* invalid schema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{}",  /* matching properties */
+		"{ \"0\": 1 }",  /* extra properties */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Always valid if additionalProperties is a schema. */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{}",
+		/* FIXME */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* additionalProperties set to false. json-schema-validation§5.4.4. */
+static void
+test_schema_keywords_additional_properties_false (void)
+{
+	const gchar *valid_schema = "{ \"additionalProperties\": false, "
+	                              "\"properties\": { \"a\": {} } }";
+	const gchar *invalid_schemas[] = {
+		/* Covered in the other additionalProperties tests. */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{ \"a\": null }",  /* matching properties */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"{ \"a\": null, \"b\": null }",  /* extra property */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{}",
+		/* FIXME */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* properties. json-schema-validation§5.4.4. */
+static void
+test_schema_keywords_properties (void)
+{
+	const gchar *valid_schema = "{ \"properties\": {"
+		"\"a\": {},"
+		"\"b\": { \"type\": \"boolean\" },"
+		"\"c\": { \"type\": \"number\" }"
+	"}, \"additionalProperties\": false }";
+	const gchar *invalid_schemas[] = {
+		"{ \"properties\": null }",  /* incorrect type */
+		"{ \"properties\": 0 }",  /* incorrect type */
+		"{ \"properties\": { \"a\": false } }",  /* incorrect type */
+		"{ \"properties\": { \"a\": { \"type\": false }}}",  /* invalid schema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{}",  /* matching properties */
+		"{ \"a\": 1 }",  /* matching properties */
+		"{ \"a\": 1, \"b\": false }",  /* matching properties */
+		"{ \"c\": 5.1 }",  /* matching properties */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"{ \"d\": false }",  /* extra property */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{}",
+		"{\"b\":null}",
+		"{\"b\":true}",
+		"{\"c\":null}",
+		"{\"c\":0.1}",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* patternProperties. json-schema-validation§5.4.4. */
+static void
+test_schema_keywords_pattern_properties (void)
+{
+	const gchar *valid_schema = "{ \"patternProperties\": {"
+		"\"[a-z]+\": { \"type\": \"boolean\" },"
+		"\"[0-9]+\": { \"type\": \"number\" }"
+	"}, \"additionalProperties\": false }";
+	const gchar *invalid_schemas[] = {
+		"{ \"patternProperties\": null }",  /* incorrect type */
+		"{ \"patternProperties\": 0 }",  /* incorrect type */
+		"{ \"patternProperties\": { \"a\": false } }",  /* incorrect type */
+		"{ \"patternProperties\": { \"++\": {} } }",  /* invalid regex */
+		"{ \"patternProperties\": { \"a\": { \"type\": false }}}",  /* invalid schema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"{}",  /* matching properties */
+		"{ \"a\": true }",  /* matching properties */
+		"{ \"beee\": false }",  /* matching properties */
+		"{ \"a\": false, \"beee\": false }",  /* matching properties */
+		"{ \"15\": 5.1, \"asd\": false }",  /* matching properties */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"{ \"_\": false }",  /* extra property */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		/* FIXME */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
 /* enum. json-schema-validation§5.5.1. */
 static void
 test_schema_keywords_enum (void)
@@ -726,6 +1003,86 @@ test_schema_keywords_type_array (void)
 	                       invalid_instances, expected_instances);
 }
 
+/* title. json-schema-validation§6.1. */
+static void
+test_schema_keywords_title (void)
+{
+	const gchar *valid_schema = "{ \"title\": \"hi\" }";
+	const gchar *invalid_schemas[] = {
+		"{ \"title\": null }",  /* invalid type */
+		"{ \"title\": 1 }",  /* invalid type */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* validation always succeeds */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Validation always succeeds. */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		/* Not generated. */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* description. json-schema-validation§6.1. */
+static void
+test_schema_keywords_description (void)
+{
+	const gchar *valid_schema = "{ \"description\": \"hi\" }";
+	const gchar *invalid_schemas[] = {
+		"{ \"description\": null }",  /* invalid type */
+		"{ \"description\": 1 }",  /* invalid type */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* validation always succeeds */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Validation always succeeds. */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		/* Not generated. */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* default. json-schema-validation§6.2. */
+static void
+test_schema_keywords_default (void)
+{
+	const gchar *valid_schema = "{ \"default\": null }";
+	const gchar *invalid_schemas[] = {
+		/* Validation always succeeds. */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* validation always succeeds */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Validation always succeeds. */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		/* Not generated. */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -757,6 +1114,22 @@ main (int argc, char *argv[])
 	                 test_schema_keywords_min_length);
 	g_test_add_func ("/schema/keywords/pattern",
 	                 test_schema_keywords_pattern);
+	g_test_add_func ("/schema/keywords/max-properties",
+	                 test_schema_keywords_max_properties);
+	g_test_add_func ("/schema/keywords/min-properties",
+	                 test_schema_keywords_min_properties);
+	g_test_add_func ("/schema/keywords/required",
+	                 test_schema_keywords_required);
+	g_test_add_func ("/schema/keywords/additional-properties/true",
+	                 test_schema_keywords_additional_properties_true);
+	g_test_add_func ("/schema/keywords/additional-properties/false",
+	                 test_schema_keywords_additional_properties_false);
+	g_test_add_func ("/schema/keywords/additional-properties/schema",
+	                 test_schema_keywords_additional_properties_schema);
+	g_test_add_func ("/schema/keywords/properties",
+	                 test_schema_keywords_properties);
+	g_test_add_func ("/schema/keywords/pattern-properties",
+	                 test_schema_keywords_pattern_properties);
 	g_test_add_func ("/schema/keywords/enum",
 	                 test_schema_keywords_enum);
 	g_test_add_func ("/schema/keywords/type/string/array",
@@ -775,6 +1148,12 @@ main (int argc, char *argv[])
 	                 test_schema_keywords_type_string_string);
 	g_test_add_func ("/schema/keywords/type/array",
 	                 test_schema_keywords_type_array);
+	g_test_add_func ("/schema/keywords/title",
+	                 test_schema_keywords_title);
+	g_test_add_func ("/schema/keywords/description",
+	                 test_schema_keywords_description);
+	g_test_add_func ("/schema/keywords/default",
+	                 test_schema_keywords_default);
 
 	/* TODO:
 	 * • additionalItems
@@ -782,21 +1161,12 @@ main (int argc, char *argv[])
 	 * • maxItems
 	 * • minItems
 	 * • uniqueItems
-	 * • maxProperties
-	 * • minProperties
-	 * • required
-	 * • additionalProperties
-	 * • properties
-	 * • patternProperties
 	 * • dependencies
 	 * • allOf
 	 * • anyOf
 	 * • oneOf
 	 * • not
 	 * • definitions
-	 * • title
-	 * • description
-	 * • default
 	 * • format
 	 */
 
