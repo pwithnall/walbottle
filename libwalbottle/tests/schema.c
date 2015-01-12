@@ -218,6 +218,7 @@ test_schema_instance_generation_simple (void)
 		"{\"age\":null}",
 		"{}",
 		"null",
+		"{}",
 		NULL,  /* terminator */
 	};
 
@@ -312,6 +313,7 @@ test_schema_instance_generation_schema (void)
 		"{\"type\":null}",
 		"{}",
 		"null",
+		"{}",
 		NULL,  /* terminator */
 	};
 
@@ -339,6 +341,7 @@ test_schema_instance_generation_hyper_schema (void)
 	/* FIXME: This needs a lot of mollycoddling to get it doing the right
 	 * thing. */
 	const gchar *expected_instances[] = {
+		"{}",
 		"{\"additionalItems\":null}",
 		"{\"additionalProperties\":null}",
 		"{\"links\":[]}",
@@ -347,6 +350,7 @@ test_schema_instance_generation_hyper_schema (void)
 		"{\"links\":null}",
 		"{\"fragmentResolution\":''}",
 		"{\"fragmentResolution\":null}",
+		"{\"media\":{}}",
 		"{\"media\":{\"type\":''}}",
 		"{\"media\":{\"type\":null}}",
 		"{\"media\":{\"binaryEncoding\":''}}",

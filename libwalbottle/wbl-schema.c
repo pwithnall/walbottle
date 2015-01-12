@@ -2961,6 +2961,9 @@ generate_properties (WblSchema *self,
 	_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
 	klass = WBL_SCHEMA_GET_CLASS (self);
 
+	/* Generate an instance for the empty object. */
+	generate_set_string (output, "{}", TRUE);
+
 	/* Generate instances for all property schemas and wrap them in
 	 * objects. */
 	for (l = member_names; l != NULL; l = l->next) {
