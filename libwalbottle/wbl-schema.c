@@ -2465,6 +2465,7 @@ apply_required (WblSchema *self,
 	JsonArray *schema_array;  /* unowned */
 	JsonObject *instance_object;  /* unowned */
 	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
+	GPtrArray/*<unowned utf8>*/ *schema_member_names = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *instance_member_names = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
 	guint i;
@@ -2478,22 +2479,28 @@ apply_required (WblSchema *self,
 	instance_object = json_node_get_object (instance_node);
 	instance_member_names = json_object_get_members (instance_object);
 
+	schema_member_names = g_ptr_array_new ();
 	set = g_hash_table_new (string_hash, string_equal);
 
-	/* Put the required member names in the @set. */
+	/* Put the required member names in the @schema_member_names. */
 	for (i = 0; i < json_array_get_length (schema_array); i++) {
 		JsonNode *child_node;  /* unowned */
 
 		child_node = json_array_get_element (schema_array, i);
-		g_hash_table_add (set,
-		                  (gpointer) json_node_get_string (child_node));
+		g_ptr_array_add (schema_member_names,
+		                 (gpointer) json_node_get_string (child_node));
 	}
 
-	/* Check each of the member names against the @set. */
+	/* Put the instance member names in the @set. */
 	for (l = instance_member_names; l != NULL; l = l->next) {
+		g_hash_table_add (set, l->data);
+	}
+
+	/* Check each of the @set against the @instance_member_names. */
+	for (i = 0; i < schema_member_names->len; i++) {
 		const gchar *member_name;
 
-		member_name = l->data;
+		member_name = schema_member_names->pdata[i];
 
 		if (!g_hash_table_contains (set, member_name)) {
 			g_set_error (error,
@@ -2508,6 +2515,7 @@ apply_required (WblSchema *self,
 		}
 	}
 
+	g_ptr_array_unref (schema_member_names);
 	g_hash_table_unref (set);
 	g_list_free (instance_member_names);
 }
