@@ -2806,17 +2806,16 @@ list_remove_string (GList *list, const gchar *data)
 }
 
 static void
-apply_properties (WblSchema *self,
-                  JsonObject *root,
-                  JsonNode *schema_node,
-                  JsonNode *instance_node,
-                  GError **error)
+apply_all_properties (WblSchema *self,
+                      JsonNode *ap_node,
+                      JsonNode *p_node,
+                      JsonNode *pp_node,
+                      JsonNode *instance_node,
+                      GError **error)
 {
-	JsonNode *ap_node;  /* unowned */
-	JsonNode *pp_node;  /* unowned */
 	gboolean ap_is_false;
 	JsonObject *instance_object;  /* unowned */
-	JsonObject *properties_object;  /* unowned */
+	JsonObject *p_object;  /* unowned */
 	JsonObject *pp_object = NULL;  /* unowned; nullable */
 	GList/*<unowned utf8>*/ *set_s = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *set_p = NULL;  /* owned */
@@ -2825,7 +2824,6 @@ apply_properties (WblSchema *self,
 
 	/* If additionalProperties is missing, its default value is an empty
 	 * schema. json-schema-validation§5.4.4.3. */
-	ap_node = json_object_get_member (root, "additionalProperties");
 	ap_is_false = (ap_node != NULL &&
 	               validate_value_type (ap_node, G_TYPE_BOOLEAN) &&
 	               !json_node_get_boolean (ap_node));
@@ -2842,13 +2840,14 @@ apply_properties (WblSchema *self,
 	}
 
 	instance_object = json_node_get_object (instance_node);
-	properties_object = json_node_get_object (schema_node);
-	pp_node = json_object_get_member (root, "patternProperties");
+	p_object = (p_node != NULL) ? json_node_get_object (p_node) : NULL;
 	pp_object = (pp_node != NULL) ? json_node_get_object (pp_node) : NULL;
 
 	/* Follow the algorithm in json-schema-validation§5.4.4.4. */
 	set_s = json_object_get_members (instance_object);
-	set_p = json_object_get_members (properties_object);
+	if (p_object != NULL) {
+		set_p = json_object_get_members (p_object);
+	}
 	if (pp_object != NULL) {
 		set_pp = json_object_get_members (pp_object);
 	}
@@ -2863,23 +2862,33 @@ apply_properties (WblSchema *self,
 	/* For each regex in @set_pp, remove all elements of @set_s which this
 	 * regex matches. */
 	for (l = set_pp; l != NULL; l = l->next) {
-		const gchar *regex_str = l->data;
+		const gchar *regex_str;
 		GRegex *regex = NULL;  /* owned */
 		GList/*<unowned utf8>*/ *k = NULL;  /* unowned */
 		GError *child_error = NULL;
+
+		regex_str = l->data;
 
 		/* Construct the regex. Should never fail due to being validated
 		 * in validate_pattern_properties(). */
 		regex = g_regex_new (regex_str, 0, 0, &child_error);
 		g_assert_no_error (child_error);
 
-		for (k = set_s; k != NULL; k = k->next) {
+		for (k = set_s; k != NULL;) {
 			const gchar *member = k->data;
 
 			if (g_regex_match (regex, member, 0, NULL)) {
-				GList *prev = k->prev;
+				GList *next = k->next;
+
 				set_s = g_list_delete_link (set_s, k);
-				k = prev;
+
+				if (set_s == NULL) {
+					break;
+				}
+
+				k = next;
+			} else {
+				k = k->next;
 			}
 		}
 
@@ -2899,6 +2908,40 @@ apply_properties (WblSchema *self,
 	g_list_free (set_pp);
 	g_list_free (set_p);
 	g_list_free (set_s);
+}
+
+static void
+apply_properties (WblSchema *self,
+                  JsonObject *root,
+                  JsonNode *schema_node,
+                  JsonNode *instance_node,
+                  GError **error)
+{
+	JsonNode *ap_node, *p_node, *pp_node;  /* unowned */
+
+	ap_node = json_object_get_member (root, "additionalProperties");
+	p_node = schema_node;
+	pp_node = json_object_get_member (root, "patternProperties");
+
+	apply_all_properties (self, ap_node, p_node, pp_node,
+	                      instance_node, error);
+}
+
+static void
+apply_pattern_properties (WblSchema *self,
+                          JsonObject *root,
+                          JsonNode *schema_node,
+                          JsonNode *instance_node,
+                          GError **error)
+{
+	JsonNode *ap_node, *p_node, *pp_node;  /* unowned */
+
+	ap_node = json_object_get_member (root, "additionalProperties");
+	p_node = json_object_get_member (root, "properties");
+	pp_node = schema_node;
+
+	apply_all_properties (self, ap_node, p_node, pp_node,
+	                      instance_node, error);
 }
 
 static void
@@ -3885,7 +3928,7 @@ static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§5.4.4 */
 	{ "additionalProperties", validate_additional_properties, NULL, NULL },
 	{ "properties", validate_properties, apply_properties, generate_properties },
-	{ "patternProperties", validate_pattern_properties, NULL, NULL },
+	{ "patternProperties", validate_pattern_properties, apply_pattern_properties, NULL },
 	/* json-schema-validation§5.4.5 */
 	{ "dependencies", validate_dependencies, apply_dependencies, generate_dependencies },
 	/* json-schema-validation§5.5.1 */
