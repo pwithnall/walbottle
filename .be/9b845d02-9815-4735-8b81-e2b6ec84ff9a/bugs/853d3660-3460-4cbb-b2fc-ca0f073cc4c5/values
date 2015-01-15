@@ -1,0 +1,50 @@
+{
+
+
+
+
+
+
+    "creator": "Philip Withnall <philip.withnall@collabora.co.uk>", 
+
+
+
+
+
+
+    "reporter": "Philip Withnall <philip.withnall@collabora.co.uk>", 
+
+
+
+
+
+
+    "severity": "minor", 
+
+
+
+
+
+
+    "status": "open", 
+
+
+
+
+
+
+    "summary": "Include filename in error messages from wbl_schema_load_from_file()", 
+
+
+
+
+
+
+    "time": "Thu, 15 Jan 2015 18:18:43 +0000"
+
+
+
+
+
+
+}

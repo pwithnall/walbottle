@@ -300,6 +300,8 @@ MAINTAINERCLEANFILES += \
 	m4/gtk-doc.m4 \
 	$(NULL)
 
+GITIGNOREFILES = .be/id-cache
+
 DISTCHECK_CONFIGURE_FLAGS += --enable-gtk-doc
 
 # pkg-config data

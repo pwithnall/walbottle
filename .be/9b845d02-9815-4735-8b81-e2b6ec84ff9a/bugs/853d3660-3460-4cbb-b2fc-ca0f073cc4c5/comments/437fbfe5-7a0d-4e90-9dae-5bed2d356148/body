@@ -1,0 +1,1 @@
+The way wbl_schema_load_from_file() is implemented at the moment, it internally uses json-glib’s stream parser, so any error messages from json-glib do not include the filename. That’s actually quite unhelpful.

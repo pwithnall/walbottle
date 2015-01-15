@@ -1,0 +1,5 @@
+Add a new utility program like gdbus-codegen, which takes a JSON Schema and generates GObjects from it to represent its different objects and their properties.
+
+This is going to be pretty complex.
+
+Pay special attention to trying to ensure the generated code remains ABI-stable if the schema changes. Consider the use case of a web API whose schema gets expanded.

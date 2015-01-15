@@ -1,0 +1,3 @@
+Add i18n support to the build system. There are a lot of strings marked for translation, but no extraction infrastructure at the moment.
+
+Before doing this, we need to decide exactly what to translate. Do we want to translate *all* the error strings? Is that useful? Do we want to automatically append references to the standards documents?
