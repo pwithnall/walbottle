@@ -2025,37 +2025,32 @@ validate_items (WblSchema *self,
 	               "JSON Schemas. See json-schema-validation§5.3.1."));
 }
 
+/* json-schema-validation§5.3.1.2. */
 static void
-apply_items (WblSchema *self,
-             JsonObject *root,
-             JsonNode *schema_node,
-             JsonNode *instance_node,
-             GError **error)
+apply_items_parent_schema (WblSchema *self,
+                           JsonNode *items_schema_node,
+                           JsonNode *additional_items_schema_node,
+                           JsonArray *instance_array,
+                           GError **error)
 {
-	JsonNode *node;  /* unowned */
 	gboolean additional_items_is_boolean;
 	gboolean additional_items_boolean;
 
-	/* Check the instance type. */
-	if (!JSON_NODE_HOLDS_ARRAY (instance_node)) {
+	if (JSON_NODE_HOLDS_OBJECT (items_schema_node)) {
+		/* Validation of the parent node always succeeds if items is an
+		 * object (json-schema-validation§5.3.1.2). */
 		return;
 	}
 
-	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
-		/* Validation always succeeds if items is an object. */
-		return;
-	}
-
-	node = json_object_get_member (root, "additionalItems");
-	additional_items_is_boolean = (node != NULL &&
-	                               JSON_NODE_HOLDS_VALUE (node) &&
-	                               json_node_get_value_type (node) ==
+	additional_items_is_boolean = (additional_items_schema_node != NULL &&
+	                               JSON_NODE_HOLDS_VALUE (additional_items_schema_node) &&
+	                               json_node_get_value_type (additional_items_schema_node) ==
 	                               G_TYPE_BOOLEAN);
 	additional_items_boolean = additional_items_is_boolean ?
-	                           json_node_get_boolean (node) : FALSE;
+	                           json_node_get_boolean (additional_items_schema_node) : FALSE;
 
-	if (node == NULL ||
-	    JSON_NODE_HOLDS_OBJECT (node) ||
+	if (additional_items_schema_node == NULL ||
+	    JSON_NODE_HOLDS_OBJECT (additional_items_schema_node) ||
 	    (additional_items_is_boolean && additional_items_boolean)) {
 		/* Validation always succeeds if additionalItems is a boolean
 		 * true or an object (or not present; as the default value is
@@ -2064,14 +2059,14 @@ apply_items (WblSchema *self,
 	}
 
 	if (additional_items_is_boolean && !additional_items_boolean &&
-	    JSON_NODE_HOLDS_ARRAY (schema_node)) {
-		JsonArray *instance_array, *schema_array;  /* unowned */
+	    JSON_NODE_HOLDS_ARRAY (items_schema_node)) {
+		JsonArray  *schema_array;  /* unowned */
 		guint instance_size, schema_size;
 
 		/* Validation succeeds if the instance size is less than or
-		 * equal to the size of items. */
-		instance_array = json_node_get_array (instance_node);
-		schema_array = json_node_get_array (schema_node);
+		 * equal to the size of items
+		 * (json-schema-validation§5.3.1.2). */
+		schema_array = json_node_get_array (items_schema_node);
 
 		instance_size = json_array_get_length (instance_array);
 		schema_size = json_array_get_length (schema_array);
@@ -2085,6 +2080,130 @@ apply_items (WblSchema *self,
 			               "See json-schema-validation§5.3.1."));
 			return;
 		}
+	}
+}
+
+/* json-schema-validation§8.2.3. */
+static void
+apply_items_child_schema (WblSchema *self,
+                          JsonNode *items_schema_node,
+                          JsonNode *additional_items_schema_node,
+                          JsonArray *instance_array,
+                          GError **error)
+{
+	WblSchemaClass *klass;
+	JsonArray *schema_array = NULL;  /* unowned */
+	guint schema_size = 0, i;
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	if (JSON_NODE_HOLDS_ARRAY (items_schema_node)) {
+		schema_array = json_node_get_array (items_schema_node);
+		schema_size = json_array_get_length (schema_array);
+	}
+
+	/* Validate each child instance. */
+	for (i = 0; i < json_array_get_length (instance_array); i++) {
+		JsonNode *child_node;  /* unowned */
+		JsonNode *sub_schema_node;  /* unowned */
+		const gchar *schema_keyword_name;
+		GError *child_error = NULL;
+
+		/* Work out which schema to apply. */
+		if (JSON_NODE_HOLDS_OBJECT (items_schema_node)) {
+			/* All child nodes of the instance must be valid against
+			 * this schema (json-schema-validation§8.2.3.1). */
+			sub_schema_node = items_schema_node;
+			schema_keyword_name = "items";
+		} else if (JSON_NODE_HOLDS_ARRAY (items_schema_node)) {
+			/* …and if each child element validates against the
+			 * corresponding items or additionalItems schema
+			 * (json-schema-validation§8.2.3.2). */
+			if (i < schema_size) {
+				sub_schema_node = json_array_get_element (schema_array,
+				                                          i);
+				schema_keyword_name = "items";
+			} else {
+				sub_schema_node = additional_items_schema_node;
+				schema_keyword_name = "additionalItems";
+			}
+		} else {
+			g_assert_not_reached ();
+		}
+
+		/* Check the schema type. additionalItems may be a boolean,
+		 * which we consider as an empty schema (which always applies
+		 * successfully). (json-schema-validation§8.2.2.) */
+		if (!JSON_NODE_HOLDS_OBJECT (sub_schema_node)) {
+			continue;
+		}
+
+		/* Validate the child instance. */
+		child_node = json_array_get_element (instance_array, i);
+
+		if (klass->apply_schema != NULL) {
+			WblSchemaNode sub_node;
+
+			sub_node.ref_count = 1;
+			sub_node.node = json_node_dup_object (sub_schema_node);
+
+			klass->apply_schema (self, &sub_node,
+			                     child_node, &child_error);
+
+			json_object_unref (sub_node.node);
+		}
+
+		if (child_error != NULL) {
+			g_set_error (error,
+			             WBL_SCHEMA_ERROR,
+			             WBL_SCHEMA_ERROR_INVALID,
+			             /* Translators: The parameter is the name
+			              * of a schema keyword. */
+			             _("Array element does not validate "
+			               "against the schemas in the %s schema "
+			               "keyword. "
+			               "See json-schema-validation§8.2."),
+			             schema_keyword_name);
+			return;
+		}
+	}
+}
+
+static void
+apply_items (WblSchema *self,
+             JsonObject *root,
+             JsonNode *schema_node,
+             JsonNode *instance_node,
+             GError **error)
+{
+	JsonNode *ai_schema_node;  /* unowned */
+	JsonArray *instance_array;  /* unowned */
+	GError *child_error = NULL;
+
+	/* Check the instance type. */
+	if (!JSON_NODE_HOLDS_ARRAY (instance_node)) {
+		return;
+	}
+
+	ai_schema_node = json_object_get_member (root, "additionalItems");
+	instance_array = json_node_get_array (instance_node);
+
+	/* Validate the instance node. */
+	apply_items_parent_schema (self, schema_node, ai_schema_node,
+	                           instance_array, &child_error);
+
+	if (child_error != NULL) {
+		g_propagate_error (error, child_error);
+		return;
+	}
+
+	/* Validate its children. */
+	apply_items_child_schema (self, schema_node, ai_schema_node,
+	                          instance_array, &child_error);
+
+	if (child_error != NULL) {
+		g_propagate_error (error, child_error);
+		return;
 	}
 }
 
