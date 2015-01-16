@@ -706,6 +706,67 @@ node_equal (gconstpointer a,
 	}
 }
 
+/* Helper functions to validate, apply and generate subschemas. */
+static void
+subschema_validate (WblSchema *self,
+                    JsonNode *subschema_node,
+                    GError **error)
+{
+	WblSchemaClass *klass;
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	if (klass->validate_schema != NULL) {
+		WblSchemaNode node;
+
+		node.ref_count = 1;
+		node.node = json_node_dup_object (subschema_node);
+		klass->validate_schema (self, &node, error);
+		json_object_unref (node.node);
+	}
+}
+
+static void
+subschema_apply (WblSchema *self,
+                 JsonNode *subschema_node,
+                 JsonNode *instance_node,
+                 GError **error)
+{
+	WblSchemaClass *klass;
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	if (klass->apply_schema != NULL) {
+		WblSchemaNode node;
+
+		node.ref_count = 1;
+		node.node = json_node_dup_object (subschema_node);
+		klass->apply_schema (self, &node, instance_node, error);
+		json_object_unref (node.node);
+	}
+}
+
+static void
+subschema_generate_instances (WblSchema *self,
+                              JsonNode *subschema_node,
+                              GPtrArray *output)
+{
+	WblSchemaClass *klass;
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+
+	if (klass->generate_instances != NULL) {
+		WblSchemaNode node;
+
+		node.ref_count = 1;
+		node.node = json_node_dup_object (subschema_node);
+
+		klass->generate_instances (self, &node, output);
+
+		json_object_unref (node.node);
+	}
+}
+
 /* Schemas. */
 static void
 wbl_schema_dispose (GObject *object);
@@ -848,7 +909,6 @@ validate_schema_array (WblSchema *self,
                        JsonNode *schema_node,
                        GError **schema_error)
 {
-	WblSchemaClass *klass;
 	JsonArray *schema_array;  /* unowned */
 	guint i;
 
@@ -857,7 +917,6 @@ validate_schema_array (WblSchema *self,
 	}
 
 	schema_array = json_node_get_array (schema_node);
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	if (json_array_get_length (schema_array) == 0) {
 		return FALSE;
@@ -874,16 +933,7 @@ validate_schema_array (WblSchema *self,
 		}
 
 		/* Validate the child schema. */
-		if (klass->validate_schema != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (child_node);
-
-			klass->validate_schema (self, &node, &child_error);
-
-			json_object_unref (node.node);
-		}
+		subschema_validate (self, child_node, &child_error);
 
 		if (child_error != NULL) {
 			/* Invalid. */
@@ -912,10 +962,8 @@ apply_schema_array (WblSchema *self,
                     JsonArray *schema_array,
                     JsonNode *instance_node)
 {
-	WblSchemaClass *klass;
 	guint i, n_successes;
 
-	klass = WBL_SCHEMA_GET_CLASS (self);
 	n_successes = 0;
 
 	for (i = 0; i < json_array_get_length (schema_array); i++) {
@@ -924,17 +972,7 @@ apply_schema_array (WblSchema *self,
 
 		child_node = json_array_get_element (schema_array, i);
 
-		if (klass->apply_schema != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (child_node);
-
-			klass->apply_schema (self, &node, instance_node,
-			                     &child_error);
-
-			json_object_unref (node.node);
-		}
+		subschema_apply (self, child_node, instance_node, &child_error);
 
 		/* Count successes. */
 		if (child_error == NULL) {
@@ -960,13 +998,11 @@ generate_schema_array (WblSchema *self,
                        WblMatchPredicate predicate,
                        GPtrArray *output)
 {
-	WblSchemaClass *klass;
 	guint i, j, n_schemas;
 	GPtrArray/*<owned WblGeneratedInstance>*/ *_output = NULL;  /* owned */
 	JsonParser *parser = NULL;  /* owned */
 
 	n_schemas = json_array_get_length (schema_array);
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	/* Generate instances for all schemas. */
 	_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
@@ -975,17 +1011,7 @@ generate_schema_array (WblSchema *self,
 		JsonNode *child_node;  /* unowned */
 
 		child_node = json_array_get_element (schema_array, i);
-
-		if (klass->generate_instances != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (child_node);
-
-			klass->generate_instances (self, &node, _output);
-
-			json_object_unref (node.node);
-		}
+		subschema_generate_instances (self, child_node, _output);
 	}
 
 	/* Find any instances which match the number of schemas approved by the
@@ -1015,22 +1041,14 @@ generate_schema_array (WblSchema *self,
 
 			child_node = json_array_get_element (schema_array, i);
 
-			if (klass->apply_schema != NULL) {
-				WblSchemaNode node;
+			subschema_apply (self, child_node, instance_node,
+			                 &child_error);
 
-				node.ref_count = 1;
-				node.node = json_node_dup_object (child_node);
-
-				klass->apply_schema (self, &node, instance_node,
-				                     &child_error);
-
-				if (child_error == NULL) {
-					n_matching_schemas++;
-				}
-
-				g_clear_error (&child_error);
-				json_object_unref (node.node);
+			if (child_error == NULL) {
+				n_matching_schemas++;
 			}
+
+			g_clear_error (&child_error);
 		}
 
 		/* Does it match the predicate? */
@@ -1871,22 +1889,10 @@ validate_additional_items (WblSchema *self,
 	}
 
 	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
-		WblSchemaClass *klass;
 		GError *child_error = NULL;
 
-		klass = WBL_SCHEMA_GET_CLASS (self);
-
 		/* Validate the schema. */
-		if (klass->validate_schema != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (schema_node);
-
-			klass->validate_schema (self, &node, &child_error);
-
-			json_object_unref (node.node);
-		}
+		subschema_validate (self, schema_node, &child_error);
 
 		if (child_error == NULL) {
 			/* Valid. */
@@ -1919,22 +1925,10 @@ validate_items (WblSchema *self,
                 GError **error)
 {
 	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
-		WblSchemaClass *klass;
 		GError *child_error = NULL;
 
-		klass = WBL_SCHEMA_GET_CLASS (self);
-
 		/* Validate the schema. */
-		if (klass->validate_schema != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (schema_node);
-
-			klass->validate_schema (self, &node, &child_error);
-
-			json_object_unref (node.node);
-		}
+		subschema_validate (self, schema_node, &child_error);
 
 		if (child_error == NULL) {
 			/* Valid. */
@@ -1955,11 +1949,8 @@ validate_items (WblSchema *self,
 	}
 
 	if (JSON_NODE_HOLDS_ARRAY (schema_node)) {
-		WblSchemaClass *klass;
 		JsonArray *array;
 		guint i;
-
-		klass = WBL_SCHEMA_GET_CLASS (self);
 
 		array = json_node_get_array (schema_node);
 
@@ -1983,17 +1974,7 @@ validate_items (WblSchema *self,
 			}
 
 			/* Validate the schema. */
-			if (klass->validate_schema != NULL) {
-				WblSchemaNode node;
-
-				node.ref_count = 1;
-				node.node = json_node_dup_object (array_node);
-
-				klass->validate_schema (self, &node,
-				                        &child_error);
-
-				json_object_unref (node.node);
-			}
+			subschema_validate (self, array_node, &child_error);
 
 			if (child_error == NULL) {
 				/* Valid. */
@@ -2091,11 +2072,8 @@ apply_items_child_schema (WblSchema *self,
                           JsonArray *instance_array,
                           GError **error)
 {
-	WblSchemaClass *klass;
 	JsonArray *schema_array = NULL;  /* unowned */
 	guint schema_size = 0, i;
-
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	if (JSON_NODE_HOLDS_ARRAY (items_schema_node)) {
 		schema_array = json_node_get_array (items_schema_node);
@@ -2140,18 +2118,8 @@ apply_items_child_schema (WblSchema *self,
 
 		/* Validate the child instance. */
 		child_node = json_array_get_element (instance_array, i);
-
-		if (klass->apply_schema != NULL) {
-			WblSchemaNode sub_node;
-
-			sub_node.ref_count = 1;
-			sub_node.node = json_node_dup_object (sub_schema_node);
-
-			klass->apply_schema (self, &sub_node,
-			                     child_node, &child_error);
-
-			json_object_unref (sub_node.node);
-		}
+		subschema_apply (self, sub_schema_node, child_node,
+		                 &child_error);
 
 		if (child_error != NULL) {
 			g_set_error (error,
@@ -2702,15 +2670,12 @@ validate_additional_properties (WblSchema *self,
                                 JsonNode *schema_node,
                                 GError **error)
 {
-	WblSchemaClass *klass;
 	GError *child_error = NULL;
 
 	if (validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
 		/* Valid. */
 		return;
 	}
-
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
 		g_set_error (error,
@@ -2722,16 +2687,7 @@ validate_additional_properties (WblSchema *self,
 	}
 
 	/* Validate the child schema. */
-	if (klass->validate_schema != NULL) {
-		WblSchemaNode node;
-
-		node.ref_count = 1;
-		node.node = json_node_dup_object (schema_node);
-
-		klass->validate_schema (self, &node, &child_error);
-
-		json_object_unref (node.node);
-	}
+	subschema_validate (self, schema_node, &child_error);
 
 	if (child_error != NULL) {
 		/* Invalid. */
@@ -2755,7 +2711,6 @@ validate_properties (WblSchema *self,
                      JsonNode *schema_node,
                      GError **error)
 {
-	WblSchemaClass *klass;
 	JsonObject *schema_object;  /* unowned */
 	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *l;  /* unowned */
@@ -2772,7 +2727,6 @@ validate_properties (WblSchema *self,
 
 	schema_object = json_node_get_object (schema_node);
 	member_names = json_object_get_members (schema_object);
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	for (l = member_names; l != NULL; l = l->next) {
 		JsonNode *child_node;  /* unowned */
@@ -2793,16 +2747,7 @@ validate_properties (WblSchema *self,
 		}
 
 		/* Validate the child schema. */
-		if (klass->validate_schema != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (child_node);
-
-			klass->validate_schema (self, &node, &child_error);
-
-			json_object_unref (node.node);
-		}
+		subschema_validate (self, child_node, &child_error);
 
 		if (child_error != NULL) {
 			/* Invalid. */
@@ -2830,7 +2775,6 @@ validate_pattern_properties (WblSchema *self,
                              JsonNode *schema_node,
                              GError **error)
 {
-	WblSchemaClass *klass;
 	JsonObject *schema_object;  /* unowned */
 	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *l;  /* unowned */
@@ -2848,7 +2792,6 @@ validate_pattern_properties (WblSchema *self,
 
 	schema_object = json_node_get_object (schema_node);
 	member_names = json_object_get_members (schema_object);
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	for (l = member_names; l != NULL; l = l->next) {
 		JsonNode *child_node;  /* unowned */
@@ -2876,16 +2819,7 @@ validate_pattern_properties (WblSchema *self,
 		}
 
 		/* Validate the child schema. */
-		if (klass->validate_schema != NULL) {
-			WblSchemaNode node;
-
-			node.ref_count = 1;
-			node.node = json_node_dup_object (child_node);
-
-			klass->validate_schema (self, &node, &child_error);
-
-			json_object_unref (node.node);
-		}
+		subschema_validate (self, child_node, &child_error);
 
 		if (child_error != NULL) {
 			/* Invalid. */
@@ -3068,7 +3002,6 @@ generate_properties (WblSchema *self,
                      JsonNode *schema_node,
                      GPtrArray *output)
 {
-	WblSchemaClass *klass;
 	JsonObject *schema_object;  /* unowned */
 	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
@@ -3077,7 +3010,6 @@ generate_properties (WblSchema *self,
 	schema_object = json_node_get_object (schema_node);
 	member_names = json_object_get_members (schema_object);
 	_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	/* Generate an instance for the empty object. */
 	generate_set_string (output, "{}", TRUE);
@@ -3087,40 +3019,31 @@ generate_properties (WblSchema *self,
 	for (l = member_names; l != NULL; l = l->next) {
 		JsonNode *child_node;  /* unowned */
 		const gchar *member_name;
+		guint i;
 
 		member_name = l->data;
 		child_node = json_object_get_member (schema_object,
 		                                     member_name);
 
-		if (klass->generate_instances != NULL) {
-			WblSchemaNode node;
-			guint i;
+		/* Generate the child instances. */
+		subschema_generate_instances (self, child_node, _output);
 
-			/* Generate the child instances. */
-			node.ref_count = 1;
-			node.node = json_node_dup_object (child_node);
+		/* Wrap them in objects. */
+		for (i = 0; i < _output->len; i++) {
+			gchar *json = NULL;  /* owned */
+			const gchar *instance_json;
+			WblGeneratedInstance *instance;  /* unowned */
 
-			klass->generate_instances (self, &node, _output);
+			instance = _output->pdata[i];
+			instance_json = wbl_generated_instance_get_json (instance);
+			json = g_strdup_printf ("{\"%s\":%s}",
+			                        member_name,
+			                        instance_json);
 
-			json_object_unref (node.node);
-
-			/* Wrap them in objects. */
-			for (i = 0; i < _output->len; i++) {
-				gchar *json = NULL;  /* owned */
-				const gchar *instance_json;
-				WblGeneratedInstance *instance;  /* unowned */
-
-				instance = _output->pdata[i];
-				instance_json = wbl_generated_instance_get_json (instance);
-				json = g_strdup_printf ("{\"%s\":%s}",
-				                        member_name,
-				                        instance_json);
-
-				generate_take_string (output, json, TRUE);
-			}
-
-			g_ptr_array_set_size (_output, 0);
+			generate_take_string (output, json, TRUE);
 		}
+
+		g_ptr_array_set_size (_output, 0);
 	}
 
 	g_ptr_array_unref (_output);
@@ -3153,23 +3076,10 @@ validate_dependencies (WblSchema *self,
 		child_node = l->data;
 
 		if (JSON_NODE_HOLDS_OBJECT (child_node)) {
-			WblSchemaClass *klass;
 			GError *child_error = NULL;
 
-			klass = WBL_SCHEMA_GET_CLASS (self);
-
 			/* Must be a valid JSON Schema. */
-			if (klass->validate_schema != NULL) {
-				WblSchemaNode node;
-
-				node.ref_count = 1;
-				node.node = json_node_dup_object (child_node);
-
-				klass->validate_schema (self, &node,
-				                        &child_error);
-
-				json_object_unref (node.node);
-			}
+			subschema_validate (self, child_node, &child_error);
 
 			if (child_error != NULL) {
 				g_error_free (child_error);
@@ -3207,7 +3117,6 @@ apply_dependencies (WblSchema *self,
                     JsonNode *instance_node,
                     GError **error)
 {
-	WblSchemaClass *klass;
 	JsonObject *schema_object;  /* unowned */
 	JsonObject *instance_object;  /* unowned */
 	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
@@ -3221,7 +3130,6 @@ apply_dependencies (WblSchema *self,
 	instance_object = json_node_get_object (instance_node);
 	schema_object = json_node_get_object (schema_node);
 	member_names = json_object_get_members (schema_object);
-	klass = WBL_SCHEMA_GET_CLASS (self);
 
 	for (l = member_names; l != NULL; l = l->next) {
 		const gchar *member_name;
@@ -3244,17 +3152,8 @@ apply_dependencies (WblSchema *self,
 			 * schema. */
 			GError *child_error = NULL;
 
-			if (klass->apply_schema != NULL) {
-				WblSchemaNode node;
-
-				node.ref_count = 1;
-				node.node = json_node_dup_object (child_node);
-
-				klass->apply_schema (self, &node, instance_node,
-				                     &child_error);
-
-				json_object_unref (node.node);
-			}
+			subschema_apply (self, child_node, instance_node,
+			                 &child_error);
 
 			if (child_error != NULL) {
 				g_set_error (error,
@@ -3857,7 +3756,6 @@ validate_not (WblSchema *self,
               JsonNode *schema_node,
               GError **error)
 {
-	WblSchemaClass *klass;
 	GError *child_error = NULL;
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
@@ -3869,19 +3767,8 @@ validate_not (WblSchema *self,
 		return;
 	}
 
-	klass = WBL_SCHEMA_GET_CLASS (self);
-
 	/* Validate the child schema. */
-	if (klass->validate_schema != NULL) {
-		WblSchemaNode node;
-
-		node.ref_count = 1;
-		node.node = json_node_dup_object (schema_node);
-
-		klass->validate_schema (self, &node, &child_error);
-
-		json_object_unref (node.node);
-	}
+	subschema_validate (self, schema_node, &child_error);
 
 	if (child_error != NULL) {
 		/* Invalid. */
@@ -3905,21 +3792,9 @@ apply_not (WblSchema *self,
            JsonNode *instance_node,
            GError **error)
 {
-	WblSchemaClass *klass;
 	GError *child_error = NULL;
 
-	klass = WBL_SCHEMA_GET_CLASS (self);
-
-	if (klass->apply_schema != NULL) {
-		WblSchemaNode node;
-
-		node.ref_count = 1;
-		node.node = json_node_dup_object (schema_node);
-
-		klass->apply_schema (self, &node, instance_node, &child_error);
-
-		json_object_unref (node.node);
-	}
+	subschema_apply (self, schema_node, instance_node, &child_error);
 
 	/* Fail if application succeeded. */
 	if (child_error == NULL) {
@@ -3938,21 +3813,8 @@ generate_not (WblSchema *self,
               JsonNode *schema_node,
               GPtrArray *output)
 {
-	WblSchemaClass *klass;
-
-	klass = WBL_SCHEMA_GET_CLASS (self);
-
 	/* Generate instances for the schema. */
-	if (klass->generate_instances != NULL) {
-		WblSchemaNode node;
-
-		node.ref_count = 1;
-		node.node = json_node_dup_object (schema_node);
-
-		klass->generate_instances (self, &node, output);
-
-		json_object_unref (node.node);
-	}
+	subschema_generate_instances (self, schema_node, output);
 }
 
 /* title. json-schema-validation§6.1. */
