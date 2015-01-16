@@ -2857,17 +2857,26 @@ list_remove_string (GList *list, const gchar *data)
 	return list;
 }
 
+static gboolean
+list_contains_string (GList *list, const gchar *data)
+{
+	GList *l;
+
+	l = g_list_find_custom (list, data, (GCompareFunc) g_strcmp0);
+
+	return (l != NULL);
+}
+
 /* json-schema-validation§5.4.4 */
 static void
 apply_properties_parent_schema (WblSchema *self,
                                 JsonNode *ap_node,
                                 JsonNode *p_node,
                                 JsonNode *pp_node,
-                                JsonNode *instance_node,
+                                JsonObject *instance_object,
                                 GError **error)
 {
 	gboolean ap_is_false;
-	JsonObject *instance_object;  /* unowned */
 	JsonObject *p_object;  /* unowned */
 	JsonObject *pp_object = NULL;  /* unowned; nullable */
 	GList/*<unowned utf8>*/ *set_s = NULL;  /* owned */
@@ -2887,12 +2896,6 @@ apply_properties_parent_schema (WblSchema *self,
 		return;
 	}
 
-	/* Validation succeeds if the instance is not an object. */
-	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
-		return;
-	}
-
-	instance_object = json_node_get_object (instance_node);
 	p_object = (p_node != NULL) ? json_node_get_object (p_node) : NULL;
 	pp_object = (pp_node != NULL) ? json_node_get_object (pp_node) : NULL;
 
@@ -2963,6 +2966,172 @@ apply_properties_parent_schema (WblSchema *self,
 	g_list_free (set_s);
 }
 
+/* json-schema-validation§8.3.3 */
+static void
+apply_properties_child_schema (WblSchema *self,
+                               JsonNode *ap_node,
+                               JsonNode *p_node,
+                               JsonNode *pp_node,
+                               JsonObject *instance_object,
+                               GError **error)
+{
+	JsonObject *p_object;  /* unowned */
+	JsonObject *pp_object = NULL;  /* unowned; nullable */
+	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *set_p = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *set_pp = NULL;  /* owned */
+	GList/*<unowned utf8>*/ *m = NULL, *l = NULL;  /* unowned */
+	GHashTable/*<unowned JsonNode,
+	             unowned JsonNode>*/ *set_s = NULL;  /* owned */
+
+	p_object = (p_node != NULL) ? json_node_get_object (p_node) : NULL;
+	pp_object = (pp_node != NULL) ? json_node_get_object (pp_node) : NULL;
+
+	/* Follow the algorithm in json-schema-validation§8.3.3. */
+	set_s = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+	                               NULL, NULL);
+
+	if (p_object != NULL) {
+		set_p = json_object_get_members (p_object);
+	}
+	if (pp_object != NULL) {
+		set_pp = json_object_get_members (pp_object);
+	}
+
+	member_names = json_object_get_members (instance_object);
+
+	for (m = member_names; m != NULL; m = m->next) {
+		const gchar *member_name;
+		GHashTableIter/*<unowned JsonNode, unowned JsonNode>*/ iter;
+		JsonNode *child_node;  /* unowned */
+		JsonNode *child_schema;  /* unowned */
+
+		member_name = m->data;
+		child_node = json_object_get_member (instance_object,
+		                                     member_name);
+
+		/* If @set_p contains @member_name, then the corresponding
+		 * schema in ‘properties’ is added to @set_s.
+		 * (json-schema-validation§8.3.3.2.) */
+		if (list_contains_string (set_p, member_name)) {
+			child_schema = json_object_get_member (p_object,
+			                                       member_name);
+			g_hash_table_add (set_s, child_schema);
+		}
+
+		/* For each regex in @set_pp, if it matches @member_name
+		 * successfully, the corresponding schema in ‘patternProperties’
+		 * is added to @set_s. (json-schema-validation§8.3.3.3.) */
+		for (l = set_pp; l != NULL; l = l->next) {
+			const gchar *regex_str;
+			GRegex *regex = NULL;  /* owned */
+			GError *child_error = NULL;
+
+			regex_str = l->data;
+
+			/* Construct the regex. Should never fail due to being
+			 * validated in validate_pattern_properties(). */
+			regex = g_regex_new (regex_str, 0, 0, &child_error);
+			g_assert_no_error (child_error);
+
+			if (g_regex_match (regex, member_name, 0, NULL)) {
+				child_schema = json_object_get_member (pp_object,
+				                                       regex_str);
+				g_hash_table_add (set_s, child_schema);
+			}
+
+			g_regex_unref (regex);
+		}
+
+		/* The schema defined by ‘additionalProperties’ is added to
+		 * @set_s if and only if, at this stage, @set_s is empty.
+		 * (json-schema-validation§8.3.3.4.)
+		 *
+		 * Note that if @ap_node is %NULL or holds a boolean, it is
+		 * considered equivalent to an empty schema, which is guaranteed
+		 * to apply, so we don’t add that to @set_s.
+		 * (json-schema-validation§8.3.2.) */
+		if (g_hash_table_size (set_s) == 0 &&
+		    ap_node != NULL && JSON_NODE_HOLDS_OBJECT (ap_node)) {
+			g_hash_table_add (set_s, ap_node);
+		}
+
+		/* Now that we have a full set of the child schemas to apply to
+		 * this property value, apply them. */
+		g_hash_table_iter_init (&iter, set_s);
+
+		while (g_hash_table_iter_next (&iter, NULL,
+		                               (gpointer *) &child_schema)) {
+			GError *child_error = NULL;
+
+			subschema_apply (self, child_schema, child_node,
+			                 &child_error);
+
+			/* Report the first error. */
+			if (child_error != NULL) {
+				g_set_error (error,
+				             WBL_SCHEMA_ERROR,
+				             WBL_SCHEMA_ERROR_INVALID,
+				             _("Object does not validate "
+				               "against the schemas in the "
+				               "‘%s’ child of the properties "
+				               "schema keyword. See "
+				               "json-schema-validation§8.3: "
+				               "%s"),
+				             member_name, child_error->message);
+				g_clear_error (&child_error);
+
+				goto done;
+			}
+		}
+
+		g_hash_table_remove_all (set_s);
+	}
+
+done:
+	g_list_free (set_pp);
+	g_list_free (set_p);
+	g_list_free (member_names);
+	g_hash_table_unref (set_s);
+}
+
+static void
+apply_properties_schemas (WblSchema *self,
+                          JsonNode *ap_node,
+                          JsonNode *p_node,
+                          JsonNode *pp_node,
+                          JsonNode *instance_node,
+                          GError **error)
+{
+	JsonObject *instance_object;  /* unowned */
+	GError *child_error = NULL;
+
+	/* Validation succeeds if the instance is not an object. */
+	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
+		return;
+	}
+
+	instance_object = json_node_get_object (instance_node);
+
+	/* Validate the instance node. */
+	apply_properties_parent_schema (self, ap_node, p_node, pp_node,
+	                                instance_object, &child_error);
+
+	if (child_error != NULL) {
+		g_propagate_error (error, child_error);
+		return;
+	}
+
+	/* Validate its children. */
+	apply_properties_child_schema (self, ap_node, p_node, pp_node,
+	                               instance_object, &child_error);
+
+	if (child_error != NULL) {
+		g_propagate_error (error, child_error);
+		return;
+	}
+}
+
 static void
 apply_properties (WblSchema *self,
                   JsonObject *root,
@@ -2976,8 +3145,8 @@ apply_properties (WblSchema *self,
 	p_node = schema_node;
 	pp_node = json_object_get_member (root, "patternProperties");
 
-	apply_properties_parent_schema (self, ap_node, p_node, pp_node,
-	                                instance_node, error);
+	apply_properties_schemas (self, ap_node, p_node, pp_node,
+	                          instance_node, error);
 }
 
 static void
@@ -2993,8 +3162,8 @@ apply_pattern_properties (WblSchema *self,
 	p_node = json_object_get_member (root, "properties");
 	pp_node = schema_node;
 
-	apply_properties_parent_schema (self, ap_node, p_node, pp_node,
-	                                instance_node, error);
+	apply_properties_schemas (self, ap_node, p_node, pp_node,
+	                          instance_node, error);
 }
 
 static void
