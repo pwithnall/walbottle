@@ -2857,13 +2857,14 @@ list_remove_string (GList *list, const gchar *data)
 	return list;
 }
 
+/* json-schema-validation§5.4.4 */
 static void
-apply_all_properties (WblSchema *self,
-                      JsonNode *ap_node,
-                      JsonNode *p_node,
-                      JsonNode *pp_node,
-                      JsonNode *instance_node,
-                      GError **error)
+apply_properties_parent_schema (WblSchema *self,
+                                JsonNode *ap_node,
+                                JsonNode *p_node,
+                                JsonNode *pp_node,
+                                JsonNode *instance_node,
+                                GError **error)
 {
 	gboolean ap_is_false;
 	JsonObject *instance_object;  /* unowned */
@@ -2975,8 +2976,8 @@ apply_properties (WblSchema *self,
 	p_node = schema_node;
 	pp_node = json_object_get_member (root, "patternProperties");
 
-	apply_all_properties (self, ap_node, p_node, pp_node,
-	                      instance_node, error);
+	apply_properties_parent_schema (self, ap_node, p_node, pp_node,
+	                                instance_node, error);
 }
 
 static void
@@ -2992,8 +2993,8 @@ apply_pattern_properties (WblSchema *self,
 	p_node = json_object_get_member (root, "properties");
 	pp_node = schema_node;
 
-	apply_all_properties (self, ap_node, p_node, pp_node,
-	                      instance_node, error);
+	apply_properties_parent_schema (self, ap_node, p_node, pp_node,
+	                                instance_node, error);
 }
 
 static void
