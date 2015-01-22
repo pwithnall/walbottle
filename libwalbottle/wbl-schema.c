@@ -23,9 +23,22 @@
  * @stability: Unstable
  * @include: libwalbottle/wbl-schema.h
  *
- * TODO:
- *  - Subschema validation with section 8
- *  - Retrieving subschemas in the public API
+ * #WblSchema represents a single JSON schema, at the top level. This is a tree
+ * of #WblSchemaNodes, with one guaranteed to exist at the top level
+ * (retrievable using wbl_schema_get_root()) and others lower down representing
+ * sub-schemas.
+ *
+ * When loading a schema, it is validated for well-formedness and adherence to
+ * the JSON meta-schema (which defines the format used for schemas). Invalid
+ * schemas will fail to load.
+ *
+ * Two main operations may be performed on a loaded schema: application of the
+ * schema to a JSON instance, and generation of instances from the schema.
+ * Applying a schema to an instance validates that instance against the schema,
+ * returning success or a validation error. Generating instances from a schema
+ * produces zero or more JSON instances which test various boundary conditions
+ * of the schema. They are designed to be used in testing parser implementations
+ * for that schema.
  *
  * Since: UNRELEASED
  */
