@@ -103,6 +103,69 @@ test_schema_parsing_simple (void)
 	g_object_unref (schema);
 }
 
+/* Test complex parsing of a JSON Schema.
+ * Example taken from http://json-schema.org/example1.html. */
+static void
+test_schema_parsing_complex (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	GError *error = NULL;
+
+	schema = wbl_schema_new ();
+
+	wbl_schema_load_from_data (schema,
+		"{"
+			"\"$schema\": \"http://json-schema.org/draft-04/schema#\","
+			"\"title\": \"Product set\","
+			"\"type\": \"array\","
+			"\"items\": {"
+				"\"title\": \"Product\","
+				"\"type\": \"object\","
+				"\"properties\": {"
+					"\"id\": {"
+						"\"description\": \"The unique identifier for a product\","
+						"\"type\": \"number\""
+					"},"
+					"\"name\": {"
+						"\"type\": \"string\""
+					"},"
+					"\"price\": {"
+						"\"type\": \"number\","
+						"\"minimum\": 0,"
+						"\"exclusiveMinimum\": true"
+					"},"
+					"\"tags\": {"
+						"\"type\": \"array\","
+						"\"items\": {"
+							"\"type\": \"string\""
+						"},"
+						"\"minItems\": 1,"
+						"\"uniqueItems\": true"
+					"},"
+					"\"dimensions\": {"
+						"\"type\": \"object\","
+						"\"properties\": {"
+							"\"length\": {\"type\": \"number\"},"
+							"\"width\": {\"type\": \"number\"},"
+							"\"height\": {\"type\": \"number\"}"
+						"},"
+						"\"required\": [\"length\", \"width\", \"height\"]"
+					"},"
+					"\"warehouseLocation\": {"
+						"\"description\": \"Coordinates of the warehouse with the product\","
+						"\"$ref\": \"http://json-schema.org/geo\""
+					"}"
+				"},"
+				"\"required\": [\"id\", \"name\", \"price\"]"
+			"}"
+		"}", -1, &error);
+	g_assert_no_error (error);
+
+	g_assert (wbl_schema_get_root (schema) != NULL);
+
+	g_object_unref (schema);
+}
+
 /* Test parsing the JSON Schema meta-schema.
  * http://json-schema.org/schema */
 static void
@@ -253,6 +316,80 @@ test_schema_instance_generation_simple (void)
 	g_object_unref (schema);
 }
 
+/* Test generating instances for a complex schema. */
+static void
+test_schema_instance_generation_complex (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstace>*/ *instances = NULL;  /* owned */
+	GError *error = NULL;
+
+	const gchar *expected_instances[] = {
+		"[]",
+		"[null]",
+		"[]",
+		"null",
+		NULL,  /* terminator */
+	};
+
+	schema = wbl_schema_new ();
+
+	wbl_schema_load_from_data (schema,
+		"{"
+			"\"$schema\": \"http://json-schema.org/draft-04/schema#\","
+			"\"title\": \"Product set\","
+			"\"type\": \"array\","
+			"\"items\": {"
+				"\"title\": \"Product\","
+				"\"type\": \"object\","
+				"\"properties\": {"
+					"\"id\": {"
+						"\"description\": \"The unique identifier for a product\","
+						"\"type\": \"number\""
+					"},"
+					"\"name\": {"
+						"\"type\": \"string\""
+					"},"
+					"\"price\": {"
+						"\"type\": \"number\","
+						"\"minimum\": 0,"
+						"\"exclusiveMinimum\": true"
+					"},"
+					"\"tags\": {"
+						"\"type\": \"array\","
+						"\"items\": {"
+							"\"type\": \"string\""
+						"},"
+						"\"minItems\": 1,"
+						"\"uniqueItems\": true"
+					"},"
+					"\"dimensions\": {"
+						"\"type\": \"object\","
+						"\"properties\": {"
+							"\"length\": {\"type\": \"number\"},"
+							"\"width\": {\"type\": \"number\"},"
+							"\"height\": {\"type\": \"number\"}"
+						"},"
+						"\"required\": [\"length\", \"width\", \"height\"]"
+					"},"
+					"\"warehouseLocation\": {"
+						"\"description\": \"Coordinates of the warehouse with the product\","
+						"\"$ref\": \"http://json-schema.org/geo\""
+					"}"
+				"},"
+				"\"required\": [\"id\", \"name\", \"price\"]"
+			"}"
+		"}", -1, &error);
+	g_assert_no_error (error);
+
+	instances = wbl_schema_generate_instances (schema,
+	                                           WBL_GENERATE_INSTANCE_NONE);
+	assert_generated_instances_match (instances, expected_instances);
+	g_ptr_array_unref (instances);
+
+	g_object_unref (schema);
+}
+
 /* Test generating instances for the JSON Schema meta-schema.
  * http://json-schema.org/schema */
 static void
@@ -389,12 +526,15 @@ main (int argc, char *argv[])
 	/* Schema tests. */
 	g_test_add_func ("/schema/construction", test_schema_construction);
 	g_test_add_func ("/schema/parsing/simple", test_schema_parsing_simple);
+	g_test_add_func ("/schema/parsing/complex", test_schema_parsing_complex);
 	g_test_add_func ("/schema/parsing/schema", test_schema_parsing_schema);
 	g_test_add_func ("/schema/parsing/hyper-schema",
 	                 test_schema_parsing_hyper_schema);
 	g_test_add_func ("/schema/application", test_schema_application);
 	g_test_add_func ("/schema/instance-generation/simple",
 	                 test_schema_instance_generation_simple);
+	g_test_add_func ("/schema/instance-generation/complex",
+	                 test_schema_instance_generation_complex);
 	g_test_add_func ("/schema/instance-generation/schema",
 	                 test_schema_instance_generation_schema);
 	g_test_add_func ("/schema/instance-generation/hyper-schema",
