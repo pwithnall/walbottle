@@ -13,7 +13,37 @@ libwalbottle’s API is currently unstable and is likely to change wildly.
 Using Walbottle
 ===============
 
-TODO
+Walbottle can be used as a set of utility programs or as a library.
+
+The utility programs:
+ • json-validate:
+     Validate one or more JSON files against zero or more JSON schemas. If no
+     schemas are specified, the JSON files are checked for well-formedness only.
+
+     Example:
+       json-validate --schema my-schema.json instance1.json instance2.json
+
+ • json-schema-validate:
+     Validate a JSON schema against the JSON meta-schema. This checks the schema
+     is well-formed and valid, and hence suitable for use in validating JSON
+     instances.
+
+     Example:
+       json-schema-validate schema1.json schema2.json
+
+ • json-schema-generate:
+     Generate JSON instances for a given schema, either generating valid or
+     invalid instances. The generated instances are designed to test boundary
+     conditions of the validity of the schema, to be used for unit testing code
+     which parses instances of the schema.
+
+     Example (valid instances only):
+       json-schema-generate --valid-only schema.json
+     Example (invalid instances only):
+       json-schema-generate --invalid-only schema.json
+
+As a library, the core object is a WblSchema, representing a single top-level
+JSON schema. See the API documentation for more explanation and examples.
 
 Dependencies
 ============
