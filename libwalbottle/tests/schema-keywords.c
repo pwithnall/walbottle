@@ -995,7 +995,6 @@ test_schema_keywords_type_array (void)
 		"''",
 		"null",
 		"0.1",
-		"null",
 		NULL,
 	};
 

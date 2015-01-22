@@ -271,9 +271,7 @@ test_schema_instance_generation_simple (void)
 		"{\"lastName\":null}",
 		"{\"firstName\":null,\"lastName\":null}",
 		"{\"firstName\":''}",
-		"{\"firstName\":null}",
 		"{\"lastName\":''}",
-		"{\"lastName\":null}",
 		"{\"age\":-1}",
 		"{\"age\":0}",
 		"{\"age\":0.000000}",
@@ -281,7 +279,6 @@ test_schema_instance_generation_simple (void)
 		"{\"age\":null}",
 		"{}",
 		"null",
-		"{}",
 		NULL,  /* terminator */
 	};
 
@@ -327,7 +324,6 @@ test_schema_instance_generation_complex (void)
 	const gchar *expected_instances[] = {
 		"[]",
 		"[null]",
-		"[]",
 		"null",
 		NULL,  /* terminator */
 	};
@@ -439,18 +435,13 @@ test_schema_instance_generation_schema (void)
 		"{\"dependencies\":null}",
 		"{\"enum\":[null]}",
 		"{\"enum\":[]}",
-		"{\"enum\":[null]}",
 		"{\"enum\":[null,null]}",
-		"{\"enum\":[]}",
 		"{\"enum\":null}",
 		"{\"type\":[]}",
-		"{\"type\":[]}",
 		"{\"type\":[null,null]}",
-		"{\"type\":[]}",
 		"{\"type\":null}",
 		"{}",
 		"null",
-		"{}",
 		NULL,  /* terminator */
 	};
 
@@ -483,7 +474,6 @@ test_schema_instance_generation_hyper_schema (void)
 		"{\"additionalProperties\":null}",
 		"{\"links\":[]}",
 		"{\"links\":[null]}",
-		"{\"links\":[]}",
 		"{\"links\":null}",
 		"{\"fragmentResolution\":''}",
 		"{\"fragmentResolution\":null}",
@@ -492,7 +482,6 @@ test_schema_instance_generation_hyper_schema (void)
 		"{\"media\":{\"type\":null}}",
 		"{\"media\":{\"binaryEncoding\":''}}",
 		"{\"media\":{\"binaryEncoding\":null}}",
-		"{\"media\":{}}",
 		"{\"media\":null}",
 		"{\"pathStart\":''}",
 		"{\"pathStart\":null}",

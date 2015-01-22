@@ -4183,8 +4183,10 @@ real_generate_instances (WblSchema *self,
                          WblSchemaNode *schema,
                          GPtrArray *output)
 {
-	guint i;
+	GHashTable/*<utf8, utf8>*/ *set = NULL;  /* owned */
+	guint i, increment;
 
+	/* Generate for each keyword in turn. */
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
 		const KeywordData *keyword = &json_schema_keywords[i];
 		JsonNode *schema_node;  /* unowned */
@@ -4197,6 +4199,25 @@ real_generate_instances (WblSchema *self,
 			                   schema_node, output);
 		}
 	}
+
+	/* De-duplicate the results. */
+	set = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, NULL);
+
+	for (i = 0; i < output->len; i += increment) {
+		const gchar *json;
+
+		json = wbl_generated_instance_get_json (output->pdata[i]);
+
+		if (g_hash_table_contains (set, json)) {
+			g_ptr_array_remove_index_fast (output, i);
+			increment = 0;
+		} else {
+			g_hash_table_add (set, (gpointer) json);
+			increment = 1;
+		}
+	}
+
+	g_hash_table_unref (set);
 }
 
 /**
