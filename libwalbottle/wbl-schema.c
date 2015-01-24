@@ -2188,6 +2188,55 @@ apply_items (WblSchema *self,
 	}
 }
 
+/* Generate a JSON array with null elements up to @subschema_position, and an
+ * instance generated from @subschema_node at that position. Generate one of
+ * these arrays for each instance generated from @subschema_node. */
+static void
+generate_array_with_subschema (WblSchema *self,
+                               JsonNode *subschema_node,
+                               guint subschema_position,
+                               GPtrArray *output)
+{
+	GPtrArray/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
+	guint j;
+	JsonParser *parser = NULL;  /* owned */
+	JsonBuilder *builder = NULL;  /* owned */
+
+	child_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+	builder = json_builder_new ();
+	parser = json_parser_new ();
+
+	subschema_generate_instances (self, subschema_node, child_output);
+
+	for (j = 0; j < child_output->len; j++) {
+		WblGeneratedInstance *child_instance;  /* unowned */
+		const gchar *json;
+		guint k;
+		GError *error = NULL;
+
+		child_instance = child_output->pdata[j];
+		json =  wbl_generated_instance_get_json (child_instance);
+
+		json_parser_load_from_data (parser, json, -1, &error);
+		g_assert_no_error (error);
+
+		json_builder_begin_array (builder);
+
+		for (k = 0; k < subschema_position; k++) {
+			json_builder_add_null_value (builder);
+		}
+
+		json_builder_add_value (builder, json_node_copy (json_parser_get_root (parser)));
+		json_builder_end_array (builder);
+
+		generate_take_builder (output, builder, child_instance->valid);
+	}
+
+	g_object_unref (parser);
+	g_object_unref (builder);
+	g_ptr_array_unref (child_output);
+}
+
 static void
 generate_items (WblSchema *self,
                 JsonObject *root,
@@ -2213,6 +2262,66 @@ generate_items (WblSchema *self,
 	generate_null_array (output, items_length, TRUE);
 	generate_null_array (output, items_length + 1, TRUE);
 	/* FIXME: @valid should depend on additionalItems here. */
+
+	/* If items is an object, all child elements must validate against
+	 * that subschema. */
+	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		GPtrArray/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
+		guint i;
+
+		child_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+
+		subschema_generate_instances (self, schema_node, child_output);
+
+		for (i = 0; i < child_output->len; i++) {
+			WblGeneratedInstance *child_instance;  /* unowned */
+			gchar *json;
+
+			child_instance = child_output->pdata[i];
+			json = g_strdup_printf ("[%s]",
+			                        wbl_generated_instance_get_json (child_instance));
+
+			generate_take_string (output, json,
+			                      child_instance->valid);
+		}
+		/* TODO */
+
+		g_ptr_array_unref (child_output);
+	}
+
+	/* If items is an array, all child elements must validate against the
+	 * subschema with the corresponding index.
+	 *
+	 * For each subschema, generate instances for it, and wrap them in an
+	 * array with the generated instances at the index corresponding to the
+	 * subschema. If additionalItems is set, generate an additional array
+	 * with the generated instances for the additionalItems subschema at the
+	 * final index. */
+	if (JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		guint i;
+		JsonArray *schema_array;  /* unowned */
+		JsonNode *ai_schema_node;  /* unowned */
+
+		ai_schema_node = json_object_get_member (root,
+		                                         "additionalItems");
+		schema_array = json_node_get_array (schema_node);
+
+		/* TODO */
+		for (i = 0; i < json_array_get_length (schema_array); i++) {
+			JsonNode *subschema_node;  /* unowned */
+
+			subschema_node = json_array_get_element (schema_array,
+			                                         i);
+			generate_array_with_subschema (self, subschema_node,
+			                               i, output);
+		}
+
+		if (ai_schema_node != NULL &&
+		    JSON_NODE_HOLDS_OBJECT (ai_schema_node)) {
+			generate_array_with_subschema (self, ai_schema_node,
+			                               items_length, output);
+		}
+	}
 }
 
 /* maxItems. json-schema-validation§5.3.2. */
