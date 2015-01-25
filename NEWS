@@ -3,3 +3,7 @@ Initial release of Walbottle 0.1.0
 
 Major changes:
  • Initial version of the project
+ • Schema validation, instance validation and instance generation support
+ • Nearly full implementation of the json-schema-core and json-schema-validation
+   specifications
+ • Not API stable

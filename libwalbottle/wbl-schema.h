@@ -36,7 +36,7 @@ G_BEGIN_DECLS
  *
  * Error codes for #WblSchema operations.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 typedef enum {
 	WBL_SCHEMA_ERROR_MALFORMED = 1,
@@ -55,7 +55,7 @@ GQuark wbl_schema_error_quark (void) G_GNUC_CONST;
  * All the fields in the #WblSchemaNode structure are private and should never
  * be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 typedef struct _WblSchemaNode WblSchemaNode;
 
@@ -88,7 +88,7 @@ typedef struct _WblSchemaPrivate	WblSchemaPrivate;
  * All the fields in the #WblSchema structure are private and should never
  * be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 typedef struct {
 	/*< private >*/
@@ -113,7 +113,7 @@ typedef struct {
  * Most of the fields in the #WblSchemaClass structure are private and should
  * never be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 typedef struct {
 	/*< private >*/
@@ -175,7 +175,7 @@ wbl_schema_apply (WblSchema *self,
  * Flags affecting the generation of JSON instances for schemas using
  * wbl_schema_generate_instances().
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 typedef enum {
 	WBL_GENERATE_INSTANCE_NONE = 0,
@@ -193,7 +193,7 @@ typedef enum {
  * All the fields in the #WblGeneratedInstance structure are private and should
  * never be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 typedef struct _WblGeneratedInstance WblGeneratedInstance;
 

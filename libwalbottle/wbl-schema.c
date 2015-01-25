@@ -40,7 +40,7 @@
  * of the schema. They are designed to be used in testing parser implementations
  * for that schema.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 
 #include "config.h"
@@ -75,7 +75,7 @@ G_DEFINE_BOXED_TYPE (WblSchemaNode, wbl_schema_node,
  *
  * Returns: (transfer full): the original schema node
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 WblSchemaNode *
 wbl_schema_node_ref (WblSchemaNode *self)
@@ -94,7 +94,7 @@ wbl_schema_node_ref (WblSchemaNode *self)
  *
  * Decrement the reference count of the schema node.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_schema_node_unref (WblSchemaNode *self)
@@ -116,7 +116,7 @@ wbl_schema_node_unref (WblSchemaNode *self)
  *
  * Returns: (transfer none): schema’s root node
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 JsonObject *
 wbl_schema_node_get_root (WblSchemaNode *self)
@@ -136,7 +136,7 @@ wbl_schema_node_get_root (WblSchemaNode *self)
  *
  * Returns: (nullable): schema’s title, or %NULL if unset
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 const gchar *
 wbl_schema_node_get_title (WblSchemaNode *self)
@@ -160,7 +160,7 @@ wbl_schema_node_get_title (WblSchemaNode *self)
  *
  * Returns: (nullable): schema’s description, or %NULL if unset
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 const gchar *
 wbl_schema_node_get_description (WblSchemaNode *self)
@@ -184,7 +184,7 @@ wbl_schema_node_get_description (WblSchemaNode *self)
  *
  * Returns: (nullable): schema’s default value, or %NULL if unset
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 JsonNode *
 wbl_schema_node_get_default (WblSchemaNode *self)
@@ -214,7 +214,7 @@ G_DEFINE_BOXED_TYPE (WblGeneratedInstance, wbl_generated_instance,
  *
  * Returns: (transfer full): newly allocated #WblGeneratedInstance
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 WblGeneratedInstance *
 wbl_generated_instance_new_from_string (const gchar *json,
@@ -240,7 +240,7 @@ wbl_generated_instance_new_from_string (const gchar *json,
  *
  * Returns: (transfer full): newly allocated #WblGeneratedInstance
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 WblGeneratedInstance *
 wbl_generated_instance_copy (WblGeneratedInstance *self)
@@ -260,7 +260,7 @@ wbl_generated_instance_copy (WblGeneratedInstance *self)
  *
  * Free an allocated #WblGeneratedInstance.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_generated_instance_free (WblGeneratedInstance *self)
@@ -278,7 +278,7 @@ wbl_generated_instance_free (WblGeneratedInstance *self)
  *
  * Returns: string form of the generated instance
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 const gchar *
 wbl_generated_instance_get_json (WblGeneratedInstance *self)
@@ -4421,7 +4421,7 @@ real_generate_instances (WblSchema *self,
  *
  * Return value: (transfer full): a new #WblSchema; unref with g_object_unref()
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 WblSchema *
 wbl_schema_new (void)
@@ -4440,7 +4440,7 @@ wbl_schema_new (void)
  *
  * See wbl_schema_load_from_stream_async() for more details.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_schema_load_from_data (WblSchema *self,
@@ -4477,7 +4477,7 @@ wbl_schema_load_from_data (WblSchema *self,
  *
  * See wbl_schema_load_from_stream_async() for more details.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_schema_load_from_file (WblSchema *self,
@@ -4563,7 +4563,7 @@ finish_loading (WblSchema *self, GError **error)
  *
  * See wbl_schema_load_from_stream_async() for more details.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_schema_load_from_stream (WblSchema *self,
@@ -4663,7 +4663,7 @@ done:
  * This is the preferred method for loading a schema due to the potential
  * blocking involved in the I/O.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_schema_load_from_stream_async (WblSchema *self,
@@ -4698,7 +4698,7 @@ wbl_schema_load_from_stream_async (WblSchema *self,
  * Finish an asynchronous schema loading operation started with
  * wbl_schema_load_from_stream_async().
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_schema_load_from_stream_finish (WblSchema *self,
@@ -4729,7 +4729,7 @@ wbl_schema_load_from_stream_finish (WblSchema *self,
  *
  * Returns: (transfer none) (nullable): a JSON schema root object, or %NULL
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 WblSchemaNode *
 wbl_schema_get_root (WblSchema *self)
@@ -4753,7 +4753,7 @@ wbl_schema_get_root (WblSchema *self)
  * conforms to the schema. The instance may be any kind of JSON node, and does
  * not necessarily have to be a JSON object.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 void
 wbl_schema_apply (WblSchema *self,
@@ -4794,7 +4794,7 @@ wbl_schema_apply (WblSchema *self,
  * Returns: (transfer full) (element-type WblGeneratedInstance): newly allocated
  *   array of #WblGeneratedInstances
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 GPtrArray *
 wbl_schema_generate_instances (WblSchema *self,

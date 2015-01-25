@@ -31,7 +31,7 @@
  * and is designed for validating hypertext in addition to the core schema
  * keywords.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 
 #include "config.h"
@@ -69,7 +69,7 @@ G_STATIC_ASSERT (G_N_ELEMENTS (meta_schema_paths) ==
  *
  * Returns: (transfer full): input stream for the meta-schema file
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 GInputStream *
 wbl_meta_schema_load (WblMetaSchemaType meta_schema_type,
@@ -103,7 +103,7 @@ wbl_meta_schema_load (WblMetaSchemaType meta_schema_type,
  * Returns: (transfer full): #WblSchema instance holding the parsed and loaded
  *   meta-schema
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 WblSchema *
 wbl_meta_schema_load_schema (WblMetaSchemaType meta_schema_type,

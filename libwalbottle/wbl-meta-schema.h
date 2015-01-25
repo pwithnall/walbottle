@@ -37,7 +37,7 @@ G_BEGIN_DECLS
  * Identifiers for the different meta-schemas available for validating JSON
  * schemas.
  *
- * Since: UNRELEASED
+ * Since: 0.1.0
  */
 typedef enum {
 	WBL_META_SCHEMA_META_SCHEMA,
