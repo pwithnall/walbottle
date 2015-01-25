@@ -574,7 +574,7 @@ test_schema_keywords_additional_properties_true (void)
 	};
 	const gchar *expected_instances[] = {
 		"{}",
-		/* FIXME */
+		"{\"additionalProperties-test-0\":null}",
 		NULL,
 	};
 
@@ -587,7 +587,12 @@ static void
 test_schema_keywords_additional_properties_schema (void)
 {
 	const gchar *valid_schema = "{ \"additionalProperties\": "
-	                                  "{ \"required\": [ \"a\"] }, "
+	                                "{"
+	                                     "\"required\": [ \"a\" ], "
+	                                     "\"properties\": {"
+	                                         "\"a\": { \"type\": \"string\" }"
+	                                     "}"
+	                                "},"
 	                              "\"properties\": {} }";
 	const gchar *invalid_schemas[] = {
 		"{ \"additionalProperties\": "
@@ -598,16 +603,19 @@ test_schema_keywords_additional_properties_schema (void)
 		"null",  /* wrong type */
 		"0",  /* wrong type */
 		"{}",  /* matching properties */
-		"{ \"0\": 1 }",  /* extra properties */
+		"{ \"0\": 1 }",  /* extra properties (wrong type) */
 		NULL,
 	};
 	const gchar *invalid_instances[] = {
-		/* Always valid if additionalProperties is a schema. */
+		/* Only invalid subschema instances are invalid. */
+		"{\"0\":{\"a\":null}}",  /* wrong type */
 		NULL,
 	};
 	const gchar *expected_instances[] = {
 		"{}",
-		/* FIXME */
+		"{\"additionalProperties-test-0\":{}}",
+		"{\"additionalProperties-test-0\":{\"a\":null}}",
+		"{\"additionalProperties-test-0\":{\"a\":''}}",
 		NULL,
 	};
 
@@ -637,7 +645,7 @@ test_schema_keywords_additional_properties_false (void)
 	};
 	const gchar *expected_instances[] = {
 		"{}",
-		/* FIXME */
+		"{\"additionalProperties-test-0\":null}",
 		NULL,
 	};
 
@@ -680,6 +688,7 @@ test_schema_keywords_properties (void)
 		"{\"b\":true}",
 		"{\"c\":null}",
 		"{\"c\":0.1}",
+		"{\"additionalProperties-test-0\":null}",
 		NULL,
 	};
 

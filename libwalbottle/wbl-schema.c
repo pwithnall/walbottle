@@ -3288,6 +3288,64 @@ apply_pattern_properties (WblSchema *self,
 	                          instance_node, error);
 }
 
+/* Generate a JSON array TODO with null elements up to @subschema_position, and an
+ * instance generated from @subschema_node at that position. Generate one of
+ * these arrays for each instance generated from @subschema_node.
+ *
+ * @subschema_node may be %NULL to represent an empty schema. */
+static void
+generate_object_with_subschema (WblSchema *self,
+                               JsonNode *subschema_node,
+                               const gchar *member_name,
+                               GPtrArray *output)
+{
+	GPtrArray/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
+	guint j;
+
+	child_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+
+	if (subschema_node != NULL) {
+		subschema_generate_instances (self, subschema_node,
+		                              child_output);
+	} else {
+		generate_set_string (output, "{}", TRUE);
+	}
+
+	for (j = 0; j < child_output->len; j++) {
+		WblGeneratedInstance *child_instance;  /* unowned */
+		const gchar *json;
+
+		child_instance = child_output->pdata[j];
+		json =  wbl_generated_instance_get_json (child_instance);
+
+		generate_take_string (output,
+		                      g_strdup_printf ("{\"%s\":%s}",
+		                                       member_name, json),
+		                      child_instance->valid);
+	}
+
+	g_ptr_array_unref (child_output);
+}
+
+/* Generate a member name which does not match anything in @member_names. */
+static gchar *  /* owned */
+create_unique_member_name (const gchar *prefix,
+                           GList/*<unowned utf8>*/ *member_names)
+{
+	gchar *member_name = NULL;  /* owned */
+	guint i;
+
+	for (i = 0;
+	     member_name == NULL ||
+	     list_contains_string (member_names, member_name);
+	     i++) {
+		g_free (member_name);
+		member_name = g_strdup_printf ("%s%u", prefix, i);
+	}
+
+	return member_name;
+}
+
 static void
 generate_properties (WblSchema *self,
                      JsonObject *root,
@@ -3297,11 +3355,10 @@ generate_properties (WblSchema *self,
 	JsonObject *schema_object;  /* unowned */
 	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
-	GPtrArray/*<owned WblGeneratedInstance>*/ *_output = NULL;  /* owned */
+	JsonNode *ap_node;  /* unowned */
 
 	schema_object = json_node_get_object (schema_node);
 	member_names = json_object_get_members (schema_object);
-	_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
 
 	/* Generate an instance for the empty object. */
 	generate_set_string (output, "{}", TRUE);
@@ -3311,34 +3368,43 @@ generate_properties (WblSchema *self,
 	for (l = member_names; l != NULL; l = l->next) {
 		JsonNode *child_node;  /* unowned */
 		const gchar *member_name;
-		guint i;
 
 		member_name = l->data;
 		child_node = json_object_get_member (schema_object,
 		                                     member_name);
-
-		/* Generate the child instances. */
-		subschema_generate_instances (self, child_node, _output);
-
-		/* Wrap them in objects. */
-		for (i = 0; i < _output->len; i++) {
-			gchar *json = NULL;  /* owned */
-			const gchar *instance_json;
-			WblGeneratedInstance *instance;  /* unowned */
-
-			instance = _output->pdata[i];
-			instance_json = wbl_generated_instance_get_json (instance);
-			json = g_strdup_printf ("{\"%s\":%s}",
-			                        member_name,
-			                        instance_json);
-
-			generate_take_string (output, json, TRUE);
-		}
-
-		g_ptr_array_set_size (_output, 0);
+		generate_object_with_subschema (self, child_node, member_name,
+		                                output);
 	}
 
-	g_ptr_array_unref (_output);
+	/* Generate an instance for the additionalProperties property. */
+	ap_node = json_object_get_member (root, "additionalProperties");
+
+	/* A missing additionalProperties is equivalent to an empty schema
+	 * (json-schema-validation§8.3.2). */
+	if (ap_node == NULL || JSON_NODE_HOLDS_OBJECT (ap_node)) {
+		gchar *member_name = NULL;
+
+		member_name = create_unique_member_name ("additionalProperties-test-",
+		                                         member_names);
+		generate_object_with_subschema (self, ap_node, member_name,
+		                                output);
+		g_free (member_name);
+	} else if (ap_node != NULL) {
+		gboolean ap_bool;
+		gchar *member_name = NULL;
+
+		/* @ap_node should be a boolean. */
+		ap_bool = json_node_get_boolean (ap_node);
+
+		member_name = create_unique_member_name ("additionalProperties-test-",
+		                                         member_names);
+		generate_take_string (output,
+		                      g_strdup_printf ("{\"%s\":%s}",
+		                                       member_name, "null"),
+		                      ap_bool);
+		g_free (member_name);
+	}
+
 	g_list_free (member_names);
 }
 
