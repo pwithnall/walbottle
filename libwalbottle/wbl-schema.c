@@ -423,6 +423,9 @@ number_node_comparison (JsonNode *a,
 	return retval;
 }
 
+static gchar *  /* transfer full */
+json_double_to_string (gdouble i);
+
 /* Convert a JSON Schema number node (float or integer) to a string. */
 static gchar *  /* transfer full */
 number_node_to_string (JsonNode *node)
@@ -435,7 +438,7 @@ number_node_to_string (JsonNode *node)
 		return g_strdup_printf ("%" G_GINT64_FORMAT,
 		                        json_node_get_int (node));
 	} else if (node_type == G_TYPE_DOUBLE) {
-		return g_strdup_printf ("%f", json_node_get_double (node));
+		return json_double_to_string (json_node_get_double (node));
 	} else {
 		g_assert_not_reached ();
 	}
@@ -1228,10 +1231,20 @@ json_int_to_string (gint64 i)
 	return g_strdup_printf ("%" G_GINT64_FORMAT, i);
 }
 
+/* Convert a double to a string in the C locale, guaranteeing to include a
+ * decimal point in the output (so it can’t be re-parsed as a JSON integer). */
 static gchar *  /* transfer full */
 json_double_to_string (gdouble i)
 {
-	return g_strdup_printf ("%f", i);
+	gchar buf[G_ASCII_DTOSTR_BUF_SIZE];
+
+	g_ascii_dtostr (buf, sizeof (buf), i);
+
+	if (strchr (buf, '.') == NULL) {
+		return g_strdup_printf ("%s.0", buf);
+	} else {
+		return g_strdup (buf);
+	}
 }
 
 /* Check whether @obj has a property named after each string in @property_array,
@@ -1517,7 +1530,7 @@ generate_maximum (WblSchema *self,
 		gint64 rounded;
 
 		maximum = json_node_get_double (schema_node);
-		rounded = (gint64) maximum;  /* truncation is fine */
+		rounded = (gint64) maximum;  /* truncation towards 0 is fine */
 
 		if (maximum > G_MINDOUBLE && exclusive_maximum) {
 			generate_take_string (output,
@@ -1532,7 +1545,7 @@ generate_maximum (WblSchema *self,
 		                      json_int_to_string (rounded),
 		                      !exclusive_maximum);
 
-		if (maximum < G_MAXINT64 && !exclusive_maximum) {
+		if (maximum < G_MAXDOUBLE && !exclusive_maximum) {
 			generate_take_string (output,
 			                      json_double_to_string (maximum + DBL_EPSILON),
 			                      FALSE);
@@ -1683,7 +1696,7 @@ generate_minimum (WblSchema *self,
 		                      json_int_to_string (rounded),
 		                      !exclusive_minimum);
 
-		if (minimum < G_MAXINT64 && exclusive_minimum) {
+		if (minimum < G_MAXDOUBLE && exclusive_minimum) {
 			generate_take_string (output,
 			                      json_double_to_string (minimum + DBL_EPSILON),
 			                      TRUE);

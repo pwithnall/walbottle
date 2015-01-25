@@ -163,7 +163,7 @@ test_schema_keywords_multiple_of_integer (void)
 static void
 test_schema_keywords_multiple_of_double (void)
 {
-	const gchar *valid_schema = "{ \"multipleOf\": 1.1 }";
+	const gchar *valid_schema = "{ \"multipleOf\": 1.2 }";
 	const gchar *invalid_schemas[] = {
 		"{ \"multipleOf\": null }",  /* not a number */
 		"{ \"multipleOf\": 0.0 }",  /* not greater than zero */
@@ -175,22 +175,22 @@ test_schema_keywords_multiple_of_double (void)
 		"\"no\"",  /* wrong type */
 		"0",  /* multiple of anything */
 		"0.0",  /* multiple of anything */
-		"1.1",  /* normal multiple */
-		"2.2",  /* normal multiple */
-		"11",  /* mixed type multiple */
+		"1.2",  /* normal multiple */
+		"2.4",  /* normal multiple */
+		"12",  /* mixed type multiple */
 		NULL,
 	};
 	const gchar *invalid_instances[] = {
-		"1.2",  /* not a multiple */
+		"1.3",  /* not a multiple */
 		"6.1",  /* not a multiple */
 		NULL,
 	};
 	const gchar *expected_instances[] = {
 		"0",
 		"0.0",
-		"1.100000",
-		"2.200000",
-		"1.200000",
+		"1.2",
+		"2.3999999999999999",  /* aaargh floating point */
+		"1.3",
 		NULL,
 	};
 
@@ -198,9 +198,9 @@ test_schema_keywords_multiple_of_double (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* maximum. json-schema-validation§5.1.2. */
+/* maximum as integer. json-schema-validation§5.1.2. */
 static void
-test_schema_keywords_maximum (void)
+test_schema_keywords_maximum_integer (void)
 {
 	const gchar *valid_schema = "{ \"maximum\": 5 }";
 	const gchar *invalid_schemas[] = {
@@ -220,7 +220,7 @@ test_schema_keywords_maximum (void)
 	gchar **invalid_instances;
 	const gchar *expected_instances[] = {
 		"5",
-		"5.000000",
+		"5.0",
 		"6",
 		NULL,
 	};
@@ -230,7 +230,10 @@ test_schema_keywords_maximum (void)
 	invalid_instances[1] = g_strdup ("5.1");  /* greater than */
 	invalid_instances[2] = g_strdup_printf ("%" G_GINT64_FORMAT,
 	                                        G_MAXINT64);  /* greater than */
-	invalid_instances[3] = g_strdup_printf ("%f", G_MAXDOUBLE);
+	invalid_instances[3] = g_malloc (G_ASCII_DTOSTR_BUF_SIZE);
+	invalid_instances[3] = g_ascii_dtostr (invalid_instances[3],
+	                                       G_ASCII_DTOSTR_BUF_SIZE,
+	                                       G_MAXDOUBLE);
 	invalid_instances[4] = NULL;
 
 	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
@@ -240,9 +243,53 @@ test_schema_keywords_maximum (void)
 	g_strfreev (invalid_instances);
 }
 
-/* exclusiveMaximum. json-schema-validation§5.1.2. */
+/* maximum as float. json-schema-validation§5.1.2. */
 static void
-test_schema_keywords_exclusive_maximum (void)
+test_schema_keywords_maximum_float (void)
+{
+	const gchar *valid_schema = "{ \"maximum\": 5.6 }";
+	const gchar *invalid_schemas[] = {
+		"{ \"maximum\": null }",  /* not a number */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"\"no\"",  /* wrong type */
+		"5.6",  /* equal to */
+		"4",  /* less than */
+		"-4",  /* less than */
+		"4.1",  /* less than */
+		"5.1",  /* less than */
+		NULL,
+	};
+	gchar **invalid_instances;
+	const gchar *expected_instances[] = {
+		"5.5999999999999996",
+		"5",
+		NULL,
+	};
+
+	invalid_instances = g_malloc0_n (5, sizeof (gchar *));
+	invalid_instances[0] = g_strdup ("6");  /* greater than */
+	invalid_instances[1] = g_strdup ("5.7");  /* greater than */
+	invalid_instances[2] = g_strdup_printf ("%" G_GINT64_FORMAT,
+	                                        G_MAXINT64);  /* greater than */
+	invalid_instances[3] = g_malloc (G_ASCII_DTOSTR_BUF_SIZE);
+	invalid_instances[3] = g_ascii_dtostr (invalid_instances[3],
+	                                       G_ASCII_DTOSTR_BUF_SIZE,
+	                                       G_MAXDOUBLE);
+	invalid_instances[4] = NULL;
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       (const gchar **) invalid_instances,
+	                       expected_instances);
+
+	g_strfreev (invalid_instances);
+}
+
+/* exclusiveMaximum as integer. json-schema-validation§5.1.2. */
+static void
+test_schema_keywords_exclusive_maximum_integer (void)
 {
 	const gchar *valid_schema = "{ \"maximum\": 5, "
 	                              "\"exclusiveMaximum\": true }";
@@ -266,7 +313,7 @@ test_schema_keywords_exclusive_maximum (void)
 	const gchar *expected_instances[] = {
 		"4",
 		"5",
-		"5.000000",
+		"5.0",
 		NULL,
 	};
 
@@ -274,9 +321,43 @@ test_schema_keywords_exclusive_maximum (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* minimum. json-schema-validation§5.1.3. */
+/* exclusiveMaximum as float. json-schema-validation§5.1.2. */
 static void
-test_schema_keywords_minimum (void)
+test_schema_keywords_exclusive_maximum_float (void)
+{
+	const gchar *valid_schema = "{ \"maximum\": 5.6, "
+	                              "\"exclusiveMaximum\": true }";
+	const gchar *invalid_schemas[] = {
+		"{ \"maximum\": 5.6, \"exclusiveMaximum\": null }",  /* type */
+		"{ \"exclusiveMaximum\": true }",  /* missing maximum */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"\"no\"",  /* wrong type */
+		"5.1",  /* less than */
+		"4",  /* less than */
+		"-4",  /* less than */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"5.6",  /* equal to */
+		"6",  /* greater than */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"5",
+		"5.5999999999999996",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* minimum as integer. json-schema-validation§5.1.3. */
+static void
+test_schema_keywords_minimum_integer (void)
 {
 	const gchar *valid_schema = "{ \"minimum\": 5 }";
 	const gchar *invalid_schemas[] = {
@@ -296,7 +377,7 @@ test_schema_keywords_minimum (void)
 	const gchar *expected_instances[] = {
 		"4",
 		"5",
-		"5.000000",
+		"5.0",
 		NULL,
 	};
 
@@ -305,7 +386,10 @@ test_schema_keywords_minimum (void)
 	invalid_instances[1] = g_strdup ("4.9");  /* less than */
 	invalid_instances[2] = g_strdup_printf ("%" G_GINT64_FORMAT,
 	                                        G_MININT64);  /* less than */
-	invalid_instances[3] = g_strdup_printf ("%f", G_MINDOUBLE);
+	invalid_instances[3] = g_malloc (G_ASCII_DTOSTR_BUF_SIZE);
+	invalid_instances[3] = g_ascii_dtostr (invalid_instances[3],
+	                                       G_ASCII_DTOSTR_BUF_SIZE,
+	                                       G_MINDOUBLE);
 	invalid_instances[4] = NULL;
 
 	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
@@ -315,9 +399,51 @@ test_schema_keywords_minimum (void)
 	g_strfreev (invalid_instances);
 }
 
-/* exclusiveMinimum. json-schema-validation§5.1.3. */
+/* minimum as float. json-schema-validation§5.1.3. */
 static void
-test_schema_keywords_exclusive_minimum (void)
+test_schema_keywords_minimum_float (void)
+{
+	const gchar *valid_schema = "{ \"minimum\": 5.2 }";
+	const gchar *invalid_schemas[] = {
+		"{ \"minimum\": null }",  /* not a number */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"\"no\"",  /* wrong type */
+		"6",  /* greater than */
+		"5.3",  /* greater than */
+		"5.2",  /* equal to */
+		NULL,
+	};
+	gchar **invalid_instances;
+	const gchar *expected_instances[] = {
+		"5.2000000000000002",
+		"5",
+		NULL,
+	};
+
+	invalid_instances = g_malloc0_n (5, sizeof (gchar *));
+	invalid_instances[0] = g_strdup ("5.0");  /* less than */
+	invalid_instances[1] = g_strdup ("5");  /* less than */
+	invalid_instances[2] = g_strdup_printf ("%" G_GINT64_FORMAT,
+	                                        G_MININT64);  /* less than */
+	invalid_instances[3] = g_malloc (G_ASCII_DTOSTR_BUF_SIZE);
+	invalid_instances[3] = g_ascii_dtostr (invalid_instances[3],
+	                                       G_ASCII_DTOSTR_BUF_SIZE,
+	                                       G_MINDOUBLE);
+	invalid_instances[4] = NULL;
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       (const gchar **) invalid_instances,
+	                       expected_instances);
+
+	g_strfreev (invalid_instances);
+}
+
+/* exclusiveMinimum as integer. json-schema-validation§5.1.3. */
+static void
+test_schema_keywords_exclusive_minimum_integer (void)
 {
 	const gchar *valid_schema = "{ \"minimum\": 5, "
 	                              "\"exclusiveMinimum\": true }";
@@ -339,8 +465,41 @@ test_schema_keywords_exclusive_minimum (void)
 	};
 	const gchar *expected_instances[] = {
 		"5",
-		"5.000000",
+		"5.0",
 		"6",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* exclusiveMinimum as float. json-schema-validation§5.1.3. */
+static void
+test_schema_keywords_exclusive_minimum_float (void)
+{
+	const gchar *valid_schema = "{ \"minimum\": 5.6, "
+	                              "\"exclusiveMinimum\": true }";
+	const gchar *invalid_schemas[] = {
+		"{ \"minimum\": 5.6, \"exclusiveMinimum\": null }",  /* type */
+		"{ \"exclusiveMinimum\": true }",  /* missing minimum */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"\"no\"",  /* wrong type */
+		"5.7",  /* greater than */
+		"6",  /* greater than */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"5.6",  /* equal to */
+		"4",  /* less than */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"5",
+		"5.5999999999999996",
 		NULL,
 	};
 
@@ -1402,14 +1561,22 @@ main (int argc, char *argv[])
 	                 test_schema_keywords_multiple_of_integer);
 	g_test_add_func ("/schema/keywords/multiple-of/double",
 	                 test_schema_keywords_multiple_of_double);
-	g_test_add_func ("/schema/keywords/maximum",
-	                 test_schema_keywords_maximum);
-	g_test_add_func ("/schema/keywords/exclusive-maximum",
-	                 test_schema_keywords_exclusive_maximum);
-	g_test_add_func ("/schema/keywords/minimum",
-	                 test_schema_keywords_minimum);
-	g_test_add_func ("/schema/keywords/exclusive-minimum",
-	                 test_schema_keywords_exclusive_minimum);
+	g_test_add_func ("/schema/keywords/maximum/integer",
+	                 test_schema_keywords_maximum_integer);
+	g_test_add_func ("/schema/keywords/maximum/float",
+	                 test_schema_keywords_maximum_float);
+	g_test_add_func ("/schema/keywords/exclusive-maximum/integer",
+	                 test_schema_keywords_exclusive_maximum_integer);
+	g_test_add_func ("/schema/keywords/exclusive-maximum/float",
+	                 test_schema_keywords_exclusive_maximum_float);
+	g_test_add_func ("/schema/keywords/minimum/integer",
+	                 test_schema_keywords_minimum_integer);
+	g_test_add_func ("/schema/keywords/minimum/float",
+	                 test_schema_keywords_minimum_float);
+	g_test_add_func ("/schema/keywords/exclusive-minimum/integer",
+	                 test_schema_keywords_exclusive_minimum_integer);
+	g_test_add_func ("/schema/keywords/exclusive-minimum/float",
+	                 test_schema_keywords_exclusive_minimum_float);
 	g_test_add_func ("/schema/keywords/max-length",
 	                 test_schema_keywords_max_length);
 	g_test_add_func ("/schema/keywords/min-length",
