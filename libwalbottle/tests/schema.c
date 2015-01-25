@@ -531,6 +531,150 @@ test_schema_instance_generation_hyper_schema (void)
 	g_object_unref (schema);
 }
 
+/* Test reference counting of #WblSchemaNode. */
+static void
+test_schema_node_refs (void)
+{
+	WblSchema *schema = NULL;  /* owned */
+	WblSchemaNode *node = NULL;  /* owned */
+	JsonObject *json_object;  /* unowned */
+	GError *error = NULL;
+
+	schema = wbl_meta_schema_load_schema (WBL_META_SCHEMA_META_SCHEMA,
+	                                      &error);
+	g_assert_no_error (error);
+
+	/* Grab the root schema node. */
+	node = wbl_schema_get_root (schema);
+	wbl_schema_node_ref (node);
+
+	g_object_unref (schema);
+
+	/* Check the node; the #WblSchemaNode should still be alive. */
+	json_object = wbl_schema_node_get_root (node);
+	g_assert (json_object_has_member (json_object, "properties"));
+
+	wbl_schema_node_unref (node);
+}
+
+/* Test the title property of #WblSchemaNode. */
+static void
+test_schema_node_title (void)
+{
+	guint i;
+	const struct {
+		const gchar *expected_title;
+		const gchar *schema_json;
+	} vectors[] = {
+		{ NULL, "{}" },
+		{ "Title", "{ \"title\" : \"Title\" }" },
+		{ "\"Title\"", "{ \"title\" : \"\\\"Title\\\"\" }" },
+	};
+
+	for (i = 0; i < G_N_ELEMENTS (vectors); i++) {
+		WblSchema *schema = NULL;  /* owned */
+		WblSchemaNode *node;  /* unowned */
+		GError *error = NULL;
+
+		schema = wbl_schema_new ();
+
+		wbl_schema_load_from_data (schema,
+		                           vectors[i].schema_json, -1, &error);
+		g_assert_no_error (error);
+
+		/* Grab the root schema node. */
+		node = wbl_schema_get_root (schema);
+
+		/* Check the title. */
+		g_assert_cmpstr (wbl_schema_node_get_title (node), ==,
+		                 vectors[i].expected_title);
+
+		g_object_unref (schema);
+	}
+}
+
+/* Test the description property of #WblSchemaNode. */
+static void
+test_schema_node_description (void)
+{
+	guint i;
+	const struct {
+		const gchar *expected_description;
+		const gchar *schema_json;
+	} vectors[] = {
+		{ NULL, "{}" },
+		{ "Description!", "{ \"description\" : \"Description!\" }" },
+		{ "\"Description\"", "{ \"description\" : \"\\\"Description\\\"\" }" },
+	};
+
+	for (i = 0; i < G_N_ELEMENTS (vectors); i++) {
+		WblSchema *schema = NULL;  /* owned */
+		WblSchemaNode *node;  /* unowned */
+		GError *error = NULL;
+
+		schema = wbl_schema_new ();
+
+		wbl_schema_load_from_data (schema,
+		                           vectors[i].schema_json, -1, &error);
+		g_assert_no_error (error);
+
+		/* Grab the root schema node. */
+		node = wbl_schema_get_root (schema);
+
+		/* Check the description. */
+		g_assert_cmpstr (wbl_schema_node_get_description (node), ==,
+		                 vectors[i].expected_description);
+
+		g_object_unref (schema);
+	}
+}
+
+/* Test the default property of #WblSchemaNode. */
+static void
+test_schema_node_default (void)
+{
+	guint i;
+	const struct {
+		const gchar *expected_default_json;
+		const gchar *schema_json;
+	} vectors[] = {
+		{ NULL, "{}" },
+		{ "\"Default\"", "{ \"default\" : \"Default\" }" },
+		{ "12", "{ \"default\" : 12 }" },
+		{ "null", "{ \"default\": null }" },
+	};
+
+	for (i = 0; i < G_N_ELEMENTS (vectors); i++) {
+		WblSchema *schema = NULL;  /* owned */
+		WblSchemaNode *node;  /* unowned */
+		JsonNode *default_node;  /* unowned */
+		JsonGenerator *generator = NULL;  /* owned */
+		gchar *json = NULL;  /* owned */
+		GError *error = NULL;
+
+		schema = wbl_schema_new ();
+
+		wbl_schema_load_from_data (schema,
+		                           vectors[i].schema_json, -1, &error);
+		g_assert_no_error (error);
+
+		/* Grab the root schema node. */
+		node = wbl_schema_get_root (schema);
+
+		/* Check the default. */
+		default_node = wbl_schema_node_get_default (node);
+
+		generator = json_generator_new ();
+		json_generator_set_root (generator, default_node);
+		json = json_generator_to_data (generator, NULL);
+		g_assert_cmpstr (json, ==, vectors[i].expected_default_json);
+		g_free (json);
+		g_object_unref (generator);
+
+		g_object_unref (schema);
+	}
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -559,6 +703,11 @@ main (int argc, char *argv[])
 	                 test_schema_instance_generation_schema);
 	g_test_add_func ("/schema/instance-generation/hyper-schema",
 	                 test_schema_instance_generation_hyper_schema);
+	g_test_add_func ("/schema/node/refs", test_schema_node_refs);
+	g_test_add_func ("/schema/node/title", test_schema_node_title);
+	g_test_add_func ("/schema/node/description",
+	                 test_schema_node_description);
+	g_test_add_func ("/schema/node/default", test_schema_node_default);
 
 	return g_test_run ();
 }
