@@ -449,6 +449,132 @@ test_schema_keywords_pattern (void)
 	                       invalid_instances, expected_instances);
 }
 
+/* maxItems. json-schema-validation§5.3.2. */
+static void
+test_schema_keywords_max_items (void)
+{
+	const gchar *valid_schema = "{ \"maxItems\": 2 }";
+	const gchar *invalid_schemas[] = {
+		"{ \"maxItems\": null }",  /* incorrect type */
+		"{ \"maxItems\": 'hello' }",  /* incorrect type */
+		"{ \"maxItems\": -1 }",  /* out of range */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[]",  /* zero items */
+		"[ 1, 2 ]",  /* maximum number of items */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"[ 1, 2, 3 ]",  /* too many items */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"[null,null]",
+		"[null,null,null]",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* minItems. json-schema-validation§5.3.3. */
+static void
+test_schema_keywords_min_items (void)
+{
+	const gchar *valid_schema = "{ \"minItems\": 2 }";
+	const gchar *invalid_schemas[] = {
+		"{ \"minItems\": null }",  /* incorrect type */
+		"{ \"minItems\": 'hello' }",  /* incorrect type */
+		"{ \"minItems\": -1 }",  /* out of range */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[ 1, 2 ]",  /* minimum number of items */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"[ 1 ]",  /* too few items */
+		"[]",  /* empty array */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"[null]",
+		"[null,null]",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* uniqueItems with false value. json-schema-validation§5.3.4. */
+static void
+test_schema_keywords_unique_items_false (void)
+{
+	const gchar *valid_schema = "{ \"uniqueItems\": false }";
+	const gchar *invalid_schemas[] = {
+		"{ \"uniqueItems\": null }",  /* incorrect type */
+		"{ \"uniqueItems\": 'hello' }",  /* incorrect type */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[]",  /* empty array */
+		"[ 1, 2 ]",  /* unequal elements */
+		"[ 1, 1 ]",  /* equal elements */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Impossible to be invalid. */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		/* No instances to validate. */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* uniqueItems with true value. json-schema-validation§5.3.4. */
+static void
+test_schema_keywords_unique_items_true (void)
+{
+	const gchar *valid_schema = "{ \"uniqueItems\": true }";
+	const gchar *invalid_schemas[] = {
+		"{ \"uniqueItems\": null }",  /* incorrect type */
+		"{ \"uniqueItems\": 'hello' }",  /* incorrect type */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[]",  /* empty array */
+		"[ 1, 2 ]",  /* unequal elements */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"[ 1, 1 ]",  /* equal elements */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"[null]",
+		"[null,null]",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
 /* maxProperties. json-schema-validation§5.4.1. */
 static void
 test_schema_keywords_max_properties (void)
@@ -1011,6 +1137,174 @@ test_schema_keywords_type_array (void)
 	                       invalid_instances, expected_instances);
 }
 
+/* allOf. json-schema-validation§5.5.3. */
+static void
+test_schema_keywords_all_of (void)
+{
+	const gchar *valid_schema = "{ \"allOf\": ["
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"a\" ] },"
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"b\" ] },"
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"c\" ] }"
+	                            "]}";
+	const gchar *invalid_schemas[] = {
+		"{ \"allOf\": null }",  /* invalid type */
+		"{ \"allOf\": 0 }",  /* invalid type */
+		"{ \"allOf\": [] }",  /* empty array */
+		"{ \"allOf\": [ null ] }",  /* invalid subschema */
+		"{ \"allOf\": [ { \"type\": \"invalid\" } ] }",  /* invalid subschema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"{ \"a\": null, \"b\": null, \"c\": null }",
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"null",  /* invalid type */
+		"{}",  /* invalid type */
+		"{ \"a\": null }",
+		"{ \"b\": null }",
+		"{ \"c\": null }",
+		"{ \"d\": null }",  /* missing required property */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{}",
+		"null",
+		/* FIXME: Need to generate the intersection of all the
+		 * subschemas. */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* anyOf. json-schema-validation§5.5.4. */
+static void
+test_schema_keywords_any_of (void)
+{
+	const gchar *valid_schema = "{ \"anyOf\": ["
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"a\" ] },"
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"b\" ] },"
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"c\" ] }"
+	                            "]}";
+	const gchar *invalid_schemas[] = {
+		"{ \"anyOf\": null }",  /* invalid type */
+		"{ \"anyOf\": 0 }",  /* invalid type */
+		"{ \"anyOf\": [] }",  /* empty array */
+		"{ \"anyOf\": [ null ] }",  /* invalid subschema */
+		"{ \"anyOf\": [ { \"type\": \"invalid\" } ] }",  /* invalid subschema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"{ \"a\": null }",
+		"{ \"b\": null }",
+		"{ \"c\": null }",
+		"{ \"a\": null, \"b\": null, \"c\": null }",
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"null",  /* invalid type */
+		"{}",  /* invalid type */
+		"{ \"d\": null }",  /* missing required property */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{}",
+		"null",
+		"{\"a\":null}",
+		"{\"b\":null}",
+		"{\"c\":null}",
+		/* FIXME: Need to generate the intersection of all the
+		 * subschemas. */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* oneOf. json-schema-validation§5.5.5. */
+static void
+test_schema_keywords_one_of (void)
+{
+	const gchar *valid_schema = "{ \"oneOf\": ["
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"a\" ] },"
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"b\" ] },"
+	                                "{ \"type\": \"object\", "
+	                                  "\"required\": [ \"c\" ] }"
+	                            "]}";
+	const gchar *invalid_schemas[] = {
+		"{ \"oneOf\": null }",  /* invalid type */
+		"{ \"oneOf\": 0 }",  /* invalid type */
+		"{ \"oneOf\": [] }",  /* empty array */
+		"{ \"oneOf\": [ null ] }",  /* invalid subschema */
+		"{ \"oneOf\": [ { \"type\": \"invalid\" } ] }",  /* invalid subschema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"{ \"a\": null }",
+		"{ \"b\": null }",
+		"{ \"c\": null }",
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"null",  /* invalid type */
+		"{}",  /* invalid type */
+		"{ \"a\": null, \"b\": null, \"c\": null }",
+		"{ \"d\": null }",  /* missing required property */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		/* FIXME: Need to generate the intersection of all the
+		 * subschemas. */
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* not. json-schema-validation§5.5.6. */
+static void
+test_schema_keywords_not (void)
+{
+	const gchar *valid_schema = "{ \"not\": {"
+	                                "\"type\": \"object\""
+	                            "}}";
+	const gchar *invalid_schemas[] = {
+		"{ \"not\": null }",  /* invalid type */
+		"{ \"not\": 0 }",  /* invalid type */
+		"{ \"not\": { \"type\": \"invalid\" } }",  /* invalid subschema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",
+		"\"string\"",
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"{}",  /* an object */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{}",
+		"null",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
 /* title. json-schema-validation§6.1. */
 static void
 test_schema_keywords_title (void)
@@ -1122,6 +1416,14 @@ main (int argc, char *argv[])
 	                 test_schema_keywords_min_length);
 	g_test_add_func ("/schema/keywords/pattern",
 	                 test_schema_keywords_pattern);
+	g_test_add_func ("/schema/keywords/max-items",
+	                 test_schema_keywords_max_items);
+	g_test_add_func ("/schema/keywords/min-items",
+	                 test_schema_keywords_min_items);
+	g_test_add_func ("/schema/keywords/unique-items/false",
+	                 test_schema_keywords_unique_items_false);
+	g_test_add_func ("/schema/keywords/unique-items/true",
+	                 test_schema_keywords_unique_items_true);
 	g_test_add_func ("/schema/keywords/max-properties",
 	                 test_schema_keywords_max_properties);
 	g_test_add_func ("/schema/keywords/min-properties",
@@ -1156,6 +1458,14 @@ main (int argc, char *argv[])
 	                 test_schema_keywords_type_string_string);
 	g_test_add_func ("/schema/keywords/type/array",
 	                 test_schema_keywords_type_array);
+	g_test_add_func ("/schema/keywords/all-of",
+	                 test_schema_keywords_all_of);
+	g_test_add_func ("/schema/keywords/any-of",
+	                 test_schema_keywords_any_of);
+	g_test_add_func ("/schema/keywords/one-of",
+	                 test_schema_keywords_one_of);
+	g_test_add_func ("/schema/keywords/not",
+	                 test_schema_keywords_not);
 	g_test_add_func ("/schema/keywords/title",
 	                 test_schema_keywords_title);
 	g_test_add_func ("/schema/keywords/description",
@@ -1166,14 +1476,7 @@ main (int argc, char *argv[])
 	/* TODO:
 	 * • additionalItems
 	 * • items
-	 * • maxItems
-	 * • minItems
-	 * • uniqueItems
 	 * • dependencies
-	 * • allOf
-	 * • anyOf
-	 * • oneOf
-	 * • not
 	 * • definitions
 	 * • format
 	 */
