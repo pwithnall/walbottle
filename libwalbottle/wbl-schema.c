@@ -144,6 +144,10 @@ wbl_schema_node_get_title (WblSchemaNode *self)
 	g_return_val_if_fail (self != NULL, NULL);
 	g_return_val_if_fail (self->ref_count > 0, NULL);
 
+	if (!json_object_has_member (self->node, "title")) {
+		return NULL;
+	}
+
 	return json_object_get_string_member (self->node, "title");
 }
 
@@ -163,6 +167,10 @@ wbl_schema_node_get_description (WblSchemaNode *self)
 {
 	g_return_val_if_fail (self != NULL, NULL);
 	g_return_val_if_fail (self->ref_count > 0, NULL);
+
+	if (!json_object_has_member (self->node, "description")) {
+		return NULL;
+	}
 
 	return json_object_get_string_member (self->node, "description");
 }
