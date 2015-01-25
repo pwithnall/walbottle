@@ -66,6 +66,9 @@ assert_schema_keyword (const gchar *valid_schema,
 	WblSchema *schema = NULL;  /* owned */
 	JsonParser *parser = NULL;  /* owned */
 	GPtrArray/*<owned WblGeneratedInstace>*/ *instances = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstace>*/ *generated_valid_instances = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstace>*/ *generated_invalid_instances = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstace>*/ *generated_null_instances = NULL;  /* owned */
 	guint i;
 	GError *error = NULL;
 
@@ -114,9 +117,28 @@ assert_schema_keyword (const gchar *valid_schema,
 	/* Check generated instances. */
 	instances = wbl_schema_generate_instances (schema,
 	                                           WBL_GENERATE_INSTANCE_NONE);
+for (i = 0; i < instances->len; i++) {
+	g_message ("%s", wbl_generated_instance_get_json (instances->pdata[i]));
+}
 	assert_generated_instances_match (instances, expected_instances);
-	g_ptr_array_unref (instances);
 
+	/* Check the instance flags do what we expect. */
+	generated_valid_instances = wbl_schema_generate_instances (schema,
+	                                                           WBL_GENERATE_INSTANCE_IGNORE_INVALID);
+	generated_invalid_instances = wbl_schema_generate_instances (schema,
+	                                                             WBL_GENERATE_INSTANCE_IGNORE_VALID);
+	generated_null_instances = wbl_schema_generate_instances (schema,
+	                                                          WBL_GENERATE_INSTANCE_IGNORE_INVALID |
+	                                                          WBL_GENERATE_INSTANCE_IGNORE_VALID);
+
+	g_assert_cmpuint (generated_valid_instances->len +
+	                  generated_invalid_instances->len, ==, instances->len);
+	g_assert_cmpuint (generated_null_instances->len, ==, 0);
+
+	g_ptr_array_unref (generated_null_instances);
+	g_ptr_array_unref (generated_invalid_instances);
+	g_ptr_array_unref (generated_valid_instances);
+	g_ptr_array_unref (instances);
 	g_object_unref (parser);
 	g_object_unref (schema);
 }
