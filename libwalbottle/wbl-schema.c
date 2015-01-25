@@ -3288,9 +3288,9 @@ apply_pattern_properties (WblSchema *self,
 	                          instance_node, error);
 }
 
-/* Generate a JSON array TODO with null elements up to @subschema_position, and an
- * instance generated from @subschema_node at that position. Generate one of
- * these arrays for each instance generated from @subschema_node.
+/* Generate a JSON object with an instance generated from @subschema_node as
+ * @member_name. Generate one of these objects for each instance generated from
+ * @subschema_node.
  *
  * @subschema_node may be %NULL to represent an empty schema. */
 static void
