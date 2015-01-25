@@ -34,10 +34,6 @@ wbl_sources = \
 meta_schema_sources = \
 	libwalbottle/wbl-meta-schemas.c \
 	$(NULL)
-meta_schema_json = \
-	libwalbottle/meta-schema.json \
-	libwalbottle/hyper-meta-schema.json \
-	$(NULL)
 
 main_header = libwalbottle/walbottle.h
 public_headers = $(wblinclude_HEADERS)
@@ -45,8 +41,6 @@ public_headers = $(wblinclude_HEADERS)
 libwalbottle_libwalbottle_@WBL_API_VERSION@_la_SOURCES = \
 	$(private_headers) \
 	$(wbl_sources) \
-	$(NULL)
-nodist_libwalbottle_libwalbottle_@WBL_API_VERSION@_la_SOURCES = \
 	$(meta_schema_sources) \
 	$(NULL)
 
@@ -84,16 +78,17 @@ libwalbottle_libwalbottle_@WBL_API_VERSION@_la_LDFLAGS = \
 
 EXTRA_DIST += libwalbottle/libwalbottle.symbols
 
+meta_schema_json = $(shell glib-compile-resources --sourcedir=$(top_srcdir)/libwalbottle --generate-dependencies libwalbottle/wbl-meta-schemas.gresource.xml)
+$(meta_schema_sources): libwalbottle/wbl-meta-schemas.gresource.xml $(meta_schema_json)
+	$(AM_V_GEN) $(GLIB_COMPILE_RESOURCES) \
+		--c-name=wbl_meta_schemas --generate-source \
+		--sourcedir=$(top_srcdir)/libwalbottle --target=$@ $<
+
 CLEANFILES += $(meta_schema_sources)
 EXTRA_DIST += \
 	libwalbottle/wbl-meta-schemas.gresource.xml \
 	$(meta_schema_json) \
 	$(NULL)
-
-$(meta_schema_sources): libwalbottle/wbl-meta-schemas.gresource.xml $(meta_schema_json)
-	$(AM_V_GEN) $(GLIB_COMPILE_RESOURCES) \
-		--c-name=wbl_meta_schemas --generate-source \
-		--sourcedir=$(top_srcdir)/libwalbottle $<
 
 # Check if walbottle.h includes all the public headers
 check-local: check-headers
