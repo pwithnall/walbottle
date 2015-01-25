@@ -2284,7 +2284,6 @@ generate_items (WblSchema *self,
 			generate_take_string (output, json,
 			                      child_instance->valid);
 		}
-		/* TODO */
 
 		g_ptr_array_unref (child_output);
 	}
@@ -2306,7 +2305,6 @@ generate_items (WblSchema *self,
 		                                         "additionalItems");
 		schema_array = json_node_get_array (schema_node);
 
-		/* TODO */
 		for (i = 0; i < json_array_get_length (schema_array); i++) {
 			JsonNode *subschema_node;  /* unowned */
 
