@@ -4224,6 +4224,25 @@ validate_description (WblSchema *self,
 	}
 }
 
+/* default. json-schema-validation§6.2. */
+static void
+generate_default (WblSchema *self,
+                  JsonObject *root,
+                  JsonNode *schema_node,
+                  GPtrArray *output)
+{
+	JsonGenerator *generator = NULL;  /* owned */
+
+	/* Add the default value to the output. Technically, it could be invalid
+	 * (json-schema-validation§6.2.2), but we can’t really know. */
+	generator = json_generator_new ();
+	json_generator_set_root (generator, schema_node);
+	generate_take_string (output,
+	                      json_generator_to_data (generator, NULL),
+	                      TRUE);
+	g_object_unref (generator);
+}
+
 typedef void
 (*KeywordValidateFunc) (WblSchema *self,
                         JsonObject *root,
@@ -4307,7 +4326,7 @@ static const KeywordData json_schema_keywords[] = {
 	{ "title", validate_title, NULL, NULL },
 	{ "description", validate_description, NULL, NULL },
 	/* json-schema-validation§6.2 */
-	{ "default", NULL, NULL, NULL },
+	{ "default", NULL, NULL, generate_default },
 
 	/* TODO:
 	 *  • definitions (json-schema-validation§5.5.7)

@@ -1558,7 +1558,7 @@ test_schema_keywords_default (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
-		/* Not generated. */
+		"null",
 		NULL,
 	};
 
