@@ -21,5 +21,6 @@ wbl_generated_instance_new_from_string
 wbl_generated_instance_copy
 wbl_generated_instance_free
 wbl_generated_instance_get_json
+wbl_generated_instance_is_valid
 wbl_meta_schema_load
 wbl_meta_schema_load_schema

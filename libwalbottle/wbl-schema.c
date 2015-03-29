@@ -288,6 +288,24 @@ wbl_generated_instance_get_json (WblGeneratedInstance *self)
 	return self->json;
 }
 
+/**
+ * wbl_generated_instance_is_valid:
+ * @self: a #WblGeneratedInstance
+ *
+ * Get whether the generated JSON instance is valid with respect to the schema.
+ *
+ * Returns: %TRUE if valid, %FALSE otherwise
+ *
+ * Since: UNRELEASED
+ */
+gboolean
+wbl_generated_instance_is_valid (WblGeneratedInstance *self)
+{
+	g_return_val_if_fail (self != NULL, FALSE);
+
+	return self->valid;
+}
+
 /* Primitive type handling. Reference: json-schema-core§3.5. */
 typedef enum {
 	WBL_PRIMITIVE_TYPE_ARRAY,

@@ -211,6 +211,9 @@ wbl_generated_instance_free (WblGeneratedInstance *self);
 const gchar *
 wbl_generated_instance_get_json (WblGeneratedInstance *self);
 
+gboolean
+wbl_generated_instance_is_valid (WblGeneratedInstance *self);
+
 GPtrArray *
 wbl_schema_generate_instances (WblSchema *self,
                                WblGenerateInstanceFlags flags);
