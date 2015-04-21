@@ -10,7 +10,7 @@ m4_define([wbl_api_version],[0])
 
 AC_INIT([walbottle],[wbl_version_major.wbl_version_minor.wbl_version_micro],
         [mailto:bugzilla@tecnocode.co.uk],[walbottle],
-        [http://gitorious.org/walbottle/pages/Home])
+        [https://gitorious.org/walbottle/])
 
 AX_CHECK_ENABLE_DEBUG
 AC_CONFIG_MACRO_DIR([m4])
