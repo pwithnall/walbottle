@@ -4910,5 +4910,12 @@ wbl_schema_generate_instances (WblSchema *self,
 	g_object_unref (parser);
 	g_hash_table_unref (_output);
 
+	/* Potentially add some invalid JSON. */
+	if (flags & WBL_GENERATE_INSTANCE_INVALID_JSON) {
+		g_ptr_array_add (output,
+		                 wbl_generated_instance_new_from_string ("☠",
+		                                                         FALSE));
+	}
+
 	return output;
 }

@@ -171,6 +171,8 @@ wbl_schema_apply (WblSchema *self,
  * @WBL_GENERATE_INSTANCE_NONE: No flags set.
  * @WBL_GENERATE_INSTANCE_IGNORE_VALID: Do not return valid instances.
  * @WBL_GENERATE_INSTANCE_IGNORE_INVALID: Do not return invalid instances.
+ * @WBL_GENERATE_INSTANCE_INVALID_JSON: Generate a test vector containing
+ *    invalid JSON. (Since: UNRELEASED)
  *
  * Flags affecting the generation of JSON instances for schemas using
  * wbl_schema_generate_instances().
@@ -181,6 +183,7 @@ typedef enum {
 	WBL_GENERATE_INSTANCE_NONE = 0,
 	WBL_GENERATE_INSTANCE_IGNORE_VALID = (1 << 0),
 	WBL_GENERATE_INSTANCE_IGNORE_INVALID = (1 << 1),
+	WBL_GENERATE_INSTANCE_INVALID_JSON = (1 << 2),
 } WblGenerateInstanceFlags;
 
 /**
