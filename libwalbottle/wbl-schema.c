@@ -306,6 +306,24 @@ wbl_generated_instance_is_valid (WblGeneratedInstance *self)
 	return self->valid;
 }
 
+static guint
+wbl_generated_instance_hash (gconstpointer key)
+{
+	const WblGeneratedInstance *self = key;
+
+	return g_str_hash (self->json);
+}
+
+static gboolean
+wbl_generated_instance_equal (gconstpointer  a,
+                              gconstpointer  b)
+{
+	const WblGeneratedInstance *_a = a;
+	const WblGeneratedInstance *_b = b;
+
+	return g_str_equal (_a->json, _b->json);
+}
+
 /* Primitive type handling. Reference: json-schema-core§3.5. */
 typedef enum {
 	WBL_PRIMITIVE_TYPE_ARRAY,
@@ -791,7 +809,7 @@ subschema_apply (WblSchema *self,
 static void
 subschema_generate_instances (WblSchema *self,
                               JsonNode *subschema_node,
-                              GPtrArray *output)
+                              GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	WblSchemaClass *klass;
 
@@ -825,7 +843,7 @@ real_apply_schema (WblSchema *self,
 static void
 real_generate_instances (WblSchema *self,
                          WblSchemaNode *schema,
-                         GPtrArray *output);
+                         GHashTable/*<owned WblGeneratedInstance>*/ *output);
 
 struct _WblSchemaPrivate {
 	JsonParser *parser;  /* owned */
@@ -1038,16 +1056,21 @@ static void
 generate_schema_array (WblSchema *self,
                        JsonArray *schema_array,
                        WblMatchPredicate predicate,
-                       GPtrArray *output)
+                       GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
-	guint i, j, n_schemas;
-	GPtrArray/*<owned WblGeneratedInstance>*/ *_output = NULL;  /* owned */
+	guint i, n_schemas;
+	GHashTable/*<owned WblGeneratedInstance>*/ *_output = NULL;  /* owned */
+	GHashTableIter iter;
 	JsonParser *parser = NULL;  /* owned */
+	WblGeneratedInstance *instance;  /* unowned */
 
 	n_schemas = json_array_get_length (schema_array);
 
 	/* Generate instances for all schemas. */
-	_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+	_output = g_hash_table_new_full (wbl_generated_instance_hash,
+	                                 wbl_generated_instance_equal,
+	                                 (GDestroyNotify) wbl_generated_instance_free,
+	                                 NULL);
 
 	for (i = 0; i < n_schemas; i++) {
 		JsonNode *child_node;  /* unowned */
@@ -1059,16 +1082,15 @@ generate_schema_array (WblSchema *self,
 	/* Find any instances which match the number of schemas approved by the
 	 * predicate. */
 	parser = json_parser_new ();
+	g_hash_table_iter_init (&iter, _output);
 
-	for (j = 0; j < _output->len; j++) {
-		WblGeneratedInstance *instance;  /* unowned */
+	while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
 		const gchar *instance_str;
 		JsonNode *instance_node;  /* unowned */
 		guint n_matching_schemas;
 		GError *child_error = NULL;
 
 		/* Get the instance. */
-		instance = _output->pdata[j];
 		instance_str = wbl_generated_instance_get_json (instance);
 		json_parser_load_from_data (parser, instance_str, -1,
 		                            &child_error);
@@ -1095,27 +1117,27 @@ generate_schema_array (WblSchema *self,
 
 		/* Does it match the predicate? */
 		if (predicate (n_matching_schemas, n_schemas)) {
-			g_ptr_array_add (output,
-			                 wbl_generated_instance_copy (instance));
+			g_hash_table_add (output,
+			                  wbl_generated_instance_copy (instance));
 		}
 	}
 
 	g_object_unref (parser);
-	g_ptr_array_unref (_output);
+	g_hash_table_unref (_output);
 }
 
 /* A couple of utility functions for generation. */
 static void
-generate_set_string (GPtrArray *output,
+generate_set_string (GHashTable/*<owned WblGeneratedInstance>*/ *output,
                      const gchar *str,
                      gboolean valid)
 {
-	g_ptr_array_add (output,
-	                 wbl_generated_instance_new_from_string (str, valid));
+	g_hash_table_add (output,
+	                  wbl_generated_instance_new_from_string (str, valid));
 }
 
 static void
-generate_take_string (GPtrArray *output,
+generate_take_string (GHashTable/*<owned WblGeneratedInstance>*/ *output,
                       gchar *str,  /* transfer full */
                       gboolean valid)
 {
@@ -1124,7 +1146,7 @@ generate_take_string (GPtrArray *output,
 }
 
 static void
-generate_take_builder (GPtrArray *output,
+generate_take_builder (GHashTable/*<owned WblGeneratedInstance>*/ *output,
                        JsonBuilder *builder,  /* transfer none */
                        gboolean valid)
 {
@@ -1147,7 +1169,7 @@ generate_take_builder (GPtrArray *output,
 }
 
 static void
-generate_null_array (GPtrArray *output,
+generate_null_array (GHashTable/*<owned WblGeneratedInstance>*/ *output,
                      guint n_elements,
                      gboolean valid)
 {
@@ -1170,7 +1192,7 @@ generate_null_array (GPtrArray *output,
 }
 
 static void
-generate_null_properties (GPtrArray *output,
+generate_null_properties (GHashTable/*<owned WblGeneratedInstance>*/ *output,
                           guint n_properties,
                           gboolean valid)
 {
@@ -1200,7 +1222,7 @@ generate_null_properties (GPtrArray *output,
 }
 
 static void
-generate_filled_string (GPtrArray *output,
+generate_filled_string (GHashTable/*<owned WblGeneratedInstance>*/ *output,
                         gsize length,  /* in Unicode characters */
                         gunichar fill,
                         gboolean valid)
@@ -1382,7 +1404,7 @@ static void
 generate_multiple_of (WblSchema *self,
                       JsonObject *root,
                       JsonNode *schema_node,
-                      GPtrArray *output)
+                      GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	GType schema_type;
 
@@ -1518,7 +1540,7 @@ static void
 generate_maximum (WblSchema *self,
                   JsonObject *root,
                   JsonNode *schema_node,
-                  GPtrArray *output)
+                  GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gboolean exclusive_maximum = FALSE;  /* json-schema-validation§5.1.2.3 */
 	JsonNode *node;  /* unowned */
@@ -1668,7 +1690,7 @@ static void
 generate_minimum (WblSchema *self,
                   JsonObject *root,
                   JsonNode *schema_node,
-                  GPtrArray *output)
+                  GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gboolean exclusive_minimum = FALSE;  /* json-schema-validation§5.1.3.3 */
 	JsonNode *node;  /* unowned */
@@ -1770,7 +1792,7 @@ static void
 generate_max_length (WblSchema *self,
                      JsonObject *root,
                      JsonNode *schema_node,
-                     GPtrArray *output)
+                     GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gint64 max_length;
 
@@ -1834,7 +1856,7 @@ static void
 generate_min_length (WblSchema *self,
                      JsonObject *root,
                      JsonNode *schema_node,
-                     GPtrArray *output)
+                     GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gint64 min_length;
 
@@ -1917,7 +1939,7 @@ static void
 generate_pattern (WblSchema *self,
                   JsonObject *root,
                   JsonNode *schema_node,
-                  GPtrArray *output)
+                  GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	/* FIXME: Generate two constant strings for the moment. In the future,
 	 * we should generate strings which are guaranteed to pass and fail
@@ -2234,26 +2256,30 @@ static void
 generate_array_with_subschema (WblSchema *self,
                                JsonNode *subschema_node,
                                guint subschema_position,
-                               GPtrArray *output)
+                               GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
-	GPtrArray/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
-	guint j;
+	GHashTable/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
+	GHashTableIter iter;
 	JsonParser *parser = NULL;  /* owned */
 	JsonBuilder *builder = NULL;  /* owned */
+	WblGeneratedInstance *child_instance;  /* unowned */
 
-	child_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+	child_output = g_hash_table_new_full (wbl_generated_instance_hash,
+	                                      wbl_generated_instance_equal,
+	                                      (GDestroyNotify) wbl_generated_instance_free,
+	                                      NULL);
 	builder = json_builder_new ();
 	parser = json_parser_new ();
 
 	subschema_generate_instances (self, subschema_node, child_output);
 
-	for (j = 0; j < child_output->len; j++) {
-		WblGeneratedInstance *child_instance;  /* unowned */
+	g_hash_table_iter_init (&iter, child_output);
+
+	while (g_hash_table_iter_next (&iter, (gpointer *) &child_instance, NULL)) {
 		const gchar *json;
 		guint k;
 		GError *error = NULL;
 
-		child_instance = child_output->pdata[j];
 		json =  wbl_generated_instance_get_json (child_instance);
 
 		json_parser_load_from_data (parser, json, -1, &error);
@@ -2273,14 +2299,14 @@ generate_array_with_subschema (WblSchema *self,
 
 	g_object_unref (parser);
 	g_object_unref (builder);
-	g_ptr_array_unref (child_output);
+	g_hash_table_unref (child_output);
 }
 
 static void
 generate_items (WblSchema *self,
                 JsonObject *root,
                 JsonNode *schema_node,
-                GPtrArray *output)
+                GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	guint items_length = 0;
 
@@ -2305,18 +2331,22 @@ generate_items (WblSchema *self,
 	/* If items is an object, all child elements must validate against
 	 * that subschema. */
 	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
-		GPtrArray/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
-		guint i;
+		GHashTable/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
+		GHashTableIter iter;
+		WblGeneratedInstance *child_instance;  /* unowned */
 
-		child_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+		child_output = g_hash_table_new_full (wbl_generated_instance_hash,
+		                                      wbl_generated_instance_equal,
+		                                      (GDestroyNotify) wbl_generated_instance_free,
+		                                      NULL);
 
 		subschema_generate_instances (self, schema_node, child_output);
 
-		for (i = 0; i < child_output->len; i++) {
-			WblGeneratedInstance *child_instance;  /* unowned */
+		g_hash_table_iter_init (&iter, child_output);
+
+		while (g_hash_table_iter_next (&iter, (gpointer *) &child_instance, NULL)) {
 			gchar *json;
 
-			child_instance = child_output->pdata[i];
 			json = g_strdup_printf ("[%s]",
 			                        wbl_generated_instance_get_json (child_instance));
 
@@ -2324,7 +2354,7 @@ generate_items (WblSchema *self,
 			                      child_instance->valid);
 		}
 
-		g_ptr_array_unref (child_output);
+		g_hash_table_unref (child_output);
 	}
 
 	/* If items is an array, all child elements must validate against the
@@ -2409,7 +2439,7 @@ static void
 generate_max_items (WblSchema *self,
                     JsonObject *root,
                     JsonNode *schema_node,
-                    GPtrArray *output)
+                    GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gint64 max_items;
 
@@ -2470,7 +2500,7 @@ static void
 generate_min_items (WblSchema *self,
                     JsonObject *root,
                     JsonNode *schema_node,
-                    GPtrArray *output)
+                    GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gint64 min_items;
 
@@ -2550,7 +2580,7 @@ static void
 generate_unique_items (WblSchema *self,
                        JsonObject *root,
                        JsonNode *schema_node,
-                       GPtrArray *output)
+                       GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	if (json_node_get_boolean (schema_node)) {
 		/* Assume generate_null_array() uses non-unique elements. */
@@ -2607,7 +2637,7 @@ static void
 generate_max_properties (WblSchema *self,
                          JsonObject *root,
                          JsonNode *schema_node,
-                         GPtrArray *output)
+                         GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gint64 max_properties;
 
@@ -2670,7 +2700,7 @@ static void
 generate_min_properties (WblSchema *self,
                          JsonObject *root,
                          JsonNode *schema_node,
-                         GPtrArray *output)
+                         GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	gint64 min_properties;
 
@@ -2769,7 +2799,7 @@ static void
 generate_required (WblSchema *self,
                    JsonObject *root,
                    JsonNode *schema_node,
-                   GPtrArray *output)
+                   GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	JsonBuilder *builder = NULL;  /* owned */
 	JsonArray *schema_array;  /* unowned */
@@ -3334,12 +3364,16 @@ static void
 generate_object_with_subschema (WblSchema *self,
                                JsonNode *subschema_node,
                                const gchar *member_name,
-                               GPtrArray *output)
+                               GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
-	GPtrArray/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
-	guint j;
+	GHashTable/*<owned WblGeneratedInstance>*/ *child_output = NULL;  /* owned */
+	GHashTableIter iter;
+	WblGeneratedInstance *child_instance;  /* unowned */
 
-	child_output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
+	child_output = g_hash_table_new_full (wbl_generated_instance_hash,
+	                                      wbl_generated_instance_equal,
+	                                      (GDestroyNotify) wbl_generated_instance_free,
+	                                      NULL);
 
 	if (subschema_node != NULL) {
 		subschema_generate_instances (self, subschema_node,
@@ -3348,11 +3382,11 @@ generate_object_with_subschema (WblSchema *self,
 		generate_set_string (output, "{}", TRUE);
 	}
 
-	for (j = 0; j < child_output->len; j++) {
-		WblGeneratedInstance *child_instance;  /* unowned */
+	g_hash_table_iter_init (&iter, child_output);
+
+	while (g_hash_table_iter_next (&iter, (gpointer *) &child_instance, NULL)) {
 		const gchar *json;
 
-		child_instance = child_output->pdata[j];
 		json =  wbl_generated_instance_get_json (child_instance);
 
 		generate_take_string (output,
@@ -3361,7 +3395,7 @@ generate_object_with_subschema (WblSchema *self,
 		                      child_instance->valid);
 	}
 
-	g_ptr_array_unref (child_output);
+	g_hash_table_unref (child_output);
 }
 
 /* Generate a member name which does not match anything in @member_names. */
@@ -3387,7 +3421,7 @@ static void
 generate_properties (WblSchema *self,
                      JsonObject *root,
                      JsonNode *schema_node,
-                     GPtrArray *output)
+                     GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	JsonObject *schema_object;  /* unowned */
 	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
@@ -3597,7 +3631,7 @@ static void
 generate_dependencies (WblSchema *self,
                        JsonObject *root,
                        JsonNode *schema_node,
-                       GPtrArray *output)
+                       GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	/* FIXME: Tricky to implement without a combinatorial explosion of
 	 * test vectors. Need to think about it. */
@@ -3690,7 +3724,7 @@ static void
 generate_enum (WblSchema *self,
                JsonObject *root,
                JsonNode *schema_node,
-               GPtrArray *output)
+               GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	JsonArray *schema_array;  /* unowned */
 	JsonGenerator *generator = NULL;  /* owned */
@@ -3866,7 +3900,7 @@ static void
 generate_type (WblSchema *self,
                JsonObject *root,
                JsonNode *schema_node,
-               GPtrArray *output)
+               GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	const gchar *valid, *invalid;
 
@@ -3977,7 +4011,7 @@ static void
 generate_all_of (WblSchema *self,
                  JsonObject *root,
                  JsonNode *schema_node,
-                 GPtrArray *output)
+                 GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	JsonArray *schema_array;  /* unowned */
 
@@ -4056,7 +4090,7 @@ static void
 generate_any_of (WblSchema *self,
                  JsonObject *root,
                  JsonNode *schema_node,
-                 GPtrArray *output)
+                 GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	JsonArray *schema_array;  /* unowned */
 
@@ -4134,7 +4168,7 @@ static void
 generate_one_of (WblSchema *self,
                  JsonObject *root,
                  JsonNode *schema_node,
-                 GPtrArray *output)
+                 GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	JsonArray *schema_array;  /* unowned */
 
@@ -4206,7 +4240,7 @@ static void
 generate_not (WblSchema *self,
               JsonObject *root,
               JsonNode *schema_node,
-              GPtrArray *output)
+              GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	/* Generate instances for the schema. */
 	subschema_generate_instances (self, schema_node, output);
@@ -4247,7 +4281,7 @@ static void
 generate_default (WblSchema *self,
                   JsonObject *root,
                   JsonNode *schema_node,
-                  GPtrArray *output)
+                  GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
 	JsonGenerator *generator = NULL;  /* owned */
 
@@ -4276,7 +4310,7 @@ typedef void
 (*KeywordGenerateFunc) (WblSchema *self,
                         JsonObject *root,
                         JsonNode *schema_node,
-                        GPtrArray *output);
+                        GHashTable/*<owned JsonNode, unowned JsonNode>*/ *output);
 
 /* Structure holding information about a single JSON Schema keyword, as defined
  * in json-schema-core§3.2. */
@@ -4412,10 +4446,9 @@ real_apply_schema (WblSchema *self,
 static void
 real_generate_instances (WblSchema *self,
                          WblSchemaNode *schema,
-                         GPtrArray *output)
+                         GHashTable/*<owned WblGeneratedInstance>*/ *output)
 {
-	GHashTable/*<utf8, utf8>*/ *set = NULL;  /* owned */
-	guint i, increment;
+	guint i;
 
 	/* Generate for each keyword in turn. */
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
@@ -4430,25 +4463,6 @@ real_generate_instances (WblSchema *self,
 			                   schema_node, output);
 		}
 	}
-
-	/* De-duplicate the results. */
-	set = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, NULL);
-
-	for (i = 0; i < output->len; i += increment) {
-		const gchar *json;
-
-		json = wbl_generated_instance_get_json (output->pdata[i]);
-
-		if (g_hash_table_contains (set, json)) {
-			g_ptr_array_remove_index_fast (output, i);
-			increment = 0;
-		} else {
-			g_hash_table_add (set, (gpointer) json);
-			increment = 1;
-		}
-	}
-
-	g_hash_table_unref (set);
 }
 
 /**
@@ -4839,21 +4853,26 @@ wbl_schema_generate_instances (WblSchema *self,
 {
 	WblSchemaClass *klass;
 	WblSchemaPrivate *priv;
+	GHashTable/*<owned WblGeneratedInstance>*/ *_output = NULL;  /* owned */
+	GHashTableIter iter;
 	GPtrArray/*<owned WblGeneratedInstance>*/ *output = NULL;  /* owned */
 	JsonParser *parser = NULL;  /* owned */
-	guint i;
-	gboolean removed = FALSE;
+	WblGeneratedInstance *instance = NULL;  /* owned */
 
 	g_return_val_if_fail (WBL_IS_SCHEMA (self), NULL);
 
 	klass = WBL_SCHEMA_GET_CLASS (self);
 	priv = wbl_schema_get_instance_private (self);
 
+	_output = g_hash_table_new_full (wbl_generated_instance_hash,
+	                                 wbl_generated_instance_equal,
+	                                 NULL,  /* handled manually */
+	                                 NULL);
 	output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
 
 	/* Generate schema instances. */
 	if (klass->generate_instances != NULL) {
-		klass->generate_instances (self, priv->schema, output);
+		klass->generate_instances (self, priv->schema, _output);
 	}
 
 	/* See if they are valid. We cannot do this constructively because
@@ -4861,12 +4880,12 @@ wbl_schema_generate_instances (WblSchema *self,
 	 * JSON instance. */
 	parser = json_parser_new ();
 
-	for (i = 0; i < output->len; i += (removed ? 0 : 1)) {
-		WblGeneratedInstance *instance;
+	g_hash_table_iter_init (&iter, _output);
+
+	while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
 		const gchar *json;
 		GError *error = NULL;
 
-		instance = output->pdata[i];
 		json = wbl_generated_instance_get_json (instance);
 
 		json_parser_load_from_data (parser, json, -1, &error);
@@ -4882,14 +4901,14 @@ wbl_schema_generate_instances (WblSchema *self,
 		     instance->valid) ||
 		    ((flags & WBL_GENERATE_INSTANCE_IGNORE_INVALID) &&
 		     !instance->valid)) {
-			removed = TRUE;
-			g_ptr_array_remove_index_fast (output, i);
+			wbl_generated_instance_free (instance);
 		} else {
-			removed = FALSE;
+			g_ptr_array_add (output, instance);  /* transfer */
 		}
 	}
 
 	g_object_unref (parser);
+	g_hash_table_unref (_output);
 
 	return output;
 }

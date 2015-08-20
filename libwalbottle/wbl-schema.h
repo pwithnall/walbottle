@@ -129,7 +129,7 @@ typedef struct {
 	                      GError **error);
 	void (*generate_instances) (WblSchema *self,
 	                            WblSchemaNode *root,
-	                            GPtrArray *output);
+	                            GHashTable/*<owned WblGeneratedInstance>*/ *output);
 } WblSchemaClass;
 
 GType wbl_schema_get_type (void) G_GNUC_CONST;
