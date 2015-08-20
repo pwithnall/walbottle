@@ -54,6 +54,7 @@ G_STATIC_ASSERT (G_N_ELEMENTS (output_formats) == FORMAT_C + 1);
 static gboolean option_quiet = FALSE;
 static gboolean option_valid_only = FALSE;
 static gboolean option_invalid_only = FALSE;
+static gboolean option_no_invalid_json = FALSE;
 static gchar *option_format = NULL;
 static gchar **option_schema_filenames = NULL;
 
@@ -64,6 +65,9 @@ static const GOptionEntry entries[] = {
 	  N_("Only output valid JSON instances"), NULL },
 	{ "invalid-only", 'n', 0, G_OPTION_ARG_NONE, &option_invalid_only,
 	  N_("Only output invalid JSON instances"), NULL },
+	{ "no-invalid-json", 'j', 0, G_OPTION_ARG_NONE,
+	  &option_no_invalid_json,
+	  N_("Disable generation of invalid JSON vectors"), NULL },
 	{ "format", 'f', 0, G_OPTION_ARG_STRING, &option_format,
 	  N_("Output format (‘plain’ [default], ‘c’)"), NULL },
 	{ G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY,
@@ -193,6 +197,9 @@ main (int argc, char *argv[])
 	}
 	if (option_invalid_only) {
 		flags |= WBL_GENERATE_INSTANCE_IGNORE_VALID;
+	}
+	if (!option_no_invalid_json) {
+		flags |= WBL_GENERATE_INSTANCE_INVALID_JSON;
 	}
 
 	/* Initial output. */
