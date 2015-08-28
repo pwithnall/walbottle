@@ -88,6 +88,8 @@ main (int argc, char *argv[])
 	OutputFormat output_format;
 	gboolean output_format_set = FALSE;
 	GError *error = NULL;
+	gboolean generated_any_valid_instances = FALSE;
+	gboolean generated_any_invalid_instances = FALSE;
 
 #if !GLIB_CHECK_VERSION (2, 35, 0)
 	g_type_init ();
@@ -227,6 +229,8 @@ main (int argc, char *argv[])
 			instance = instances->pdata[j];
 			json = wbl_generated_instance_get_json (instance);
 			is_valid = wbl_generated_instance_is_valid (instance);
+			generated_any_valid_instances |= is_valid;
+			generated_any_invalid_instances |= !is_valid;
 
 			switch (output_format) {
 			case FORMAT_PLAIN:
@@ -251,6 +255,19 @@ main (int argc, char *argv[])
 	/* Final output. */
 	if (output_format == FORMAT_C) {
 		g_print ("};\n");
+	}
+
+	/* Sanity check. */
+	if (!option_invalid_only && !generated_any_valid_instances) {
+		g_printerr ("%s: Warning: Failed to generate any valid "
+		            "instances. Test coverage may be low. This may "
+		            "indicate a bug in Walbottle; please report it.\n",
+		            argv[0]);
+	} else if (!option_valid_only && !generated_any_invalid_instances) {
+		g_printerr ("%s: Warning: Failed to generate any invalid "
+		            "instances. Test coverage may be low. This may "
+		            "indicate a bug in Walbottle; please report it.\n",
+		            argv[0]);
 	}
 
 done:
