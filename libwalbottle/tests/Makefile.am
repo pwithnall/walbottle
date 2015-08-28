@@ -27,6 +27,7 @@ LIBS = \
 TESTS = \
 	schema \
 	schema-keywords \
+	self-hosting \
 	string-set \
 	$(NULL)
 noinst_PROGRAMS = $(TESTS)
