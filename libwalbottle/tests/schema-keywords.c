@@ -1996,7 +1996,7 @@ main (int argc, char *argv[])
 
 	/* TODO:
 	 * • additionalItems
-	 * • items
+	 * • items, especially {"items":[]}
 	 * • dependencies
 	 * • definitions
 	 * • format
