@@ -238,9 +238,9 @@ main (int argc, char *argv[])
 				break;
 			case FORMAT_C: {
 				gchar *escaped = g_strescape (json, "");
-				g_print ("\t{ \"%s\", %lu, %u },\n", escaped,
-				         strlen (json),
-				         is_valid ? 1 : 0);
+				g_print ("\t{ \"%s\", %lu, %u },  /* %u */\n",
+				         escaped, strlen (json),
+				         is_valid ? 1 : 0, j);
 				g_free (escaped);
 				break;
 			}
