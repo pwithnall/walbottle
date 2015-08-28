@@ -1060,72 +1060,23 @@ apply_schema_array (WblSchema *self,
 	return n_successes;
 }
 
-/* Generate instances which match zero or more of the schemas in a schema array,
- * according to the #WblMatchPredicate, which selects instances based on the
- * number of schemas they match. */
-typedef gboolean
-(*WblMatchPredicate) (guint n_matching_schemas,
-                      guint n_schemas);
-
+/* Generate instances for all of the schemas in a schema array. */
 static void
 generate_schema_array (WblSchema *self,
                        JsonArray *schema_array,
-                       WblMatchPredicate predicate,
                        GHashTable/*<owned JsonNode>*/ *output)
 {
 	guint i, n_schemas;
-	GHashTable/*<owned JsonNode>*/ *_output = NULL;  /* owned */
-	GHashTableIter iter;
-	JsonNode *instance;  /* unowned */
 
 	n_schemas = json_array_get_length (schema_array);
 
 	/* Generate instances for all schemas. */
-	_output = g_hash_table_new_full (node_hash,
-	                                 node_equal,
-	                                 (GDestroyNotify) json_node_free,
-	                                 NULL);
-
 	for (i = 0; i < n_schemas; i++) {
 		JsonObject *child_object;  /* unowned */
 
 		child_object = json_array_get_object_element (schema_array, i);
-		subschema_generate_instances (self, child_object, _output);
+		subschema_generate_instances (self, child_object, output);
 	}
-
-	/* Find any instances which match the number of schemas approved by the
-	 * predicate. */
-	g_hash_table_iter_init (&iter, _output);
-
-	while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
-		guint n_matching_schemas;
-		GError *child_error = NULL;
-
-		n_matching_schemas = 0;
-
-		/* Check it against each schema. */
-		for (i = 0; i < n_schemas; i++) {
-			JsonNode *child_node;  /* unowned */
-
-			child_node = json_array_get_element (schema_array, i);
-
-			subschema_apply (self, child_node, instance,
-			                 &child_error);
-
-			if (child_error == NULL) {
-				n_matching_schemas++;
-			}
-
-			g_clear_error (&child_error);
-		}
-
-		/* Does it match the predicate? */
-		if (predicate (n_matching_schemas, n_schemas)) {
-			g_hash_table_add (output, json_node_copy (instance));
-		}
-	}
-
-	g_hash_table_unref (_output);
 }
 
 /* A couple of utility functions for building #JsonNodes. */
@@ -5405,17 +5356,6 @@ apply_all_of (WblSchema *self,
 	}
 }
 
-/* Select instances which match zero or all schemas.
- *
- * FIXME: Is this the best strategy to get maximum coverage? */
-static gboolean
-predicate_all_or_none (guint n_matching_schemas,
-                       guint n_schemas)
-{
-	return (n_matching_schemas == 0 ||
-	        n_matching_schemas == n_schemas);
-}
-
 static void
 generate_all_of (WblSchema *self,
                  JsonObject *root,
@@ -5426,8 +5366,7 @@ generate_all_of (WblSchema *self,
 
 	schema_array = json_node_get_array (schema_node);
 
-	generate_schema_array (self, schema_array,
-	                       predicate_all_or_none, output);
+	generate_schema_array (self, schema_array, output);
 }
 
 /* anyOf. json-schema-validation§5.5.4. */
@@ -5484,17 +5423,6 @@ apply_any_of (WblSchema *self,
 	}
 }
 
-/* Select instances which match zero or one schemas.
- *
- * FIXME: Is this the best strategy to get maximum coverage? */
-static gboolean
-predicate_none_or_one (guint n_matching_schemas,
-                       guint n_schemas)
-{
-	return (n_matching_schemas == 0 ||
-	        n_matching_schemas == 1);
-}
-
 static void
 generate_any_of (WblSchema *self,
                  JsonObject *root,
@@ -5505,8 +5433,7 @@ generate_any_of (WblSchema *self,
 
 	schema_array = json_node_get_array (schema_node);
 
-	generate_schema_array (self, schema_array,
-	                       predicate_none_or_one, output);
+	generate_schema_array (self, schema_array, output);
 }
 
 /* oneOf. json-schema-validation§5.5.5. */
@@ -5563,16 +5490,6 @@ apply_one_of (WblSchema *self,
 	}
 }
 
-/* Select instances which match all except one schema.
- *
- * FIXME: Is this the best strategy to get maximum coverage? */
-static gboolean
-predicate_all_except_one (guint n_matching_schemas,
-                          guint n_schemas)
-{
-	return (n_matching_schemas == n_schemas - 1);
-}
-
 static void
 generate_one_of (WblSchema *self,
                  JsonObject *root,
@@ -5583,8 +5500,7 @@ generate_one_of (WblSchema *self,
 
 	schema_array = json_node_get_array (schema_node);
 
-	generate_schema_array (self, schema_array,
-	                       predicate_all_except_one, output);
+	generate_schema_array (self, schema_array, output);
 }
 
 /* not. json-schema-validation§5.5.6. */

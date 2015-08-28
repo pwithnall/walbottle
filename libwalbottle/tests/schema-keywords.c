@@ -1645,6 +1645,12 @@ test_schema_keywords_all_of (void)
 		"{}",
 		"null",
 		"{\"0\":null}",
+		"{\"a\":null}",
+		"{\"a\":null,\"0\":null}",
+		"{\"b\":null}",
+		"{\"0\":null,\"b\":null}",
+		"{\"c\":null}",
+		"{\"0\":null,\"c\":null}",
 		/* FIXME: Need to generate the intersection of all the
 		 * subschemas. */
 		/* For the default properties: */
@@ -1750,6 +1756,13 @@ test_schema_keywords_one_of (void)
 	const gchar *expected_instances[] = {
 		/* FIXME: Need to generate the intersection of all the
 		 * subschemas. */
+		"null",
+		"{\"a\":null}",
+		"{\"a\":null,\"0\":null}",
+		"{\"b\":null}",
+		"{\"0\":null,\"b\":null}",
+		"{\"c\":null}",
+		"{\"0\":null,\"c\":null}",
 		/* For the default properties: */
 		"{\"0\":null}",
 		"[]",
