@@ -170,6 +170,12 @@ test_schema_keywords_multiple_of_integer (void)
 		"5",
 		"6",
 		"10",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -208,6 +214,12 @@ test_schema_keywords_multiple_of_double (void)
 		"1.2",
 		"2.3999999999999999",  /* aaargh floating point */
 		"1.3",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -238,6 +250,12 @@ test_schema_keywords_maximum_integer (void)
 	const gchar *expected_instances[] = {
 		"5",
 		"6",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -282,6 +300,12 @@ test_schema_keywords_maximum_float (void)
 	const gchar *expected_instances[] = {
 		"5.5999999999999996",
 		"5",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -329,6 +353,12 @@ test_schema_keywords_exclusive_maximum_integer (void)
 	const gchar *expected_instances[] = {
 		"4",
 		"5",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -363,6 +393,12 @@ test_schema_keywords_exclusive_maximum_float (void)
 	const gchar *expected_instances[] = {
 		"5",
 		"5.5999999999999996",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -392,6 +428,12 @@ test_schema_keywords_minimum_integer (void)
 	const gchar *expected_instances[] = {
 		"4",
 		"5",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -434,6 +476,12 @@ test_schema_keywords_minimum_float (void)
 	const gchar *expected_instances[] = {
 		"5.2000000000000002",
 		"5",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -480,6 +528,12 @@ test_schema_keywords_exclusive_minimum_integer (void)
 	const gchar *expected_instances[] = {
 		"5",
 		"6",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -513,6 +567,12 @@ test_schema_keywords_exclusive_minimum_float (void)
 	const gchar *expected_instances[] = {
 		"5",
 		"5.5999999999999996",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -547,6 +607,12 @@ test_schema_keywords_max_length (void)
 		"\"000000\"",
 		"\"🐵🐵🐵🐵🐵\"",
 		"\"🐵🐵🐵🐵🐵🐵\"",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -581,6 +647,11 @@ test_schema_keywords_min_length (void)
 		"\"00000\"",
 		"\"🐵🐵🐵🐵\"",
 		"\"🐵🐵🐵🐵🐵\"",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
 		NULL,
 	};
 
@@ -614,6 +685,11 @@ test_schema_keywords_pattern (void)
 	const gchar *expected_instances[] = {
 		"\"\"",
 		"\"non-empty\"",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
 		NULL,
 	};
 
@@ -646,6 +722,12 @@ test_schema_keywords_max_items (void)
 	const gchar *expected_instances[] = {
 		"[null,null]",
 		"[null,null,null]",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -678,6 +760,11 @@ test_schema_keywords_min_items (void)
 	const gchar *expected_instances[] = {
 		"[null]",
 		"[null,null]",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -709,6 +796,12 @@ test_schema_keywords_unique_items_false (void)
 	};
 	const gchar *expected_instances[] = {
 		/* No instances to validate. */
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -740,6 +833,11 @@ test_schema_keywords_unique_items_true (void)
 	const gchar *expected_instances[] = {
 		"[null]",
 		"[null,null]",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -779,6 +877,10 @@ test_schema_keywords_max_properties (void)
 		"{\"0\":null,\"additionalProperties-test-0\":null,\"additionalProperties-test-1\":null}",
 		"{\"1\":null,\"additionalProperties-test-0\":null,\"additionalProperties-test-1\":null}",
 		"{\"additionalProperties-test-0\":null,\"additionalProperties-test-1\":null,\"additionalProperties-test-2\":null}",
+		/* For the default properties: */
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -812,6 +914,10 @@ test_schema_keywords_min_properties (void)
 	const gchar *expected_instances[] = {
 		"{\"0\":null}",
 		"{\"0\":null,\"1\":null}",
+		/* For the default properties: */
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -852,6 +958,10 @@ test_schema_keywords_required (void)
 		"{\"a\":null,\"0\":null}",
 		"{\"b\":null,\"0\":null}",
 		"{\"a\":null,\"b\":null,\"0\":null}",
+		/* For the default properties: */
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -884,6 +994,10 @@ test_schema_keywords_additional_properties_true (void)
 	const gchar *expected_instances[] = {
 		"{}",
 		"{\"0\":null}",
+		/* For the default properties: */
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -921,17 +1035,39 @@ test_schema_keywords_additional_properties_schema (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
+		"[]",
 		"{}",
+		"\"\"",
+		"{\"0\":[]}",
 		"{\"0\":{}}",
-		"{\"0\":{\"a\":null}}",
+		"{\"0\":\"\"}",
 		"{\"0\":{\"0\":null}}",
-		"{\"0\":{\"a\":null,\"0\":null}}",
-		"{\"0\":{\"a\":\"\",\"0\":null}}",
-		"{\"0\":{\"a\":null,\"0\":null,\"additionalProperties-test-unique\":null}}",
-		"{\"0\":{\"a\":\"\",\"0\":null,\"additionalProperties-test-unique\":null}}",
-		"{\"0\":{\"a\":null,\"additionalProperties-test-unique\":null}}",
-		"{\"0\":{\"a\":\"\",\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":[]}}",
+		"{\"0\":{\"a\":{}}}",
 		"{\"0\":{\"a\":\"\"}}",
+		"{\"0\":{\"a\":[],\"0\":null}}",
+		"{\"0\":{\"a\":{},\"0\":null}}",
+		"{\"0\":{\"a\":{\"0\":null}}}",
+		"{\"0\":{\"a\":\"\",\"0\":null}}",
+		"{\"0\":{\"a\":{\"0\":null},\"0\":null}}",
+		"{\"0\":{\"a\":{\"0\":null},\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":[],\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":{},\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":{\"0\":null},\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":\"\",\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":[],\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":{},\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":\"\",\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":[null]}}",
+		"{\"0\":{\"a\":null}}",
+		"{\"0\":{\"a\":[null],\"0\":null}}",
+		"{\"0\":{\"a\":null,\"0\":null}}",
+		"{\"0\":{\"a\":[null],\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":null,\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":[null],\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":[null]}",
+		"[null]",
 		NULL,
 	};
 
@@ -964,6 +1100,10 @@ test_schema_keywords_additional_properties_false (void)
 		"{\"a\":null}",
 		"{\"additionalProperties-test-unique\":null}",
 		"{\"a\":null,\"additionalProperties-test-unique\":null}",
+		/* For the default properties: */
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -1001,22 +1141,55 @@ test_schema_keywords_properties (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
+		"[]",
 		"{}",
+		"\"\"",
 		"{\"additionalProperties-test-unique\":null}",
 		"{\"a\":null}",
 		"{\"a\":null,\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":{\"0\":null},\"c\":{\"0\":null}}",
+		"{\"a\":null,\"b\":{\"0\":null},\"c\":{\"0\":null},\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":[],\"c\":[]}",
+		"{\"a\":null,\"b\":{},\"c\":{}}",
+		"{\"a\":null,\"b\":\"\",\"c\":\"\"}",
+		"{\"a\":null,\"b\":[],\"c\":[],\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":{},\"c\":{},\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":\"\",\"c\":\"\",\"additionalProperties-test-unique\":null}",
 		"{\"a\":null,\"b\":null,\"c\":0.10000000000000001}",
 		"{\"a\":null,\"b\":null,\"c\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":[null],\"c\":[null]}",
+		"{\"a\":null,\"b\":[null],\"c\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"a\":null,\"b\":true,\"c\":null}",
 		"{\"a\":null,\"b\":true,\"c\":null,\"additionalProperties-test-unique\":null}",
+		"{\"b\":[]}",
+		"{\"b\":{}}",
+		"{\"b\":\"\"}",
+		"{\"b\":{\"0\":null}}",
+		"{\"b\":{\"0\":null},\"additionalProperties-test-unique\":null}",
+		"{\"b\":[],\"additionalProperties-test-unique\":null}",
+		"{\"b\":{},\"additionalProperties-test-unique\":null}",
+		"{\"b\":\"\",\"additionalProperties-test-unique\":null}",
+		"{\"b\":[null]}",
 		"{\"b\":null}",
+		"{\"b\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"b\":null,\"additionalProperties-test-unique\":null}",
 		"{\"b\":true}",
 		"{\"b\":true,\"additionalProperties-test-unique\":null}",
+		"{\"c\":[]}",
+		"{\"c\":{}}",
+		"{\"c\":\"\"}",
 		"{\"c\":0.10000000000000001}",
 		"{\"c\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"c\":{\"0\":null}}",
+		"{\"c\":{\"0\":null},\"additionalProperties-test-unique\":null}",
+		"{\"c\":[],\"additionalProperties-test-unique\":null}",
+		"{\"c\":{},\"additionalProperties-test-unique\":null}",
+		"{\"c\":\"\",\"additionalProperties-test-unique\":null}",
+		"{\"c\":[null]}",
 		"{\"c\":null}",
+		"{\"c\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"c\":null,\"additionalProperties-test-unique\":null}",
+		"[null]",
 		NULL,
 	};
 
@@ -1055,20 +1228,53 @@ test_schema_keywords_pattern_properties (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
-		"{\"additionalProperties-test-unique\":null}",
-		"{\"6\":null,\"additionalProperties-test-unique\":null}",
-		"{\"6\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"[]",
 		"{}",
+		"\"\"",
+		"{\"6\":[]}",
+		"{\"6\":{}}",
+		"{\"6\":\"\"}",
 		"{\"6\":0.10000000000000001}",
-		"{\"f\":true,\"6\":null}",
-		"{\"f\":null,\"6\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
-		"{\"f\":true}",
-		"{\"f\":null,\"6\":0.10000000000000001}",
-		"{\"f\":true,\"6\":null,\"additionalProperties-test-unique\":null}",
+		"{\"6\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"6\":{\"0\":null}}",
+		"{\"6\":{\"0\":null},\"additionalProperties-test-unique\":null}",
+		"{\"6\":[],\"additionalProperties-test-unique\":null}",
+		"{\"6\":{},\"additionalProperties-test-unique\":null}",
+		"{\"6\":\"\",\"additionalProperties-test-unique\":null}",
+		"{\"6\":[null]}",
 		"{\"6\":null}",
-		"{\"f\":true,\"additionalProperties-test-unique\":null}",
+		"{\"6\":[null],\"additionalProperties-test-unique\":null}",
+		"{\"6\":null,\"additionalProperties-test-unique\":null}",
+		"{\"additionalProperties-test-unique\":null}",
+		"{\"f\":[]}",
+		"{\"f\":{}}",
+		"{\"f\":\"\"}",
+		"{\"f\":{\"0\":null}}",
+		"{\"f\":{\"0\":null},\"6\":{\"0\":null}}",
+		"{\"f\":{\"0\":null},\"6\":{\"0\":null},\"additionalProperties-test-unique\":null}",
+		"{\"f\":{\"0\":null},\"additionalProperties-test-unique\":null}",
+		"{\"f\":[],\"6\":[]}",
+		"{\"f\":{},\"6\":{}}",
+		"{\"f\":\"\",\"6\":\"\"}",
+		"{\"f\":[],\"6\":[],\"additionalProperties-test-unique\":null}",
+		"{\"f\":{},\"6\":{},\"additionalProperties-test-unique\":null}",
+		"{\"f\":\"\",\"6\":\"\",\"additionalProperties-test-unique\":null}",
+		"{\"f\":[],\"additionalProperties-test-unique\":null}",
+		"{\"f\":{},\"additionalProperties-test-unique\":null}",
+		"{\"f\":\"\",\"additionalProperties-test-unique\":null}",
+		"{\"f\":[null]}",
 		"{\"f\":null}",
+		"{\"f\":null,\"6\":0.10000000000000001}",
+		"{\"f\":null,\"6\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"f\":[null],\"6\":[null]}",
+		"{\"f\":[null],\"6\":[null],\"additionalProperties-test-unique\":null}",
+		"{\"f\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"f\":null,\"additionalProperties-test-unique\":null}",
+		"{\"f\":true}",
+		"{\"f\":true,\"6\":null}",
+		"{\"f\":true,\"6\":null,\"additionalProperties-test-unique\":null}",
+		"{\"f\":true,\"additionalProperties-test-unique\":null}",
+		"[null]",
 		NULL,
 	};
 
@@ -1102,6 +1308,12 @@ test_schema_keywords_enum (void)
 		"1",
 		"\"hi\"",
 		"{\"a\":0}",  /* matching */
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1132,6 +1344,11 @@ test_schema_keywords_type_string_array (void)
 	const gchar *expected_instances[] = {
 		"[]",
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1162,6 +1379,12 @@ test_schema_keywords_type_string_boolean (void)
 	const gchar *expected_instances[] = {
 		"true",
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1192,6 +1415,12 @@ test_schema_keywords_type_string_integer (void)
 	const gchar *expected_instances[] = {
 		"1",
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1223,6 +1452,12 @@ test_schema_keywords_type_string_number (void)
 	const gchar *expected_instances[] = {
 		"0.10000000000000001",
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1253,6 +1488,12 @@ test_schema_keywords_type_string_null (void)
 	const gchar *expected_instances[] = {
 		"null",
 		"false",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1283,6 +1524,11 @@ test_schema_keywords_type_string_object (void)
 	const gchar *expected_instances[] = {
 		"{}",
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -1313,6 +1559,11 @@ test_schema_keywords_type_string_string (void)
 	const gchar *expected_instances[] = {
 		"\"\"",
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
 		NULL,
 	};
 
@@ -1345,6 +1596,11 @@ test_schema_keywords_type_array (void)
 		"\"\"",
 		"null",
 		"0.10000000000000001",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
 		NULL,
 	};
 
@@ -1391,6 +1647,10 @@ test_schema_keywords_all_of (void)
 		"{\"0\":null}",
 		/* FIXME: Need to generate the intersection of all the
 		 * subschemas. */
+		/* For the default properties: */
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -1443,6 +1703,10 @@ test_schema_keywords_any_of (void)
 		"{\"0\":null,\"b\":null}",
 		/* FIXME: Need to generate the intersection of all the
 		 * subschemas. */
+		/* For the default properties: */
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -1486,6 +1750,12 @@ test_schema_keywords_one_of (void)
 	const gchar *expected_instances[] = {
 		/* FIXME: Need to generate the intersection of all the
 		 * subschemas. */
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1518,6 +1788,11 @@ test_schema_keywords_not (void)
 	const gchar *expected_instances[] = {
 		"{}",
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"\"\"",
 		NULL,
 	};
 
@@ -1545,6 +1820,12 @@ test_schema_keywords_title (void)
 	};
 	const gchar *expected_instances[] = {
 		/* Not generated. */
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1572,6 +1853,12 @@ test_schema_keywords_description (void)
 	};
 	const gchar *expected_instances[] = {
 		/* Not generated. */
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 
@@ -1598,6 +1885,12 @@ test_schema_keywords_default (void)
 	};
 	const gchar *expected_instances[] = {
 		"null",
+		/* For the default properties: */
+		"{\"0\":null}",
+		"[]",
+		"[null]",
+		"{}",
+		"\"\"",
 		NULL,
 	};
 

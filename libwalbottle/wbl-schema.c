@@ -773,7 +773,17 @@ subschema_validate (WblSchema *self,
 
 		node.ref_count = 1;
 		node.node = json_node_dup_object (subschema_node);
-		klass->validate_schema (self, &node, error);
+
+		/* We know that an empty schema (‘{}’) is always valid, so avoid
+		 * recursing on this. This is important — the default values of
+		 * several schema properties is an empty subschema, which can
+		 * cause infinite recursion on this path.
+		 *
+		 * For example, json-schema-validation§5.3.1.4. */
+		if (json_object_get_size (node.node) > 0) {
+			klass->validate_schema (self, &node, error);
+		}
+
 		json_object_unref (node.node);
 	}
 }
@@ -800,7 +810,7 @@ subschema_apply (WblSchema *self,
 
 static void
 subschema_generate_instances (WblSchema *self,
-                              JsonNode *subschema_node,
+                              JsonObject *subschema_object,
                               GHashTable/*<owned JsonNode>*/ *output)
 {
 	WblSchemaClass *klass;
@@ -811,11 +821,13 @@ subschema_generate_instances (WblSchema *self,
 		WblSchemaNode node;
 
 		node.ref_count = 1;
-		node.node = json_node_dup_object (subschema_node);
+		node.node = subschema_object;
 
-		klass->generate_instances (self, &node, output);
-
-		json_object_unref (node.node);
+		/* Avoid infinite recursion; see the rationale in
+		 * subschema_validate(). */
+		if (json_object_get_size (node.node) > 0) {
+			klass->generate_instances (self, &node, output);
+		}
 	}
 }
 
@@ -1075,10 +1087,10 @@ generate_schema_array (WblSchema *self,
 	                                 NULL);
 
 	for (i = 0; i < n_schemas; i++) {
-		JsonNode *child_node;  /* unowned */
+		JsonObject *child_object;  /* unowned */
 
-		child_node = json_array_get_element (schema_array, i);
-		subschema_generate_instances (self, child_node, _output);
+		child_object = json_array_get_object_element (schema_array, i);
+		subschema_generate_instances (self, child_object, _output);
 	}
 
 	/* Find any instances which match the number of schemas approved by the
@@ -2211,6 +2223,7 @@ generate_array_with_subschema (WblSchema *self,
 	JsonParser *parser = NULL;  /* owned */
 	JsonBuilder *builder = NULL;  /* owned */
 	JsonNode *child_instance;  /* unowned */
+	JsonObject *subschema_object;
 
 	child_output = g_hash_table_new_full (node_hash,
 	                                      node_equal,
@@ -2219,7 +2232,8 @@ generate_array_with_subschema (WblSchema *self,
 	builder = json_builder_new ();
 	parser = json_parser_new ();
 
-	subschema_generate_instances (self, subschema_node, child_output);
+	subschema_object = json_node_get_object (subschema_node);
+	subschema_generate_instances (self, subschema_object, child_output);
 
 	g_hash_table_iter_init (&iter, child_output);
 
@@ -2282,13 +2296,16 @@ generate_items (WblSchema *self,
 		GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
 		GHashTableIter iter;
 		JsonNode *child_instance;  /* unowned */
+		JsonObject *schema_object;
 
 		child_output = g_hash_table_new_full (node_hash,
 		                                      node_equal,
 		                                      (GDestroyNotify) json_node_free,
 		                                      NULL);
 
-		subschema_generate_instances (self, schema_node, child_output);
+		schema_object = json_node_get_object (schema_node);
+		subschema_generate_instances (self, schema_object,
+		                              child_output);
 
 		g_hash_table_iter_init (&iter, child_output);
 
@@ -2338,26 +2355,6 @@ generate_items (WblSchema *self,
 	}
 
 	g_object_unref (builder);
-}
-
-static void
-generate_additional_items (WblSchema *self,
-                           JsonObject *root,
-                           JsonNode *schema_node,
-                           GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *items = NULL;
-
-	if (json_object_has_member (root, "items")) {
-		items = json_node_copy (json_object_get_member (root, "items"));
-	} else {
-		items = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (items, json_object_new ());
-	}
-
-	generate_items (self, root, items, output);
-
-	json_node_free (items);
 }
 
 /* maxItems. json-schema-validation§5.3.2. */
@@ -4214,7 +4211,6 @@ generate_all_properties (WblSchema                       *self,
                          JsonObject                      *dependencies,
                          GHashTable/*<owned JsonNode>*/  *output)
 {
-	WblSchemaClass *klass;
 	GHashTable/*<floating WblStringSet>*/ *valid_property_sets = NULL;
 	gboolean additional_properties_allowed;
 	GHashTable/*<owned JsonNode>*/ *instance_set = NULL;
@@ -4227,7 +4223,6 @@ generate_all_properties (WblSchema                       *self,
 	guint i;
 	WblStringSet *required = NULL;
 
-	klass = WBL_SCHEMA_GET_CLASS (self);
 	builder = json_builder_new ();
 
 	/* Copy @required so we can handle it as a set. */
@@ -4290,16 +4285,9 @@ generate_all_properties (WblSchema                       *self,
 			                                          property_name);
 
 			for (i = 0; i < subschemas->len; i++) {
-				if (klass->generate_instances != NULL) {
-					WblSchemaNode schema_node;
-
-					schema_node.ref_count = 1;
-					schema_node.node = subschemas->pdata[i];
-
-					klass->generate_instances (self,
-					                           &schema_node,
-					                           property_instances);
-				}
+				subschema_generate_instances (self,
+				                              subschemas->pdata[i],
+				                              property_instances);
 			}
 
 			/* Debug. */
@@ -5645,7 +5633,8 @@ generate_not (WblSchema *self,
               GHashTable/*<owned JsonNode>*/ *output)
 {
 	/* Generate instances for the schema. */
-	subschema_generate_instances (self, schema_node, output);
+	subschema_generate_instances (self, json_node_get_object (schema_node),
+	                              output);
 }
 
 /* title. json-schema-validation§6.1. */
@@ -5708,9 +5697,11 @@ typedef void
                         GHashTable/*<owned JsonNode, unowned JsonNode>*/ *output);
 
 /* Structure holding information about a single JSON Schema keyword, as defined
- * in json-schema-core§3.2. */
+ * in json-schema-core§3.2. Default keywords are described in
+ * json-schema-validation§4.3. */
 typedef struct {
 	const gchar *name;
+	const gchar *default_value;  /* NULL if there is no default */
 	KeywordValidateFunc validate;  /* NULL if validation always succeeds */
 	KeywordApplyFunc apply;  /* NULL if application always succeeds */
 	KeywordGenerateFunc generate;  /* NULL if generation produces nothing */
@@ -5723,57 +5714,57 @@ typedef struct {
  */
 static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§5.1.1 */
-	{ "multipleOf", validate_multiple_of, apply_multiple_of, generate_multiple_of },
+	{ "multipleOf", NULL, validate_multiple_of, apply_multiple_of, generate_multiple_of },
 	/* json-schema-validation§5.1.2 */
-	{ "maximum", validate_maximum, apply_maximum, generate_maximum },
-	{ "exclusiveMaximum", validate_exclusive_maximum, NULL, NULL },
+	{ "maximum", NULL, validate_maximum, apply_maximum, generate_maximum },
+	{ "exclusiveMaximum", NULL, validate_exclusive_maximum, NULL, NULL },
 	/* json-schema-validation§5.1.3. */
-	{ "minimum", validate_minimum, apply_minimum, generate_minimum },
-	{ "exclusiveMinimum", validate_exclusive_minimum, NULL, NULL },
+	{ "minimum", NULL, validate_minimum, apply_minimum, generate_minimum },
+	{ "exclusiveMinimum", NULL, validate_exclusive_minimum, NULL, NULL },
 	/* json-schema-validation§5.2.1 */
-	{ "maxLength", validate_max_length, apply_max_length, generate_max_length },
+	{ "maxLength", NULL, validate_max_length, apply_max_length, generate_max_length },
 	/* json-schema-validation§5.2.2 */
-	{ "minLength", validate_min_length, apply_min_length, generate_min_length },
+	{ "minLength", "0", validate_min_length, apply_min_length, generate_min_length },
 	/* json-schema-validation§5.2.3 */
-	{ "pattern", validate_pattern, apply_pattern, generate_pattern },
+	{ "pattern", NULL, validate_pattern, apply_pattern, generate_pattern },
 	/* json-schema-validation§5.3.1 */
-	{ "additionalItems", validate_additional_items, NULL, generate_additional_items },
-	{ "items", validate_items, apply_items, generate_items },
+	{ "additionalItems", "{}", validate_additional_items, NULL, NULL },
+	{ "items", "{}", validate_items, apply_items, generate_items },
 	/* json-schema-validation§5.3.2 */
-	{ "maxItems", validate_max_items, apply_max_items, generate_max_items },
+	{ "maxItems", NULL, validate_max_items, apply_max_items, generate_max_items },
 	/* json-schema-validation§5.3.3 */
-	{ "minItems", validate_min_items, apply_min_items, generate_min_items },
+	{ "minItems", "0", validate_min_items, apply_min_items, generate_min_items },
 	/* json-schema-validation§5.3.3 */
-	{ "uniqueItems", validate_unique_items, apply_unique_items, generate_unique_items },
+	{ "uniqueItems", "false", validate_unique_items, apply_unique_items, generate_unique_items },
 	/* json-schema-validation§5.4.1 */
-	{ "maxProperties", validate_max_properties, apply_max_properties, generate_max_properties },
+	{ "maxProperties", NULL, validate_max_properties, apply_max_properties, generate_max_properties },
 	/* json-schema-validation§5.4.2 */
-	{ "minProperties", validate_min_properties, apply_min_properties, generate_min_properties },
+	{ "minProperties", "0", validate_min_properties, apply_min_properties, generate_min_properties },
 	/* json-schema-validation§5.4.3 */
-	{ "required", validate_required, apply_required, generate_required },
+	{ "required", NULL, validate_required, apply_required, generate_required },
 	/* json-schema-validation§5.4.4 */
-	{ "additionalProperties", validate_additional_properties, NULL, generate_additional_properties },
-	{ "properties", validate_properties, apply_properties, generate_properties },
-	{ "patternProperties", validate_pattern_properties, apply_pattern_properties, generate_pattern_properties },
+	{ "additionalProperties", "{}", validate_additional_properties, NULL, generate_additional_properties },
+	{ "properties", "{}", validate_properties, apply_properties, generate_properties },
+	{ "patternProperties", "{}", validate_pattern_properties, apply_pattern_properties, generate_pattern_properties },
 	/* json-schema-validation§5.4.5 */
-	{ "dependencies", validate_dependencies, apply_dependencies, generate_dependencies },
+	{ "dependencies", NULL, validate_dependencies, apply_dependencies, generate_dependencies },
 	/* json-schema-validation§5.5.1 */
-	{ "enum", validate_enum, apply_enum, generate_enum },
+	{ "enum", NULL, validate_enum, apply_enum, generate_enum },
 	/* json-schema-validation§5.5.2 */
-	{ "type", validate_type, apply_type, generate_type },
+	{ "type", NULL, validate_type, apply_type, generate_type },
 	/* json-schema-validation§5.5.3 */
-	{ "allOf", validate_all_of, apply_all_of, generate_all_of },
+	{ "allOf", NULL, validate_all_of, apply_all_of, generate_all_of },
 	/* json-schema-validation§5.5.4 */
-	{ "anyOf", validate_any_of, apply_any_of, generate_any_of },
+	{ "anyOf", NULL, validate_any_of, apply_any_of, generate_any_of },
 	/* json-schema-validation§5.5.5 */
-	{ "oneOf", validate_one_of, apply_one_of, generate_one_of },
+	{ "oneOf", NULL, validate_one_of, apply_one_of, generate_one_of },
 	/* json-schema-validation§5.5.6 */
-	{ "not", validate_not, apply_not, generate_not },
+	{ "not", NULL, validate_not, apply_not, generate_not },
 	/* json-schema-validation§6.1 */
-	{ "title", validate_title, NULL, NULL },
-	{ "description", validate_description, NULL, NULL },
+	{ "title", NULL, validate_title, NULL, NULL },
+	{ "description", NULL, validate_description, NULL, NULL },
 	/* json-schema-validation§6.2 */
-	{ "default", NULL, NULL, generate_default },
+	{ "default", NULL, NULL, NULL, generate_default },
 
 	/* TODO:
 	 *  • definitions (json-schema-validation§5.5.7)
@@ -5782,6 +5773,30 @@ static const KeywordData json_schema_keywords[] = {
 	 *  • json-schema-hypermedia
 	 */
 };
+
+/* TODO: docs; returns transfer full */
+static JsonNode *
+parse_default_value (const gchar *json_string)
+{
+	JsonNode *output = NULL;
+
+	g_return_val_if_fail (json_string != NULL, NULL);
+
+	if (g_strcmp0 (json_string, "{}") == 0) {
+		output = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (output, json_object_new ());
+	} else if (g_strcmp0 (json_string, "false") == 0) {
+		output = json_node_new (JSON_NODE_VALUE);
+		json_node_set_boolean (output, FALSE);
+	} else if (g_strcmp0 (json_string, "0") == 0) {
+		output = json_node_new (JSON_NODE_VALUE);
+		json_node_set_int (output, 0);
+	} else {
+		g_assert_not_reached ();
+	}
+
+	return output;
+}
 
 static void
 real_validate_schema (WblSchema *self,
@@ -5792,15 +5807,23 @@ real_validate_schema (WblSchema *self,
 
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
 		const KeywordData *keyword = &json_schema_keywords[i];
-		JsonNode *schema_node;  /* unowned */
+		JsonNode *schema_node, *default_schema_node = NULL;
 		GError *child_error = NULL;
 
 		schema_node = json_object_get_member (schema->node,
 		                                      keyword->name);
 
+		/* Default. */
+		if (schema_node == NULL && keyword->default_value != NULL) {
+			default_schema_node = parse_default_value (keyword->default_value);
+			schema_node = default_schema_node;
+		}
+
 		if (schema_node != NULL && keyword->validate != NULL) {
 			keyword->validate (self, schema->node,
 			                   schema_node, &child_error);
+
+			g_clear_pointer (&default_schema_node, json_node_free);
 
 			if (child_error != NULL) {
 				g_propagate_error (error, child_error);
@@ -5820,15 +5843,23 @@ real_apply_schema (WblSchema *self,
 
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
 		const KeywordData *keyword = &json_schema_keywords[i];
-		JsonNode *schema_node;  /* unowned */
+		JsonNode *schema_node, *default_schema_node = NULL;
 		GError *child_error = NULL;
 
 		schema_node = json_object_get_member (schema->node,
 		                                      keyword->name);
 
+		/* Default. */
+		if (schema_node == NULL && keyword->default_value != NULL) {
+			default_schema_node = parse_default_value (keyword->default_value);
+			schema_node = default_schema_node;
+		}
+
 		if (schema_node != NULL && keyword->apply != NULL) {
 			keyword->apply (self, schema->node,
 			                schema_node, instance, &child_error);
+
+			g_clear_pointer (&default_schema_node, json_node_free);
 
 			if (child_error != NULL) {
 				g_propagate_error (error, child_error);
@@ -5848,15 +5879,23 @@ real_generate_instances (WblSchema *self,
 	/* Generate for each keyword in turn. */
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
 		const KeywordData *keyword = &json_schema_keywords[i];
-		JsonNode *schema_node;  /* unowned */
+		JsonNode *schema_node, *default_schema_node = NULL;
 
 		schema_node = json_object_get_member (schema->node,
 		                                      keyword->name);
+
+		/* Default. */
+		if (schema_node == NULL && keyword->default_value != NULL) {
+			default_schema_node = parse_default_value (keyword->default_value);
+			schema_node = default_schema_node;
+		}
 
 		if (schema_node != NULL && keyword->generate != NULL) {
 			keyword->generate (self, schema->node,
 			                   schema_node, output);
 		}
+
+		g_clear_pointer (&default_schema_node, json_node_free);
 	}
 }
 
