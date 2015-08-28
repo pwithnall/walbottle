@@ -2206,6 +2206,7 @@ apply_items_child_schema (WblSchema *self,
 			               "keyword. "
 			               "See json-schema-validation§8.2."),
 			             schema_keyword_name);
+			g_error_free (child_error);
 			return;
 		}
 	}
@@ -3940,6 +3941,8 @@ generate_type (WblSchema *self,
 
 		generate_set_string (output, invalid, FALSE);
 	}
+
+	g_array_unref (schema_types);
 }
 
 /* allOf. json-schema-validation§5.5.3. */
