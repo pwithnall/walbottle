@@ -3595,27 +3595,41 @@ pattern_properties_generate_instances (JsonObject    *pattern_properties,
 
 	for (l = members; l != NULL; l = l->next) {
 		GRegex *regex = NULL;
-		GRand *rand = NULL;
-		gchar candidate_property[2] = { 0, 0 };
+		guint i;
+		const gchar *candidate_properties[] = {
+			"a",
+			"A",
+			"0",
+			"aaa",
+			"000",
+			"!",
+			NULL
+		};
 
 		/* FIXME: This is a horrendous hack and should instead be
 		 * handled by exploring the regex’s FSM. */
 		regex = g_regex_new (l->data, 0, 0, NULL);
 		g_assert (regex != NULL);
 
-		rand = g_rand_new_with_seed (0);
+		for (i = 0; i < G_N_ELEMENTS (candidate_properties); i++) {
+			if (g_regex_match (regex, candidate_properties[i], 0,
+			                   NULL) &&
+			    !wbl_string_set_contains (properties,
+			                              candidate_properties[i])) {
+				break;
+			}
+		}
 
-		do {
-			candidate_property[0] = g_rand_int_range (rand, '!',
-			                                          '~' + 1);
-		} while (!g_regex_match (regex, candidate_property, 0, NULL) ||
-		         wbl_string_set_contains (properties,
-		                                  candidate_property));
+		if (i >= G_N_ELEMENTS (candidate_properties)) {
+			g_critical ("%s: Could not generate an instance "
+			            "matching regex ‘%s’. Fix this code.",
+			            G_STRLOC, (const gchar *) l->data);
+			g_assert_not_reached ();
+		}
 
 		output = wbl_string_set_union (output,
-		                               wbl_string_set_new_singleton (candidate_property));
+		                               wbl_string_set_new_singleton (candidate_properties[i]));
 
-		g_rand_free (rand);
 		g_regex_unref (regex);
 	}
 
