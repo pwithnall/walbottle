@@ -2149,7 +2149,8 @@ apply_items_child_schema (WblSchema *self,
 		/* Check the schema type. additionalItems may be a boolean,
 		 * which we consider as an empty schema (which always applies
 		 * successfully). (json-schema-validation§8.2.2.) */
-		if (!JSON_NODE_HOLDS_OBJECT (sub_schema_node)) {
+		if (sub_schema_node == NULL ||
+		    !JSON_NODE_HOLDS_OBJECT (sub_schema_node)) {
 			continue;
 		}
 
