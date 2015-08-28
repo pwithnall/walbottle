@@ -1461,6 +1461,7 @@ validate_exclusive_maximum (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
 		             _("exclusiveMaximum must be a boolean. "
 		               "See json-schema-validation§5.1.2."));
+		return;
 	}
 
 	if (!json_object_has_member (root, "maximum")) {
@@ -1468,6 +1469,7 @@ validate_exclusive_maximum (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
 		             _("maximum must be present if exclusiveMaximum is "
 		               "present. See json-schema-validation§5.1.2."));
+		return;
 	}
 }
 
@@ -1599,6 +1601,7 @@ validate_exclusive_minimum (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
 		             _("exclusiveMinimum must be a boolean. "
 		               "See json-schema-validation§5.1.3."));
+		return;
 	}
 
 	if (!json_object_has_member (root, "minimum")) {
@@ -1606,6 +1609,7 @@ validate_exclusive_minimum (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
 		             _("minimum must be present if exclusiveMinimum is "
 		               "present. See json-schema-validation§5.1.3."));
+		return;
 	}
 }
 
