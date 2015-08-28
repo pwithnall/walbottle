@@ -2340,6 +2340,26 @@ generate_items (WblSchema *self,
 	g_object_unref (builder);
 }
 
+static void
+generate_additional_items (WblSchema *self,
+                           JsonObject *root,
+                           JsonNode *schema_node,
+                           GHashTable/*<owned JsonNode>*/ *output)
+{
+	JsonNode *items = NULL;
+
+	if (json_object_has_member (root, "items")) {
+		items = json_node_copy (json_object_get_member (root, "items"));
+	} else {
+		items = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (items, json_object_new ());
+	}
+
+	generate_items (self, root, items, output);
+
+	json_node_free (items);
+}
+
 /* maxItems. json-schema-validation§5.3.2. */
 static void
 validate_max_items (WblSchema *self,
@@ -5717,7 +5737,7 @@ static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§5.2.3 */
 	{ "pattern", validate_pattern, apply_pattern, generate_pattern },
 	/* json-schema-validation§5.3.1 */
-	{ "additionalItems", validate_additional_items, NULL, NULL },
+	{ "additionalItems", validate_additional_items, NULL, generate_additional_items },
 	{ "items", validate_items, apply_items, generate_items },
 	/* json-schema-validation§5.3.2 */
 	{ "maxItems", validate_max_items, apply_max_items, generate_max_items },
