@@ -32,11 +32,6 @@ assert_generated_instances_match (GPtrArray/*<owned WblGeneratedInstance>*/ *act
 {
 	guint i;
 
-for (i = 0; i < actual->len; i++) {
-	g_message ("%s", wbl_generated_instance_get_json (actual->pdata[i]));
-	/* FIXME */
-}
-
 	for (i = 0; i < actual->len; i++) {
 		const gchar *actual_json;
 		gboolean found = FALSE;

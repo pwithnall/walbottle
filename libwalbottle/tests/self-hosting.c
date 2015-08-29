@@ -513,7 +513,7 @@ test_self_hosting_meta_schema (gconstpointer user_data)
 
 	instances = wbl_schema_generate_instances (schema,
 	                                           WBL_GENERATE_INSTANCE_NONE);
-g_message ("instances: %u", instances->len);
+
 	for (i = 0; i < instances->len; i++) {
 		WblSchema *child_schema = NULL;
 		GPtrArray/*<owned WblGeneratedInstance>*/ *child_instances = NULL;
