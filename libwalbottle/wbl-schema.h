@@ -129,7 +129,7 @@ typedef struct {
 	                      GError **error);
 	void (*generate_instances) (WblSchema *self,
 	                            WblSchemaNode *root,
-	                            GHashTable/*<owned WblGeneratedInstance>*/ *output);
+	                            GHashTable/*<owned JsonNode>*/ *output);
 } WblSchemaClass;
 
 GType wbl_schema_get_type (void) G_GNUC_CONST;
@@ -217,7 +217,7 @@ wbl_generated_instance_get_json (WblGeneratedInstance *self);
 gboolean
 wbl_generated_instance_is_valid (WblGeneratedInstance *self);
 
-GPtrArray *
+GPtrArray/*<owned WblGeneratedInstance>*/ *
 wbl_schema_generate_instances (WblSchema *self,
                                WblGenerateInstanceFlags flags);
 

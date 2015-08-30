@@ -170,7 +170,6 @@ test_schema_keywords_multiple_of_integer (void)
 	};
 	const gchar *expected_instances[] = {
 		"0",
-		"0.0",
 		"5",
 		"6",
 		"10",
@@ -209,7 +208,6 @@ test_schema_keywords_multiple_of_double (void)
 	};
 	const gchar *expected_instances[] = {
 		"0",
-		"0.0",
 		"1.2",
 		"2.3999999999999999",  /* aaargh floating point */
 		"1.3",
@@ -242,7 +240,6 @@ test_schema_keywords_maximum_integer (void)
 	gchar **invalid_instances;
 	const gchar *expected_instances[] = {
 		"5",
-		"5.0",
 		"6",
 		NULL,
 	};
@@ -335,7 +332,6 @@ test_schema_keywords_exclusive_maximum_integer (void)
 	const gchar *expected_instances[] = {
 		"4",
 		"5",
-		"5.0",
 		NULL,
 	};
 
@@ -399,7 +395,6 @@ test_schema_keywords_minimum_integer (void)
 	const gchar *expected_instances[] = {
 		"4",
 		"5",
-		"5.0",
 		NULL,
 	};
 
@@ -487,7 +482,6 @@ test_schema_keywords_exclusive_minimum_integer (void)
 	};
 	const gchar *expected_instances[] = {
 		"5",
-		"5.0",
 		"6",
 		NULL,
 	};
@@ -922,7 +916,7 @@ test_schema_keywords_additional_properties_schema (void)
 		"{}",
 		"{\"additionalProperties-test-0\":{}}",
 		"{\"additionalProperties-test-0\":{\"a\":null}}",
-		"{\"additionalProperties-test-0\":{\"a\":''}}",
+		"{\"additionalProperties-test-0\":{\"a\":\"\"}}",
 		NULL,
 	};
 
@@ -994,7 +988,7 @@ test_schema_keywords_properties (void)
 		"{\"b\":null}",
 		"{\"b\":true}",
 		"{\"c\":null}",
-		"{\"c\":0.1}",
+		"{\"c\":0.10000000000000001}",
 		"{\"additionalProperties-test-0\":null}",
 		NULL,
 	};
@@ -1187,7 +1181,7 @@ test_schema_keywords_type_string_number (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
-		"0.1",
+		"0.10000000000000001",
 		"null",
 		NULL,
 	};
@@ -1277,7 +1271,7 @@ test_schema_keywords_type_string_string (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
-		"''",
+		"\"\"",
 		"null",
 		NULL,
 	};
@@ -1308,9 +1302,9 @@ test_schema_keywords_type_array (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
-		"''",
+		"\"\"",
 		"null",
-		"0.1",
+		"0.10000000000000001",
 		NULL,
 	};
 
