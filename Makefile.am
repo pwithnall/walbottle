@@ -62,6 +62,7 @@ libwalbottle_libwalbottle_@WBL_API_VERSION@_la_CFLAGS = \
 	$(NULL)
 
 libwalbottle_libwalbottle_@WBL_API_VERSION@_la_LIBADD = \
+	$(top_builddir)/libwalbottle/libwalbottle-utils.la \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
 	$(CODE_COVERAGE_LDFLAGS) \
@@ -101,6 +102,43 @@ check-headers:
 			fi; \
 		fi; \
 	done; exit "$$any_missing"
+
+# Internal utility helper library
+noinst_LTLIBRARIES = libwalbottle/libwalbottle-utils.la
+
+libwalbottle_libwalbottle_utils_la_SOURCES = \
+	libwalbottle/wbl-string-set.h \
+	libwalbottle/wbl-string-set.c \
+	$(NULL)
+
+libwalbottle_libwalbottle_utils_la_CPPFLAGS = \
+	-I$(top_srcdir) \
+	-I$(top_srcdir)/libwalbottle \
+	-I$(top_builddir)/libwalbottle \
+	-DG_LOG_DOMAIN=\"libwalbottle\" \
+	$(DISABLE_DEPRECATED) \
+	$(AM_CPPFLAGS) \
+	$(NULL)
+
+libwalbottle_libwalbottle_utils_la_CFLAGS = \
+	$(GLIB_CFLAGS) \
+	$(JSON_GLIB_CFLAGS) \
+	$(CODE_COVERAGE_CFLAGS) \
+	$(WARN_CFLAGS) \
+	$(AM_CFLAGS) \
+	$(NULL)
+
+libwalbottle_libwalbottle_utils_la_LIBADD = \
+	$(GLIB_LIBS) \
+	$(JSON_GLIB_LIBS) \
+	$(CODE_COVERAGE_LDFLAGS) \
+	$(WARN_LDFLAGS) \
+	$(AM_LIBADD) \
+	$(NULL)
+
+libwalbottle_libwalbottle_utils_la_LDFLAGS = \
+	$(AM_LDFLAGS) \
+	$(NULL)
 
 # json-validate utility
 bin_PROGRAMS += utilities/json-validate

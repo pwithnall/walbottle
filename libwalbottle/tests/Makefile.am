@@ -15,6 +15,7 @@ AM_CFLAGS = \
 	$(NULL)
 
 LIBS = \
+	$(top_builddir)/libwalbottle/libwalbottle-utils.la \
 	$(top_builddir)/libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
 	$(WARN_LDFLAGS) \
 	$(GLIB_LIBS) \
@@ -26,6 +27,7 @@ LIBS = \
 TESTS = \
 	schema \
 	schema-keywords \
+	string-set \
 	$(NULL)
 noinst_PROGRAMS = $(TESTS)
 

@@ -49,6 +49,8 @@ CFILE_GLOB=$(top_srcdir)/libwalbottle/*.c
 # e.g. IGNORE_HFILES=gtkdebug.h gtkintl.h
 IGNORE_HFILES = \
 	wbl-private.h \
+	wbl-string-set.c \
+	wbl-string-set.h \
 	$(NULL)
 
 # Images to copy into HTML directory.

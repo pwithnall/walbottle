@@ -217,9 +217,7 @@ wbl_generated_instance_get_json (WblGeneratedInstance *self);
 gboolean
 wbl_generated_instance_is_valid (WblGeneratedInstance *self);
 
-GPtrArray/*<owned WblGeneratedInstance>*/ *
-wbl_schema_generate_instances (WblSchema *self,
-                               WblGenerateInstanceFlags flags);
+GPtrArray *wbl_schema_generate_instances (WblSchema *self, WblGenerateInstanceFlags flags);
 
 G_END_DECLS
 

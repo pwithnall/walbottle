@@ -52,6 +52,7 @@
 #include <string.h>
 
 #include "wbl-schema.h"
+#include "wbl-string-set.h"
 
 GQuark
 wbl_schema_error_quark (void)
@@ -836,6 +837,17 @@ real_generate_instances (WblSchema *self,
                          WblSchemaNode *schema,
                          GHashTable/*<owned JsonNode>*/ *output);
 
+static void
+generate_all_properties (WblSchema                       *self,
+                         JsonArray                       *_required,
+                         gint64                           min_properties,
+                         gint64                           max_properties,
+                         JsonObject                      *properties,
+                         JsonObject                      *pattern_properties,
+                         JsonNode                        *additional_properties,
+                         JsonObject                      *dependencies,
+                         GHashTable/*<owned JsonNode>*/  *output);
+
 struct _WblSchemaPrivate {
 	JsonParser *parser;  /* owned */
 	WblSchemaNode *schema;  /* owned; NULL when not loading */
@@ -1191,36 +1203,6 @@ generate_null_array (GHashTable/*<owned JsonNode>*/ *output,
 	}
 
 	json_builder_end_array (builder);
-
-	generate_take_builder (output, builder, valid);
-
-	g_object_unref (builder);
-}
-
-static void
-generate_null_properties (GHashTable/*<owned JsonNode>*/ *output,
-                          guint n_properties,
-                          gboolean valid)
-{
-	JsonBuilder *builder = NULL;  /* owned */
-	guint i;
-
-	builder = json_builder_new ();
-
-	json_builder_begin_object (builder);
-
-	for (i = 0; i < n_properties; i++) {
-		gchar *member_name;
-
-		member_name = g_strdup_printf ("%u", i);
-
-		json_builder_set_member_name (builder, member_name);
-		json_builder_add_null_value (builder);
-
-		g_free (member_name);
-	}
-
-	json_builder_end_object (builder);
 
 	generate_take_builder (output, builder, valid);
 
@@ -2606,17 +2588,81 @@ generate_max_properties (WblSchema *self,
                          JsonNode *schema_node,
                          GHashTable/*<owned JsonNode>*/ *output)
 {
-	gint64 max_properties;
+	JsonNode *required_node, *min_properties_node, *max_properties_node;
+	JsonNode *properties_node, *pattern_properties_node;
+	JsonNode *additional_properties_node, *dependencies_node;
+	JsonArray *required = NULL;
+	gint64 min_properties, max_properties;
+	JsonObject *properties = NULL;
+	JsonObject *pattern_properties = NULL;
+	JsonObject *dependencies = NULL;
+	JsonNode *additional_properties = NULL;
 
-	max_properties = json_node_get_int (schema_node);
+	/* Arrange default values for all the relevant schema properties. */
+	required_node = json_object_get_member (root, "required");
+	min_properties_node = json_object_get_member (root, "minProperties");
+	max_properties_node = schema_node;
+	properties_node = json_object_get_member (root, "properties");
+	pattern_properties_node = json_object_get_member (root, "patternProperties");
+	additional_properties_node = json_object_get_member (root, "additionalProperties");
+	dependencies_node = json_object_get_member (root, "dependencies");
 
-	/* Generate objects with @max_properties properties and
-	 * (@max_properties + 1) properties. */
-	generate_null_properties (output, max_properties, TRUE);
-
-	if (max_properties < G_MAXINT64) {
-		generate_null_properties (output, max_properties + 1, FALSE);
+	if (required_node != NULL) {
+		required = json_node_dup_array (required_node);
+	} else {
+		required = json_array_new ();
 	}
+
+	if (min_properties_node != NULL) {
+		min_properties = json_node_get_int (min_properties_node);
+	} else {
+		min_properties = 0;
+	}
+
+	if (max_properties_node != NULL) {
+		max_properties = json_node_get_int (max_properties_node);
+	} else {
+		max_properties = G_MAXINT64;
+	}
+
+	if (properties_node != NULL) {
+		properties = json_node_dup_object (properties_node);
+	} else {
+		properties = json_object_new ();
+	}
+
+	if (pattern_properties_node != NULL) {
+		pattern_properties = json_node_dup_object (pattern_properties_node);
+	} else {
+		pattern_properties = json_object_new ();
+	}
+
+	if (additional_properties_node != NULL) {
+		additional_properties = json_node_copy (additional_properties_node);
+	} else {
+		JsonObject *obj = json_object_new ();
+		additional_properties = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (additional_properties, obj);
+		json_object_unref (obj);
+	}
+
+	if (dependencies_node != NULL) {
+		dependencies = json_node_dup_object (dependencies_node);
+	} else {
+		dependencies = json_object_new ();
+	}
+
+	/* TODO: ideally we would prevent this being called multiple times, but
+	 * this will do for now */
+	generate_all_properties (self, required, min_properties, max_properties,
+	                         properties, pattern_properties,
+	                         additional_properties, dependencies, output);
+
+	json_object_unref (dependencies);
+	json_node_free (additional_properties);
+	json_object_unref (pattern_properties);
+	json_object_unref (properties);
+	json_array_unref (required);
 }
 
 /* minProperties. json-schema-validation§5.4.2. */
@@ -2669,17 +2715,81 @@ generate_min_properties (WblSchema *self,
                          JsonNode *schema_node,
                          GHashTable/*<owned JsonNode>*/ *output)
 {
-	gint64 min_properties;
+	JsonNode *required_node, *min_properties_node, *max_properties_node;
+	JsonNode *properties_node, *pattern_properties_node;
+	JsonNode *additional_properties_node, *dependencies_node;
+	JsonArray *required = NULL;
+	gint64 min_properties, max_properties;
+	JsonObject *properties = NULL;
+	JsonObject *pattern_properties = NULL;
+	JsonObject *dependencies = NULL;
+	JsonNode *additional_properties = NULL;
 
-	min_properties = json_node_get_int (schema_node);
+	/* Arrange default values for all the relevant schema properties. */
+	required_node = json_object_get_member (root, "required");
+	min_properties_node = schema_node;
+	max_properties_node = json_object_get_member (root, "maxProperties");
+	properties_node = json_object_get_member (root, "properties");
+	pattern_properties_node = json_object_get_member (root, "patternProperties");
+	additional_properties_node = json_object_get_member (root, "additionalProperties");
+	dependencies_node = json_object_get_member (root, "dependencies");
 
-	/* Generate objects with @min_properties properties and
-	 * (@min_properties - 1) properties. */
-	generate_null_properties (output, min_properties, TRUE);
-
-	if (min_properties > 0) {
-		generate_null_properties (output, min_properties - 1, FALSE);
+	if (required_node != NULL) {
+		required = json_node_dup_array (required_node);
+	} else {
+		required = json_array_new ();
 	}
+
+	if (min_properties_node != NULL) {
+		min_properties = json_node_get_int (min_properties_node);
+	} else {
+		min_properties = 0;
+	}
+
+	if (max_properties_node != NULL) {
+		max_properties = json_node_get_int (max_properties_node);
+	} else {
+		max_properties = G_MAXINT64;
+	}
+
+	if (properties_node != NULL) {
+		properties = json_node_dup_object (properties_node);
+	} else {
+		properties = json_object_new ();
+	}
+
+	if (pattern_properties_node != NULL) {
+		pattern_properties = json_node_dup_object (pattern_properties_node);
+	} else {
+		pattern_properties = json_object_new ();
+	}
+
+	if (additional_properties_node != NULL) {
+		additional_properties = json_node_copy (additional_properties_node);
+	} else {
+		JsonObject *obj = json_object_new ();
+		additional_properties = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (additional_properties, obj);
+		json_object_unref (obj);
+	}
+
+	if (dependencies_node != NULL) {
+		dependencies = json_node_dup_object (dependencies_node);
+	} else {
+		dependencies = json_object_new ();
+	}
+
+	/* TODO: ideally we would prevent this being called multiple times, but
+	 * this will do for now */
+	generate_all_properties (self, required, min_properties, max_properties,
+	                         properties, pattern_properties,
+	                         additional_properties, dependencies, output);
+
+	json_object_unref (dependencies);
+	json_node_free (additional_properties);
+	json_object_unref (pattern_properties);
+	json_object_unref (properties);
+	json_array_unref (required);
 }
 
 /* required. json-schema-validation§5.4.3. */
@@ -2768,54 +2878,81 @@ generate_required (WblSchema *self,
                    JsonNode *schema_node,
                    GHashTable/*<owned JsonNode>*/ *output)
 {
-	JsonBuilder *builder = NULL;  /* owned */
-	JsonArray *schema_array;  /* unowned */
-	guint i;
+	JsonNode *required_node, *min_properties_node, *max_properties_node;
+	JsonNode *properties_node, *pattern_properties_node;
+	JsonNode *additional_properties_node, *dependencies_node;
+	JsonArray *required = NULL;
+	gint64 min_properties, max_properties;
+	JsonObject *properties = NULL;
+	JsonObject *pattern_properties = NULL;
+	JsonObject *dependencies = NULL;
+	JsonNode *additional_properties = NULL;
 
-	schema_array = json_node_get_array (schema_node);
+	/* Arrange default values for all the relevant schema properties. */
+	required_node = schema_node;
+	min_properties_node = json_object_get_member (root, "minProperties");
+	max_properties_node = json_object_get_member (root, "maxProperties");
+	properties_node = json_object_get_member (root, "properties");
+	pattern_properties_node = json_object_get_member (root, "patternProperties");
+	additional_properties_node = json_object_get_member (root, "additionalProperties");
+	dependencies_node = json_object_get_member (root, "dependencies");
 
-	builder = json_builder_new ();
-
-	/* Missing each required property. */
-	for (i = 0; i < json_array_get_length (schema_array); i++) {
-		guint j;
-
-		json_builder_begin_object (builder);
-
-		for (j = 0; j < json_array_get_length (schema_array); j++) {
-			const gchar *member_name;
-
-			/* Add element j unless (i == j). */
-			if (i == j) {
-				continue;
-			}
-
-			member_name = json_array_get_string_element (schema_array, j);
-			json_builder_set_member_name (builder, member_name);
-			json_builder_add_null_value (builder);
-		}
-
-		json_builder_end_object (builder);
-
-		generate_take_builder (output, builder, FALSE);
+	if (required_node != NULL) {
+		required = json_node_dup_array (required_node);
+	} else {
+		required = json_array_new ();
 	}
 
-	/* With each required property. */
-	json_builder_begin_object (builder);
-
-	for (i = 0; i < json_array_get_length (schema_array); i++) {
-		const gchar *member_name;
-
-		member_name = json_array_get_string_element (schema_array, i);
-		json_builder_set_member_name (builder, member_name);
-		json_builder_add_null_value (builder);
+	if (min_properties_node != NULL) {
+		min_properties = json_node_get_int (min_properties_node);
+	} else {
+		min_properties = 0;
 	}
 
-	json_builder_end_object (builder);
+	if (max_properties_node != NULL) {
+		max_properties = json_node_get_int (max_properties_node);
+	} else {
+		max_properties = G_MAXINT64;
+	}
 
-	generate_take_builder (output, builder, FALSE);
+	if (properties_node != NULL) {
+		properties = json_node_dup_object (properties_node);
+	} else {
+		properties = json_object_new ();
+	}
 
-	g_object_unref (builder);
+	if (pattern_properties_node != NULL) {
+		pattern_properties = json_node_dup_object (pattern_properties_node);
+	} else {
+		pattern_properties = json_object_new ();
+	}
+
+	if (additional_properties_node != NULL) {
+		additional_properties = json_node_copy (additional_properties_node);
+	} else {
+		JsonObject *obj = json_object_new ();
+		additional_properties = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (additional_properties, obj);
+		json_object_unref (obj);
+	}
+
+	if (dependencies_node != NULL) {
+		dependencies = json_node_dup_object (dependencies_node);
+	} else {
+		dependencies = json_object_new ();
+	}
+
+	/* TODO: ideally we would prevent this being called multiple times, but
+	 * this will do for now */
+	generate_all_properties (self, required, min_properties, max_properties,
+	                         properties, pattern_properties,
+	                         additional_properties, dependencies, output);
+
+	json_object_unref (dependencies);
+	json_node_free (additional_properties);
+	json_object_unref (pattern_properties);
+	json_object_unref (properties);
+	json_array_unref (required);
 }
 
 /* additionalProperties, properties, patternProperties.
@@ -3322,74 +3459,1074 @@ apply_pattern_properties (WblSchema *self,
 	                          instance_node, error);
 }
 
-/* Generate a JSON object with an instance generated from @subschema_node as
- * @member_name. Generate one of these objects for each instance generated from
- * @subschema_node.
- *
- * @subschema_node may be %NULL to represent an empty schema. */
-static void
-generate_object_with_subschema (WblSchema *self,
-                               JsonNode *subschema_node,
-                               const gchar *member_name,
-                               GHashTable/*<owned JsonNode>*/ *output)
+/* Find the subschema of the first pattern to match @property. If no patterns
+ * match, return %NULL. */
+static JsonObject *
+pattern_properties_find_match (JsonObject   *pattern_properties,
+                               const gchar  *property)
 {
-	GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
-	GHashTableIter iter;
-	JsonNode *child_instance;  /* unowned */
+	JsonObject *subschema = NULL;  /* unowned */
+	GList/*<unowned utf8>*/ *members = NULL, *l;
 
-	child_output = g_hash_table_new_full (node_hash,
-	                                      node_equal,
+	members = json_object_get_members (pattern_properties);
+
+	for (l = members; l != NULL && subschema == NULL; l = l->next) {
+		GRegex *regex = NULL;
+
+		regex = g_regex_new (l->data, 0, 0, NULL);
+		g_assert (regex != NULL);
+
+		if (g_regex_match (regex, property, 0, NULL)) {
+			subschema = json_object_get_object_member (pattern_properties,
+			                                           l->data);
+		}
+
+		g_regex_unref (regex);
+	}
+
+	return subschema;
+}
+
+/**
+ * generate_n_additional_properties:
+ * @num_additional_properties: minimum number of additional properties to
+ *    generate
+ * @known_properties: set of existing property names which must not be in the
+ *    output set
+ * @pattern_properties: set of existing property name patterns which must not
+ *    match any members of the output set
+ *
+ * Generate at least @num_additional_properties which aren’t in
+ * @known_properties and which don’t match any of @pattern_properties’
+ * member patterns.
+ *
+ * It is possible that fewer than @num_additional_properties will be generated
+ * if the patterns in @pattern_properties are sufficiently general. For example,
+ * if @pattern_properties contains `.*`, the return value will be an empty set.
+ *
+ * Formally, this function returns:
+ *    { a | a ∉ @known_properties ∧ ∀ p ∈ @pattern_properties. ¬match(a, p) }
+ * such that (if possible):
+ *    |a| ≥ @num_additional_properties
+ *
+ * Returns: (transfer floating): a set of newly generated property names
+ *
+ * Since: UNRELEASED
+ */
+static WblStringSet *
+generate_n_additional_properties (gint64         num_additional_properties,
+                                  WblStringSet  *known_properties,
+                                  JsonObject    *pattern_properties)
+{
+	WblStringSet *output = NULL;
+	gint64 i;
+
+	output = wbl_string_set_new_empty ();
+
+	/* FIXME: Reverse-engineer the regexes. */
+	for (i = 0; num_additional_properties > 0; i++) {
+		gchar *new_property = NULL;
+
+		new_property = g_strdup_printf ("%" G_GINT64_FORMAT, i);
+
+		if (!wbl_string_set_contains (known_properties, new_property) &&
+		    pattern_properties_find_match (pattern_properties,
+		                                   new_property) == NULL) {
+			output = wbl_string_set_union (output,
+			                               wbl_string_set_new_singleton (new_property));
+			num_additional_properties--;
+		}
+
+		g_free (new_property);
+	}
+
+	return output;
+}
+
+/**
+ * pattern_properties_generate_instances:
+ * @pattern_properties: set of existing property name patterns to generate
+ *    instances of
+ * @properties: set of existing property names which must not be in the
+ *    output set
+ *
+ * Generate at least one instance string for each regex pattern in
+ * @pattern_properties, ensuring that none of the generated strings are members
+ * of @properties.
+ *
+ * Note that @properties is not the `knownProperties` formal variable; it is
+ * the set of property names from the `properties` schema keyword.
+ *
+ * Returns: (transfer floating): a set of newly generated property names
+ *
+ * Since: UNRELEASED
+ */
+static WblStringSet *
+pattern_properties_generate_instances (JsonObject    *pattern_properties,
+                                       WblStringSet  *properties)
+{
+	WblStringSet *output = NULL;
+	GList/*<unowned utf8>*/ *members = NULL, *l;
+
+	output = wbl_string_set_new_empty ();
+	members = json_object_get_members (pattern_properties);
+
+	for (l = members; l != NULL; l = l->next) {
+		GRegex *regex = NULL;
+		GRand *rand = NULL;
+		gchar candidate_property[2] = { 0, 0 };
+
+		/* FIXME: This is a horrendous hack and should instead be
+		 * handled by exploring the regex’s FSM. */
+		regex = g_regex_new (l->data, 0, 0, NULL);
+		g_assert (regex != NULL);
+
+		rand = g_rand_new_with_seed (0);
+
+		do {
+			candidate_property[0] = g_rand_int_range (rand, '!',
+			                                          '~' + 1);
+		} while (!g_regex_match (regex, candidate_property, 0, NULL) ||
+		         wbl_string_set_contains (properties,
+		                                  candidate_property));
+
+		output = wbl_string_set_union (output,
+		                               wbl_string_set_new_singleton (candidate_property));
+
+		g_rand_free (rand);
+		g_regex_unref (regex);
+	}
+
+	g_list_free (members);
+
+	return output;
+}
+
+/**
+ * generate_valid_property_sets:
+ * @required: set of required property names
+ * @min_properties: minimum number of properties required (inclusive)
+ * @max_properties: maximum number of properties allowed (inclusive)
+ * @properties: object mapping known property names to subschemas
+ * @pattern_properties: object mapping known property name patterns to
+ *    subschemas
+ * @additional_properties_allowed: %TRUE if properties not matching @properties
+ *    or @pattern_properties are allowed, %FALSE otherwise
+ * @dependencies: object mapping property names to arrays of property names
+ *    they depend on
+ *
+ * Generate a family of valid property sets which satisfy all the schema
+ * keywords taken as input. This family is not necessarily complete; it is
+ * designed to generate interesting sets of property names which (when coupled
+ * with appropriate instances for those properties) should explore a large
+ * proportion of the code paths in a parser for the JSON format described by
+ * this schema.
+ *
+ * See the inline comments for a formal specification.
+ *
+ * Returns: (transfer full): a family of property sets, which may be empty
+ *
+ * Since: UNRELEASED
+ */
+static GHashTable/*<floating WblStringSet>*/ *
+generate_valid_property_sets (WblStringSet  *required,
+                              gint64         min_properties,
+                              gint64         max_properties,
+                              JsonObject    *properties,
+                              JsonObject    *pattern_properties,
+                              gboolean       additional_properties_allowed,
+                              JsonObject    *dependencies)
+{
+	WblStringSet *initial = NULL;
+	WblStringSet *known_properties = NULL;
+	WblStringSet *additional_properties = NULL;
+	GHashTable/*<owned WblStringSet>*/ *set_family = NULL;
+	GHashTable/*<floating WblStringSet>*/ *property_sets = NULL;
+	gchar *debug = NULL;
+	WblStringSetIter iter;
+	const gchar *element;
+	GHashTableIter hash_iter;
+	WblStringSet *property_set;
+
+	/* Add all properties from @required and transitively satisfy
+	 * dependencies.
+	 *
+	 * Formally:
+	 *    @initial = dependency_closure(@required ∪ domain(@dependencies))
+	 */
+	initial = wbl_string_set_union_dependencies (required, dependencies);
+	wbl_string_set_ref_sink (initial);
+
+	/* Debug. */
+	debug = wbl_string_set_to_string (initial);
+	g_debug ("%s: initial = %s", G_STRFUNC, debug);
+	g_free (debug);
+
+	/* Work out the known properties.
+	 *
+	 * Formally:
+	 *    @known_properties = domain(@properties) ∪
+	 *                        generate(domain(@pattern_properties)) ∪
+	 *                        domain(dependencies)
+	 * where
+	 *    generate: regex set ↦ property name set
+	 * is a function to generate matching instances of a regex.
+	 */
+	known_properties = wbl_string_set_new_from_object_members (properties);
+	known_properties = wbl_string_set_union (known_properties,
+	                                         pattern_properties_generate_instances (pattern_properties,
+	                                                                                known_properties));
+	known_properties = wbl_string_set_union (known_properties,
+	                                         wbl_string_set_new_from_object_members (dependencies));
+
+	wbl_string_set_ref_sink (known_properties);
+
+	/* Debug. */
+	debug = wbl_string_set_to_string (known_properties);
+	g_debug ("%s: knownProperties = %s", G_STRFUNC, debug);
+	g_free (debug);
+
+	/* Work out the additional properties. */
+	if (additional_properties_allowed) {
+		gint64 num_additional_properties;
+
+		num_additional_properties = MAX (1, min_properties - wbl_string_set_get_size (initial));
+
+		if (max_properties < G_MAXINT64) {
+			num_additional_properties = MAX (num_additional_properties,
+			                                 max_properties - wbl_string_set_get_size (initial));
+		}
+
+		additional_properties = generate_n_additional_properties (num_additional_properties,
+		                                                          known_properties,
+		                                                          pattern_properties);
+	} else {
+		additional_properties = wbl_string_set_new_empty ();
+	}
+
+	wbl_string_set_ref_sink (additional_properties);
+
+	/* Debug. */
+	debug = wbl_string_set_to_string (additional_properties);
+	g_debug ("%s: additionalProperties = %s", G_STRFUNC, debug);
+	g_free (debug);
+
+	/* Calculate results. We can’t assume that any significant proportion of
+	 *  the results will be filtered out by the @minProperties and
+	 * @maxProperties restrictions — meta-schema.json, for example, does not
+	 * restrict in that manner at all. Hence going for total coverage by
+	 * generating the power set of the known and additional properties is
+	 * infeasible.
+	 *
+	 * The heuristic in use at the moment is to return the empty set, the
+	 * set of known properties, the set of known and additional properties,
+	 * and singleton sets for each member of those.
+	 *
+	 * Note that a later step in the process is to add the initial property
+	 * set (including required properties) and calculate the transitive
+	 * dependency set, so using singleton sets is fine.
+	 *
+	 * Formally, we calculate:
+	 *    @set_family = {
+	 *       ∅,
+	 *       @known_properties,
+	 *       @known_properties ∪ @additional_properties,
+	 *    } ∪
+	 *    { {k} | k ∈ @known_properties } ∪
+	 *    { {a} | a ∈ @additional_properties }
+	 */
+	set_family = g_hash_table_new_full ((GHashFunc) wbl_string_set_hash,
+	                                    (GEqualFunc) wbl_string_set_equal,
+	                                    (GDestroyNotify) wbl_string_set_unref,
+	                                    NULL);
+	property_sets = g_hash_table_new_full ((GHashFunc) wbl_string_set_hash,
+	                                       (GEqualFunc) wbl_string_set_equal,
+	                                       (GDestroyNotify) wbl_string_set_unref,
+	                                       NULL);
+
+	g_hash_table_add (set_family,
+	                  wbl_string_set_ref_sink (wbl_string_set_new_empty ()));
+	g_hash_table_add (set_family, wbl_string_set_ref (known_properties));
+	g_hash_table_add (set_family,
+	                  wbl_string_set_ref_sink (wbl_string_set_union (known_properties,
+	                                                                 additional_properties)));
+
+	wbl_string_set_iter_init (&iter, known_properties);
+	while (wbl_string_set_iter_next (&iter, &element)) {
+		WblStringSet *singleton = NULL;
+
+		singleton = wbl_string_set_new_singleton (element);
+		g_hash_table_add (set_family, wbl_string_set_ref_sink (singleton));
+	}
+
+	wbl_string_set_iter_init (&iter, additional_properties);
+	while (wbl_string_set_iter_next (&iter, &element)) {
+		WblStringSet *singleton = NULL;
+
+		singleton = wbl_string_set_new_singleton (element);
+		g_hash_table_add (set_family, wbl_string_set_ref_sink (singleton));
+	}
+
+	/* Add in the initial set and calculate the transitive dependency set
+	 * for each set in @set_family.
+	 *
+	 * Formally:
+	 *    dependency_closure(s) = s ∪ dependency_closure(⋃_{m ∈ s} dependencies{m})
+	 *    @property_sets = { dependency_closure(@initial ∪ s) | s ∈ @set_family }
+	 */
+	g_hash_table_iter_init (&hash_iter, set_family);
+
+	while (g_hash_table_iter_next (&hash_iter, (gpointer *) &property_set, NULL)) {
+		WblStringSet *candidate = NULL;
+		guint candidate_size;
+
+		candidate = wbl_string_set_union (initial,
+		                                  wbl_string_set_union_dependencies (property_set,
+		                                                                     dependencies));
+		candidate_size = wbl_string_set_get_size (candidate);
+
+		/* Debug output. */
+		debug = wbl_string_set_to_string (candidate);
+		g_debug ("%s: Candidate: %s", G_STRFUNC, debug);
+		g_free (debug);
+
+		if (min_properties <= candidate_size &&
+		    candidate_size <= max_properties) {
+			g_hash_table_add (property_sets,
+			                  wbl_string_set_ref (candidate));
+		}
+
+		wbl_string_set_unref (candidate);
+	}
+
+	g_hash_table_unref (set_family);
+	wbl_string_set_unref (additional_properties);
+	wbl_string_set_unref (known_properties);
+	wbl_string_set_unref (initial);
+
+	return property_sets;
+}
+
+/**
+ * get_subschemas_for_property:
+ * @properties: object mapping known property names to subschemas
+ * @pattern_properties: object mapping known property name patterns to
+ *    subschemas
+ * @additional_properties: `additionalProperties` keyword from the JSON schema,
+ *    which may either be a subschema JSON object, or a JSON boolean value
+ * @property: name of the property to find subschemas for
+ *
+ * Retrieve the set of subschemas which must apply to the given @property. These
+ * come from matching entries in @properties and @pattern_properties; or from
+ * @additional_properties if it defines a subschema and no other subschemas
+ * match.
+ *
+ * Reference: json-schema-validation§8.3.3
+ *
+ * Returns: (transfer full) (element-type JsonObject): a collection of
+ *    subschemas which must apply to @property; the collection may be empty
+ *
+ * Since: UNRELEASED
+ */
+static GPtrArray/*<owned JsonObject>*/ *
+get_subschemas_for_property (JsonObject   *properties,
+                             JsonObject   *pattern_properties,
+                             JsonNode     *additional_properties,
+                             const gchar  *property)
+{
+	GPtrArray/*<owned JsonObject>*/ *output = NULL;
+	JsonObject *subschema;
+	GList/*<unowned utf8>*/ *members = NULL, *l;
+
+	output = g_ptr_array_new_with_free_func ((GDestroyNotify) json_object_unref);
+
+	/* @properties is easy. */
+	if (json_object_has_member (properties, property)) {
+		subschema = json_object_get_object_member (properties, property);
+		if (subschema != NULL) {
+			g_ptr_array_add (output, json_object_ref (subschema));
+		}
+	}
+
+	/* @pattern_properties needs to check for matches.
+	 *
+	 * Any errors in the regex should have been caught in
+	 * validate_pattern(). */
+	members = json_object_get_members (pattern_properties);
+
+	for (l = members; l != NULL; l = l->next) {
+		GRegex *regex = NULL;
+
+		regex = g_regex_new (l->data, 0, 0, NULL);
+		g_assert (regex != NULL);
+
+		if (g_regex_match (regex, property, 0, NULL)) {
+			subschema = json_object_get_object_member (pattern_properties,
+			                                           l->data);
+			g_ptr_array_add (output, json_object_ref (subschema));
+		}
+
+		g_regex_unref (regex);
+	}
+
+	g_list_free (members);
+
+	/* @additionalProperties should be a subschema if it’s non-%FALSE.
+	 *
+	 * Note that by json-schema-validation§8.3.3.4, this is only added if
+	 * no other subschemas have been added. */
+	if (output->len == 0) {
+		if (JSON_NODE_HOLDS_OBJECT (additional_properties)) {
+			subschema = json_node_get_object (additional_properties);
+			g_ptr_array_add (output, json_object_ref (subschema));
+		} else if (validate_value_type (additional_properties,
+		                                G_TYPE_BOOLEAN) &&
+		           json_node_get_boolean (additional_properties)) {
+			/* The default value for @additionalProperties is an
+			 * empty subschema. */
+			g_ptr_array_add (output, json_object_new ());
+		}
+	}
+
+	/* Debug output. */
+	{
+		JsonGenerator *generator = NULL;
+		guint i;
+
+		generator = json_generator_new ();
+
+		for (i = 0; i < output->len; i++) {
+			JsonNode *node = NULL;
+			gchar *subschema_string = NULL;
+
+			node = json_node_new (JSON_NODE_OBJECT);
+			json_node_set_object (node, output->pdata[i]);
+			json_generator_set_root (generator, node);
+			json_node_free (node);
+
+			subschema_string = json_generator_to_data (generator,
+			                                           NULL);
+			g_debug ("%s: Subschema for ‘%s’: %s",
+			         G_STRFUNC, property, subschema_string);
+			g_free (subschema_string);
+		}
+
+		g_object_unref (generator);
+	}
+
+	return output;
+}
+
+/**
+ * instance_drop_n_properties:
+ * @instance: a JSON object instance
+ * @n: number of properties to drop
+ * @required: names of the properties required by the schema
+ *
+ * Build a copy of @instance with @n of its properties removed, if possible.
+ * Properties which are not in @required will be dropped by preference; but if
+ * there are fewer than @n of these, properties from @required will also be
+ * dropped.
+ *
+ * Returns: (transfer full): a new JSON instance with fewer properties
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_drop_n_properties (JsonObject    *instance,
+                            guint          n,
+                            WblStringSet  *required)
+{
+	JsonBuilder *builder = NULL;
+	guint n_properties_remaining;
+	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonNode *output = NULL;
+	WblStringSetIter iter;
+	const gchar *property;
+
+	/* Build a copy of @instance with @n fewer properties; ideally taking
+	 * those properties from the complement of @required. */
+	builder = json_builder_new ();
+	json_builder_begin_object (builder);
+
+	n_properties_remaining = json_object_get_size (instance) - n;
+	members = json_object_get_members (instance);
+
+	for (l = members; n_properties_remaining > 0 && l != NULL; l = l->next) {
+		property = l->data;
+
+		if (!wbl_string_set_contains (required, property)) {
+			json_builder_set_member_name (builder, property);
+			json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, property)));
+
+			n_properties_remaining--;
+		}
+	}
+
+	/* Fill in the gaps with required properties. */
+	wbl_string_set_iter_init (&iter, required);
+
+	while (n_properties_remaining > 0 &&
+	       wbl_string_set_iter_next (&iter, &property)) {
+		if (json_object_has_member (instance, property)) {
+			json_builder_set_member_name (builder, property);
+			json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, property)));
+
+			n_properties_remaining--;
+		}
+	}
+
+	g_assert_cmpuint (n_properties_remaining, ==, 0);
+
+	json_builder_end_object (builder);
+	output = json_builder_get_root (builder);
+
+	g_list_free (members);
+	g_object_unref (builder);
+
+	return output;
+}
+
+/**
+ * instance_drop_property:
+ * @instance: a JSON object instance
+ * @property: name of the property to remove
+ *
+ * Build a copy of @instance with the named @property removed, if possible. If
+ * @property does not exist in @instance, a clone of @instance will be returned.
+ *
+ * Returns: (transfer full): a new JSON instance with @property removed
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_drop_property (JsonObject   *instance,
+                        const gchar  *property)
+{
+	JsonBuilder *builder = NULL;
+	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonNode *output = NULL;
+
+	/* Build a copy of @instance without @property. */
+	builder = json_builder_new ();
+	json_builder_begin_object (builder);
+
+	members = json_object_get_members (instance);
+
+	for (l = members; l != NULL; l = l->next) {
+		if (g_strcmp0 (property, l->data) != 0) {
+			json_builder_set_member_name (builder, l->data);
+			json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, l->data)));
+		}
+	}
+
+	json_builder_end_object (builder);
+	output = json_builder_get_root (builder);
+
+	g_list_free (members);
+	g_object_unref (builder);
+
+	return output;
+}
+
+/**
+ * instance_add_n_properties:
+ * @instance: a JSON object instance
+ * @n: number of properties to add
+ * @properties: object mapping known property names to subschemas
+ * @pattern_properties: object mapping known property name patterns to
+ *    subschemas
+ * @additional_properties: `additionalProperties` keyword from the JSON schema,
+ *    which may either be a subschema JSON object, or a JSON boolean value
+ *
+ * Build a copy of @instance with @n new properties added, choosing the new
+ * properties to match the given constraints (@properties, @pattern_properties,
+ * @additional_properties) as much as possible.
+ *
+ * Returns: (transfer full): a new JSON instance with @n new properties
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_add_n_properties (JsonObject  *instance,
+                           guint        n,
+                           JsonObject  *properties,
+                           JsonObject  *pattern_properties,
+                           JsonNode    *additional_properties)
+{
+	JsonBuilder *builder = NULL;
+	JsonNode *output = NULL;
+	GList/*<unowned utf8>*/ *members = NULL, *l;
+	const gchar *property;
+	guint i;
+
+	/* Add @n properties to a copy of @instance, which match the given
+	 * constraints as much as possible. */
+	builder = json_builder_new ();
+	json_builder_begin_object (builder);
+
+	members = json_object_get_members (instance);
+
+	for (l = members; l != NULL; l = l->next) {
+		property = l->data;
+
+		json_builder_set_member_name (builder, property);
+		json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, property)));
+	}
+
+	/* FIXME: Make sure the new property matches one of the constraints,
+	 * including its subschema if present. */
+	for (i = 0; i < n; i++) {
+		gchar *member_name = NULL;
+
+		member_name = g_strdup_printf ("additionalProperties-test-%u", i);
+
+		json_builder_set_member_name (builder, member_name);
+		json_builder_add_null_value (builder);
+
+		g_free (member_name);
+	}
+
+	json_builder_end_object (builder);
+	output = json_builder_get_root (builder);
+
+	g_list_free (members);
+	g_object_unref (builder);
+
+	return output;
+}
+
+/**
+ * instance_add_non_matching_property:
+ * @instance: a JSON object instance
+ * @properties: object mapping known property names to subschemas
+ * @pattern_properties: object mapping known property name patterns to
+ *    subschemas
+ * @additional_properties: `additionalProperties` keyword from the JSON schema,
+ *    which may either be a subschema JSON object, or a JSON boolean value
+ *
+ * Build a copy of @instance with one new property added, choosing the new
+ * property to not match any of the given constraints (@properties,
+ * @pattern_properties, @additional_properties).
+ *
+ * Returns: (transfer full): a new JSON instance with one new property
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_add_non_matching_property (JsonObject  *instance,
+                                    JsonObject  *properties,
+                                    JsonObject  *pattern_properties,
+                                    JsonNode    *additional_properties)
+{
+	JsonBuilder *builder = NULL;
+	JsonNode *output = NULL;
+	GList/*<unowned utf8>*/ *members = NULL, *l;
+	const gchar *property;
+
+	/* Add 1 property to a copy of @instance, which matches none of the
+	 * given constraints. */
+	builder = json_builder_new ();
+	json_builder_begin_object (builder);
+
+	members = json_object_get_members (instance);
+
+	for (l = members; l != NULL; l = l->next) {
+		property = l->data;
+
+		json_builder_set_member_name (builder, property);
+		json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, property)));
+	}
+
+	/* FIXME: Make sure the new property matches none of the constraints. */
+	json_builder_set_member_name (builder, "additionalProperties-test-unique");
+	json_builder_add_null_value (builder);
+
+	json_builder_end_object (builder);
+	output = json_builder_get_root (builder);
+
+	g_list_free (members);
+	g_object_unref (builder);
+
+	return output;
+}
+
+/**
+ * generate_all_properties:
+ * @self: a #WblSchema
+ * @_required: JSON array of required property names
+ * @min_properties: minimum number of properties required (inclusive)
+ * @max_properties: maximum number of properties allowed (inclusive)
+ * @properties: JSON object mapping known property names to subschemas
+ * @pattern_properties: JSON object mapping regexes for property names to
+ *    subschemas
+ * @additional_properties: `additionalProperties` keyword from the JSON schema,
+ *    which may either be a subschema JSON object, or a JSON boolean value
+ * @dependencies: JSON object mapping property names to arrays of properties
+ *    they depend on
+ * @output: caller-allocated hash table for output to be appended to
+ *
+ * Generic implementation for the generate function for all property-related
+ * schema keywords (`required`, `minProperties`, `maxProperties`, `properties`,
+ * `patternProperties`, `additionalProperties`, `dependencies`).
+ *
+ * The overall approach taken by this function is to:
+ *  # Generate a family of property name sets which match the schema’s
+ *    constraints.
+ *  # For each property name set, generate a set of object instances which all
+ *    have that set of properties, paired with values generated from their
+ *    subschemas.
+ *  # For each property schema keyword, mutate all the object instances in some
+ *    way to explore validation of the boundary conditions for validity of that
+ *    keyword.
+ *  # Add all the mutated and non-mutated object instances to @output.
+ *
+ * Since: UNRELEASED
+ */
+static void
+generate_all_properties (WblSchema                       *self,
+                         JsonArray                       *_required,
+                         gint64                           min_properties,
+                         gint64                           max_properties,
+                         JsonObject                      *properties,
+                         JsonObject                      *pattern_properties,
+                         JsonNode                        *additional_properties,
+                         JsonObject                      *dependencies,
+                         GHashTable/*<owned JsonNode>*/  *output)
+{
+	WblSchemaClass *klass;
+	GHashTable/*<floating WblStringSet>*/ *valid_property_sets = NULL;
+	gboolean additional_properties_allowed;
+	GHashTable/*<owned JsonNode>*/ *instance_set = NULL;
+	GHashTable/*<owned JsonNode>*/ *mutation_set = NULL;
+	GHashTableIter property_sets_iter;
+	WblStringSet *valid_property_set;
+	JsonBuilder *builder = NULL;
+	GHashTableIter instance_set_iter, mutation_set_iter;
+	JsonNode *node;
+	guint i;
+	WblStringSet *required = NULL;
+
+	klass = WBL_SCHEMA_GET_CLASS (self);
+	builder = json_builder_new ();
+
+	/* Copy @required so we can handle it as a set. */
+	required = wbl_string_set_new_from_array_elements (_required);
+	wbl_string_set_ref_sink (required);
+
+	/* Work out the type of @additional_properties. */
+	additional_properties_allowed = (JSON_NODE_HOLDS_OBJECT (additional_properties) ||
+	                                 json_node_get_boolean (additional_properties));
+
+	/* Generate a set of all valid property sets, given the constraints. */
+	valid_property_sets = generate_valid_property_sets (required,
+	                                                    min_properties,
+	                                                    max_properties,
+	                                                    properties,
+	                                                    pattern_properties,
+	                                                    additional_properties_allowed,
+	                                                    dependencies);
+
+	/* Generate a set of probably-valid instances by recursing on the
+	 * property subschemas. */
+	instance_set = g_hash_table_new_full (node_hash, node_equal,
+	                                      (GDestroyNotify) json_node_free,
+	                                      NULL);
+	g_hash_table_iter_init (&property_sets_iter, valid_property_sets);
+
+	while (g_hash_table_iter_next (&property_sets_iter,
+	                               (gpointer *) &valid_property_set,
+	                               NULL)) {
+		WblStringSetIter string_iter;
+		const gchar *property_name;
+		GHashTableIter hash_iter;
+		GHashTable/*<owned utf8, GHashTable<owned JsonNode>>*/ *instance_map = NULL;
+		GHashTable/*<owned JsonNode>*/ *property_instances = NULL;  /* owned */
+		GHashTableIter *iters = NULL;
+		guint n_iterations_remaining;
+
+		/* Map of property name to a set of possible subinstances for
+		 * it. The @instance_map is unique to this
+		 * @valid_property_set. */
+		instance_map = g_hash_table_new_full (g_str_hash, g_str_equal,
+		                                      g_free,
+		                                      (GDestroyNotify) g_hash_table_unref);
+
+		wbl_string_set_iter_init (&string_iter, valid_property_set);
+
+		while (wbl_string_set_iter_next (&string_iter, &property_name)) {
+			/* Work out the subschemas which are applicable for this
+			 * property. */
+			GPtrArray/*<owned JsonObject>*/ *subschemas = NULL;
+
+			property_instances = g_hash_table_new_full (node_hash,
+			                                            node_equal,
+			                                            (GDestroyNotify) json_node_free,
+			                                            NULL);
+
+			subschemas = get_subschemas_for_property (properties,
+			                                          pattern_properties,
+			                                          additional_properties,
+			                                          property_name);
+
+			for (i = 0; i < subschemas->len; i++) {
+				if (klass->generate_instances != NULL) {
+					WblSchemaNode schema_node;
+
+					schema_node.ref_count = 1;
+					schema_node.node = subschemas->pdata[i];
+
+					klass->generate_instances (self,
+					                           &schema_node,
+					                           property_instances);
+				}
+			}
+
+			/* Debug. */
+			{
+				GHashTableIter debug_iter;
+				JsonNode *instance;
+
+				g_hash_table_iter_init (&debug_iter,
+				                        property_instances);
+
+				while (g_hash_table_iter_next (&debug_iter,
+				                               (gpointer *) &instance,
+				                               NULL)) {
+					gchar *json = node_to_string (instance);
+					g_debug ("%s: Subinstance for ‘%s’: %s",
+					         G_STRFUNC, property_name,
+					         json);
+					g_free (json);
+				}
+			}
+
+			/* Add to the instance map. Transfer ownership. */
+			g_hash_table_insert (instance_map,
+			                     g_strdup (property_name),
+			                     property_instances);
+			property_instances = NULL;
+
+			g_ptr_array_unref (subschemas);
+		}
+
+		/* Convert the @instance_map function of type
+		 *    property ↦ { subinstance }
+		 * to a set of functions of overall type:
+		 *    { property ↦ subinstance }
+		 * And add them all to @output (since they’re actually each a
+		 * JSON instance.
+		 *
+		 * In order to get full coverage, this should really be an
+		 * N-fold cross-product between all the subinstance sets, where
+		 * N is g_hash_table_size(instance_map). However, that would be
+		 * massive.
+		 *
+		 * In order to get reasonable coverage, we can assume that the
+		 * values of the different subinstances are probably
+		 * independent. Hence we just need to generate enough instances
+		 * to include each of the subinstances at least once.
+		 *
+		 * So, build one instance with its properties set to the first
+		 * subinstance from each subinstance set; the next instance with
+		 * its properties set to the second subinstances, etc. If a
+		 * subinstance set is too small, keep re-using arbitrary
+		 * subinstances from it.
+		 */
+		iters = g_new0 (GHashTableIter,
+		                g_hash_table_size (instance_map));
+		n_iterations_remaining = 0;
+
+		for (i = 0, g_hash_table_iter_init (&hash_iter, instance_map);
+		     g_hash_table_iter_next (&hash_iter,
+		                             (gpointer *) &property_name,
+		                             (gpointer *) &property_instances);
+		     i++) {
+			g_hash_table_iter_init (&iters[i], property_instances);
+			n_iterations_remaining = MAX (n_iterations_remaining,
+			                              g_hash_table_size (property_instances));
+		}
+
+		g_debug ("%s: n_iterations_remaining = %u",
+		         G_STRFUNC, n_iterations_remaining);
+
+		/* FIXME: This is an enormous hack to ensure we get at least one
+		 * iteration. */
+		n_iterations_remaining = MAX (n_iterations_remaining, 1);
+
+		for (; n_iterations_remaining > 0; n_iterations_remaining--) {
+			JsonNode *instance = NULL;
+			gchar *debug_output = NULL;
+
+			json_builder_begin_object (builder);
+
+			for (i = 0, g_hash_table_iter_init (&hash_iter, instance_map);
+			     g_hash_table_iter_next (&hash_iter,
+			                             (gpointer *) &property_name,
+			                             (gpointer *) &property_instances);
+			     i++) {
+				JsonNode *generated_instance;
+
+				if (g_hash_table_size (property_instances) == 0) {
+					generated_instance = NULL;
+				} else if (!g_hash_table_iter_next (&iters[i],
+				                                    (gpointer *) &generated_instance,
+				                                    NULL)) {
+					/* Arbitrarily loop round and start
+					 * again. */
+					g_hash_table_iter_init (&iters[i],
+					                        property_instances);
+					if (!g_hash_table_iter_next (&iters[i],
+					                             (gpointer *) &generated_instance,
+					                             NULL)) {
+						generated_instance = NULL;
+					}
+				}
+
+				json_builder_set_member_name (builder,
+				                              property_name);
+
+				if (generated_instance != NULL) {
+					json_builder_add_value (builder,
+					                        json_node_copy (generated_instance));
+				} else {
+					json_builder_add_null_value (builder);
+				}
+			}
+
+			json_builder_end_object (builder);
+
+			instance = json_builder_get_root (builder);
+			g_hash_table_add (instance_set, instance);
+
+			/* Debug output. */
+			debug_output = node_to_string (instance);
+			g_debug ("%s: Instance: %s", G_STRFUNC, debug_output);
+			g_free (debug_output);
+
+			json_builder_reset (builder);
+		}
+
+		g_free (iters);
+		g_hash_table_unref (instance_map);
+	}
+
+	/* The final step is to take each of the generated instances, and
+	 * mutate it for each of the relevant schema properties. */
+	mutation_set = g_hash_table_new_full (node_hash, node_equal,
 	                                      (GDestroyNotify) json_node_free,
 	                                      NULL);
 
-	if (subschema_node != NULL) {
-		subschema_generate_instances (self, subschema_node,
-		                              child_output);
-	} else {
-		JsonNode *obj_node = NULL;
+	/* Mutate on minProperties, maxProperties, additionalProperties,
+	 * patternProperties and properties. */
+	g_hash_table_iter_init (&instance_set_iter, instance_set);
 
-		obj_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (obj_node, json_object_new ());
+	while (g_hash_table_iter_next (&instance_set_iter,
+	                               (gpointer *) &node, NULL)) {
+		JsonNode *mutated_instance = NULL;
+		JsonObject *obj;
+		GList/*<unowned JsonNode>*/ *dependency_keys, *l;
 
-		g_hash_table_add (output, obj_node);  /* transfer */
+		obj = json_node_get_object (node);
+
+		/* minProperties. */
+		if (min_properties > 0) {
+			g_assert (json_object_get_size (obj) >= min_properties);
+
+			mutated_instance = instance_drop_n_properties (obj,
+			                                               json_object_get_size (obj) - min_properties + 1,
+			                                               required);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+
+		/* maxProperties. */
+		if (max_properties < G_MAXINT64) {
+			g_assert (json_object_get_size (obj) <= max_properties);
+
+			mutated_instance = instance_add_n_properties (obj,
+			                                              max_properties - json_object_get_size (obj) + 1,
+			                                              properties,
+			                                              pattern_properties,
+			                                              additional_properties);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+
+		/* properties, patternProperties and additionalProperties. */
+		if (json_object_get_size (properties) > 0 ||
+		    json_object_get_size (pattern_properties) > 0 ||
+		    (validate_value_type (additional_properties, G_TYPE_BOOLEAN) &&
+		     !json_node_get_boolean (additional_properties))) {
+			mutated_instance = instance_add_non_matching_property (obj,
+			                                                       properties,
+			                                                       pattern_properties,
+			                                                       additional_properties);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+
+		/* required. */
+		for (i = 0; i < json_array_get_length (_required); i++) {
+			const gchar *required_property;
+
+			required_property = json_array_get_string_element (_required, i);
+
+			mutated_instance = instance_drop_property (obj,
+			                                           required_property);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+
+		/* dependencies. */
+		dependency_keys = json_object_get_members (dependencies);
+
+		for (l = dependency_keys; l != NULL; l = l->next) {
+			JsonNode *dependency_node;
+			JsonArray *dependency_array;
+
+			dependency_node = json_object_get_member (dependencies,
+			                                          l->data);
+
+			/* We only care about property dependencies. */
+			if (!JSON_NODE_HOLDS_ARRAY (dependency_node)) {
+				continue;
+			}
+
+			dependency_array = json_node_get_array (dependency_node);
+
+			for (i = 0;
+			     i < json_array_get_length (dependency_array);
+			     i++) {
+				const gchar *required_property;
+
+				required_property = json_array_get_string_element (dependency_array, i);
+
+				mutated_instance = instance_drop_property (obj,
+				                                           required_property);
+				g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+			}
+		}
+
+		g_list_free (dependency_keys);
 	}
 
-	g_hash_table_iter_init (&iter, child_output);
+	/* Throw the output over the fence. */
+	g_hash_table_iter_init (&instance_set_iter, instance_set);
 
-	while (g_hash_table_iter_next (&iter, (gpointer *) &child_instance, NULL)) {
-		JsonNode *obj_node = NULL;
-		JsonObject *obj = NULL;
-
-		obj = json_object_new ();
-		json_object_set_member (obj, member_name, child_instance);
-		g_hash_table_iter_steal (&iter);
-
-		obj_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (obj_node, obj);
-
-		g_hash_table_add (output, obj_node);  /* transfer */
+	while (g_hash_table_iter_next (&instance_set_iter,
+	                               (gpointer *) &node, NULL)) {
+		generate_take_node (output, json_node_copy (node));
 	}
 
-	g_hash_table_unref (child_output);
-}
+	g_hash_table_iter_init (&mutation_set_iter, mutation_set);
 
-/* Generate a member name which does not match anything in @member_names. */
-static gchar *  /* owned */
-create_unique_member_name (const gchar *prefix,
-                           GList/*<unowned utf8>*/ *member_names)
-{
-	gchar *member_name = NULL;  /* owned */
-	guint i;
-
-	for (i = 0;
-	     member_name == NULL ||
-	     list_contains_string (member_names, member_name);
-	     i++) {
-		g_free (member_name);
-		member_name = g_strdup_printf ("%s%u", prefix, i);
+	while (g_hash_table_iter_next (&mutation_set_iter,
+	                               (gpointer *) &node, NULL)) {
+		generate_take_node (output, json_node_copy (node));
 	}
 
-	return member_name;
+	g_hash_table_unref (mutation_set);
+	g_hash_table_unref (instance_set);
+	g_hash_table_unref (valid_property_sets);
+	wbl_string_set_unref (required);
+	g_object_unref (builder);
 }
 
 static void
@@ -3398,66 +4535,247 @@ generate_properties (WblSchema *self,
                      JsonNode *schema_node,
                      GHashTable/*<owned JsonNode>*/ *output)
 {
-	JsonObject *schema_object;  /* unowned */
-	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
-	JsonNode *ap_node;  /* unowned */
-	JsonNode *obj_node = NULL;
+	JsonNode *required_node, *min_properties_node, *max_properties_node;
+	JsonNode *properties_node, *pattern_properties_node;
+	JsonNode *additional_properties_node, *dependencies_node;
+	JsonArray *required = NULL;
+	gint64 min_properties, max_properties;
+	JsonObject *properties = NULL;
+	JsonObject *pattern_properties = NULL;
+	JsonObject *dependencies = NULL;
+	JsonNode *additional_properties = NULL;
 
-	schema_object = json_node_get_object (schema_node);
-	member_names = json_object_get_members (schema_object);
+	/* Arrange default values for all the relevant schema properties. */
+	required_node = json_object_get_member (root, "required");
+	min_properties_node = json_object_get_member (root, "minProperties");
+	max_properties_node = json_object_get_member (root, "maxProperties");
+	properties_node = schema_node;
+	pattern_properties_node = json_object_get_member (root, "patternProperties");
+	additional_properties_node = json_object_get_member (root, "additionalProperties");
+	dependencies_node = json_object_get_member (root, "dependencies");
 
-	/* Generate an instance for the empty object. */
-	obj_node = json_node_new (JSON_NODE_OBJECT);
-	json_node_take_object (obj_node, json_object_new ());
-	g_hash_table_add (output, obj_node);  /* transfer */
-
-	/* Generate instances for all property schemas and wrap them in
-	 * objects. */
-	for (l = member_names; l != NULL; l = l->next) {
-		JsonNode *child_node;  /* unowned */
-		const gchar *member_name;
-
-		member_name = l->data;
-		child_node = json_object_get_member (schema_object,
-		                                     member_name);
-		generate_object_with_subschema (self, child_node, member_name,
-		                                output);
+	if (required_node != NULL) {
+		required = json_node_dup_array (required_node);
+	} else {
+		required = json_array_new ();
 	}
 
-	/* Generate an instance for the additionalProperties property. */
-	ap_node = json_object_get_member (root, "additionalProperties");
-
-	/* A missing additionalProperties is equivalent to an empty schema
-	 * (json-schema-validation§8.3.2). */
-	if (ap_node == NULL || JSON_NODE_HOLDS_OBJECT (ap_node)) {
-		gchar *member_name = NULL;
-
-		member_name = create_unique_member_name ("additionalProperties-test-",
-		                                         member_names);
-		generate_object_with_subschema (self, ap_node, member_name,
-		                                output);
-		g_free (member_name);
-	} else if (ap_node != NULL) {
-		gchar *member_name = NULL;
-		JsonObject *obj = NULL;
-
-		member_name = create_unique_member_name ("additionalProperties-test-",
-		                                         member_names);
-
-		obj = json_object_new ();
-		json_object_set_member (obj, member_name,
-		                        json_node_new (JSON_NODE_NULL));
-
-		obj_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (obj_node, obj);
-
-		g_hash_table_add (output, obj_node);  /* transfer */
-
-		g_free (member_name);
+	if (min_properties_node != NULL) {
+		min_properties = json_node_get_int (min_properties_node);
+	} else {
+		min_properties = 0;
 	}
 
-	g_list_free (member_names);
+	if (max_properties_node != NULL) {
+		max_properties = json_node_get_int (max_properties_node);
+	} else {
+		max_properties = G_MAXINT64;
+	}
+
+	if (properties_node != NULL) {
+		properties = json_node_dup_object (properties_node);
+	} else {
+		properties = json_object_new ();
+	}
+
+	if (pattern_properties_node != NULL) {
+		pattern_properties = json_node_dup_object (pattern_properties_node);
+	} else {
+		pattern_properties = json_object_new ();
+	}
+
+	if (additional_properties_node != NULL) {
+		additional_properties = json_node_copy (additional_properties_node);
+	} else {
+		JsonObject *obj = json_object_new ();
+		additional_properties = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (additional_properties, obj);
+		json_object_unref (obj);
+	}
+
+	if (dependencies_node != NULL) {
+		dependencies = json_node_dup_object (dependencies_node);
+	} else {
+		dependencies = json_object_new ();
+	}
+
+	/* TODO: ideally we would prevent this being called multiple times, but
+	 * this will do for now */
+	generate_all_properties (self, required, min_properties, max_properties,
+	                         properties, pattern_properties,
+	                         additional_properties, dependencies, output);
+
+	json_object_unref (dependencies);
+	json_node_free (additional_properties);
+	json_object_unref (pattern_properties);
+	json_object_unref (properties);
+	json_array_unref (required);
+}
+
+static void
+generate_additional_properties (WblSchema *self,
+                                JsonObject *root,
+                                JsonNode *schema_node,
+                                GHashTable/*<owned JsonNode>*/ *output)
+{
+	JsonNode *required_node, *min_properties_node, *max_properties_node;
+	JsonNode *properties_node, *pattern_properties_node;
+	JsonNode *additional_properties_node, *dependencies_node;
+	JsonArray *required = NULL;
+	gint64 min_properties, max_properties;
+	JsonObject *properties = NULL;
+	JsonObject *pattern_properties = NULL;
+	JsonObject *dependencies = NULL;
+	JsonNode *additional_properties = NULL;
+
+	/* Arrange default values for all the relevant schema properties. */
+	required_node = json_object_get_member (root, "required");
+	min_properties_node = json_object_get_member (root, "minProperties");
+	max_properties_node = json_object_get_member (root, "maxProperties");
+	properties_node = json_object_get_member (root, "properties");
+	pattern_properties_node = json_object_get_member (root, "patternProperties");
+	additional_properties_node = schema_node;
+	dependencies_node = json_object_get_member (root, "dependencies");
+
+	if (required_node != NULL) {
+		required = json_node_dup_array (required_node);
+	} else {
+		required = json_array_new ();
+	}
+
+	if (min_properties_node != NULL) {
+		min_properties = json_node_get_int (min_properties_node);
+	} else {
+		min_properties = 0;
+	}
+
+	if (max_properties_node != NULL) {
+		max_properties = json_node_get_int (max_properties_node);
+	} else {
+		max_properties = G_MAXINT64;
+	}
+
+	if (properties_node != NULL) {
+		properties = json_node_dup_object (properties_node);
+	} else {
+		properties = json_object_new ();
+	}
+
+	if (pattern_properties_node != NULL) {
+		pattern_properties = json_node_dup_object (pattern_properties_node);
+	} else {
+		pattern_properties = json_object_new ();
+	}
+
+	if (additional_properties_node != NULL) {
+		additional_properties = json_node_copy (additional_properties_node);
+	} else {
+		JsonObject *obj = json_object_new ();
+		additional_properties = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (additional_properties, obj);
+		json_object_unref (obj);
+	}
+
+	if (dependencies_node != NULL) {
+		dependencies = json_node_dup_object (dependencies_node);
+	} else {
+		dependencies = json_object_new ();
+	}
+
+	/* TODO: ideally we would prevent this being called multiple times, but
+	 * this will do for now */
+	generate_all_properties (self, required, min_properties, max_properties,
+	                         properties, pattern_properties,
+	                         additional_properties, dependencies, output);
+
+	json_object_unref (dependencies);
+	json_node_free (additional_properties);
+	json_object_unref (pattern_properties);
+	json_object_unref (properties);
+	json_array_unref (required);
+}
+
+static void
+generate_pattern_properties (WblSchema *self,
+                             JsonObject *root,
+                             JsonNode *schema_node,
+                             GHashTable/*<owned JsonNode>*/ *output)
+{
+	JsonNode *required_node, *min_properties_node, *max_properties_node;
+	JsonNode *properties_node, *pattern_properties_node;
+	JsonNode *additional_properties_node, *dependencies_node;
+	JsonArray *required = NULL;
+	gint64 min_properties, max_properties;
+	JsonObject *properties = NULL;
+	JsonObject *pattern_properties = NULL;
+	JsonObject *dependencies = NULL;
+	JsonNode *additional_properties = NULL;
+
+	/* Arrange default values for all the relevant schema properties. */
+	required_node = json_object_get_member (root, "required");
+	min_properties_node = json_object_get_member (root, "minProperties");
+	max_properties_node = json_object_get_member (root, "maxProperties");
+	properties_node = json_object_get_member (root, "properties");
+	pattern_properties_node = schema_node;
+	additional_properties_node = json_object_get_member (root, "additionalProperties");
+	dependencies_node = json_object_get_member (root, "dependencies");
+
+	if (required_node != NULL) {
+		required = json_node_dup_array (required_node);
+	} else {
+		required = json_array_new ();
+	}
+
+	if (min_properties_node != NULL) {
+		min_properties = json_node_get_int (min_properties_node);
+	} else {
+		min_properties = 0;
+	}
+
+	if (max_properties_node != NULL) {
+		max_properties = json_node_get_int (max_properties_node);
+	} else {
+		max_properties = G_MAXINT64;
+	}
+
+	if (properties_node != NULL) {
+		properties = json_node_dup_object (properties_node);
+	} else {
+		properties = json_object_new ();
+	}
+
+	if (pattern_properties_node != NULL) {
+		pattern_properties = json_node_dup_object (pattern_properties_node);
+	} else {
+		pattern_properties = json_object_new ();
+	}
+
+	if (additional_properties_node != NULL) {
+		additional_properties = json_node_copy (additional_properties_node);
+	} else {
+		JsonObject *obj = json_object_new ();
+		additional_properties = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (additional_properties, obj);
+		json_object_unref (obj);
+	}
+
+	if (dependencies_node != NULL) {
+		dependencies = json_node_dup_object (dependencies_node);
+	} else {
+		dependencies = json_object_new ();
+	}
+
+	/* TODO: ideally we would prevent this being called multiple times, but
+	 * this will do for now */
+	generate_all_properties (self, required, min_properties, max_properties,
+	                         properties, pattern_properties,
+	                         additional_properties, dependencies, output);
+
+	json_object_unref (dependencies);
+	json_node_free (additional_properties);
+	json_object_unref (pattern_properties);
+	json_object_unref (properties);
+	json_array_unref (required);
 }
 
 /* dependencies. json-schema-validation§5.4.5. */
@@ -3614,8 +4932,81 @@ generate_dependencies (WblSchema *self,
                        JsonNode *schema_node,
                        GHashTable/*<owned JsonNode>*/ *output)
 {
-	/* FIXME: Tricky to implement without a combinatorial explosion of
-	 * test vectors. Need to think about it. */
+	JsonNode *required_node, *min_properties_node, *max_properties_node;
+	JsonNode *properties_node, *pattern_properties_node;
+	JsonNode *additional_properties_node, *dependencies_node;
+	JsonArray *required = NULL;
+	gint64 min_properties, max_properties;
+	JsonObject *properties = NULL;
+	JsonObject *pattern_properties = NULL;
+	JsonObject *dependencies = NULL;
+	JsonNode *additional_properties = NULL;
+
+	/* Arrange default values for all the relevant schema properties. */
+	required_node = json_object_get_member (root, "required");
+	min_properties_node = json_object_get_member (root, "minProperties");
+	max_properties_node = json_object_get_member (root, "maxProperties");
+	properties_node = json_object_get_member (root, "properties");
+	pattern_properties_node = json_object_get_member (root, "patternProperties");
+	additional_properties_node = json_object_get_member (root, "additionalProperties");
+	dependencies_node = schema_node;
+
+	if (required_node != NULL) {
+		required = json_node_dup_array (required_node);
+	} else {
+		required = json_array_new ();
+	}
+
+	if (min_properties_node != NULL) {
+		min_properties = json_node_get_int (min_properties_node);
+	} else {
+		min_properties = 0;
+	}
+
+	if (max_properties_node != NULL) {
+		max_properties = json_node_get_int (max_properties_node);
+	} else {
+		max_properties = G_MAXINT64;
+	}
+
+	if (properties_node != NULL) {
+		properties = json_node_dup_object (properties_node);
+	} else {
+		properties = json_object_new ();
+	}
+
+	if (pattern_properties_node != NULL) {
+		pattern_properties = json_node_dup_object (pattern_properties_node);
+	} else {
+		pattern_properties = json_object_new ();
+	}
+
+	if (additional_properties_node != NULL) {
+		additional_properties = json_node_copy (additional_properties_node);
+	} else {
+		JsonObject *obj = json_object_new ();
+		additional_properties = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (additional_properties, obj);
+		json_object_unref (obj);
+	}
+
+	if (dependencies_node != NULL) {
+		dependencies = json_node_dup_object (dependencies_node);
+	} else {
+		dependencies = json_object_new ();
+	}
+
+	/* TODO: ideally we would prevent this being called multiple times, but
+	 * this will do for now */
+	generate_all_properties (self, required, min_properties, max_properties,
+	                         properties, pattern_properties,
+	                         additional_properties, dependencies, output);
+
+	json_object_unref (dependencies);
+	json_node_free (additional_properties);
+	json_object_unref (pattern_properties);
+	json_object_unref (properties);
+	json_array_unref (required);
 }
 
 /* enum. json-schema-validation§5.5.1. */
@@ -4341,9 +5732,9 @@ static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§5.4.3 */
 	{ "required", validate_required, apply_required, generate_required },
 	/* json-schema-validation§5.4.4 */
-	{ "additionalProperties", validate_additional_properties, NULL, NULL },
+	{ "additionalProperties", validate_additional_properties, NULL, generate_additional_properties },
 	{ "properties", validate_properties, apply_properties, generate_properties },
-	{ "patternProperties", validate_pattern_properties, apply_pattern_properties, NULL },
+	{ "patternProperties", validate_pattern_properties, apply_pattern_properties, generate_pattern_properties },
 	/* json-schema-validation§5.4.5 */
 	{ "dependencies", validate_dependencies, apply_dependencies, generate_dependencies },
 	/* json-schema-validation§5.5.1 */

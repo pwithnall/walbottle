@@ -770,8 +770,15 @@ test_schema_keywords_max_properties (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
+		"{}",
+		"{\"0\":null}",
+		"{\"1\":null}",
 		"{\"0\":null,\"1\":null}",
-		"{\"0\":null,\"1\":null,\"2\":null}",
+		/* additionalProperties: */
+		"{\"0\":null,\"1\":null,\"additionalProperties-test-0\":null}",
+		"{\"0\":null,\"additionalProperties-test-0\":null,\"additionalProperties-test-1\":null}",
+		"{\"1\":null,\"additionalProperties-test-0\":null,\"additionalProperties-test-1\":null}",
+		"{\"additionalProperties-test-0\":null,\"additionalProperties-test-1\":null,\"additionalProperties-test-2\":null}",
 		NULL,
 	};
 
@@ -841,6 +848,10 @@ test_schema_keywords_required (void)
 		"{\"a\":null}",
 		"{\"b\":null}",
 		"{\"a\":null,\"b\":null}",
+		/* additionalProperties: */
+		"{\"a\":null,\"0\":null}",
+		"{\"b\":null,\"0\":null}",
+		"{\"a\":null,\"b\":null,\"0\":null}",
 		NULL,
 	};
 
@@ -872,7 +883,7 @@ test_schema_keywords_additional_properties_true (void)
 	};
 	const gchar *expected_instances[] = {
 		"{}",
-		"{\"additionalProperties-test-0\":null}",
+		"{\"0\":null}",
 		NULL,
 	};
 
@@ -911,9 +922,16 @@ test_schema_keywords_additional_properties_schema (void)
 	};
 	const gchar *expected_instances[] = {
 		"{}",
-		"{\"additionalProperties-test-0\":{}}",
-		"{\"additionalProperties-test-0\":{\"a\":null}}",
-		"{\"additionalProperties-test-0\":{\"a\":\"\"}}",
+		"{\"0\":{}}",
+		"{\"0\":{\"a\":null}}",
+		"{\"0\":{\"0\":null}}",
+		"{\"0\":{\"a\":null,\"0\":null}}",
+		"{\"0\":{\"a\":\"\",\"0\":null}}",
+		"{\"0\":{\"a\":null,\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":\"\",\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":\"\",\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":\"\"}}",
 		NULL,
 	};
 
@@ -943,7 +961,9 @@ test_schema_keywords_additional_properties_false (void)
 	};
 	const gchar *expected_instances[] = {
 		"{}",
-		"{\"additionalProperties-test-0\":null}",
+		"{\"a\":null}",
+		"{\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"additionalProperties-test-unique\":null}",
 		NULL,
 	};
 
@@ -982,11 +1002,21 @@ test_schema_keywords_properties (void)
 	};
 	const gchar *expected_instances[] = {
 		"{}",
+		"{\"additionalProperties-test-unique\":null}",
+		"{\"a\":null}",
+		"{\"a\":null,\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":null,\"c\":0.10000000000000001}",
+		"{\"a\":null,\"b\":null,\"c\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":true,\"c\":null}",
+		"{\"a\":null,\"b\":true,\"c\":null,\"additionalProperties-test-unique\":null}",
 		"{\"b\":null}",
+		"{\"b\":null,\"additionalProperties-test-unique\":null}",
 		"{\"b\":true}",
-		"{\"c\":null}",
+		"{\"b\":true,\"additionalProperties-test-unique\":null}",
 		"{\"c\":0.10000000000000001}",
-		"{\"additionalProperties-test-0\":null}",
+		"{\"c\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"c\":null}",
+		"{\"c\":null,\"additionalProperties-test-unique\":null}",
 		NULL,
 	};
 
@@ -1025,7 +1055,20 @@ test_schema_keywords_pattern_properties (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
-		/* FIXME */
+		"{\"additionalProperties-test-unique\":null}",
+		"{\"6\":null,\"additionalProperties-test-unique\":null}",
+		"{\"6\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{}",
+		"{\"6\":0.10000000000000001}",
+		"{\"f\":true,\"6\":null}",
+		"{\"f\":null,\"6\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"f\":true}",
+		"{\"f\":null,\"6\":0.10000000000000001}",
+		"{\"f\":true,\"6\":null,\"additionalProperties-test-unique\":null}",
+		"{\"6\":null}",
+		"{\"f\":true,\"additionalProperties-test-unique\":null}",
+		"{\"f\":null}",
+		"{\"f\":null,\"additionalProperties-test-unique\":null}",
 		NULL,
 	};
 
@@ -1345,6 +1388,7 @@ test_schema_keywords_all_of (void)
 	const gchar *expected_instances[] = {
 		"{}",
 		"null",
+		"{\"0\":null}",
 		/* FIXME: Need to generate the intersection of all the
 		 * subschemas. */
 		NULL,
@@ -1393,6 +1437,10 @@ test_schema_keywords_any_of (void)
 		"{\"a\":null}",
 		"{\"b\":null}",
 		"{\"c\":null}",
+		"{\"0\":null}",
+		"{\"a\":null,\"0\":null}",
+		"{\"0\":null,\"c\":null}",
+		"{\"0\":null,\"b\":null}",
 		/* FIXME: Need to generate the intersection of all the
 		 * subschemas. */
 		NULL,
