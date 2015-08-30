@@ -817,7 +817,7 @@ subschema_generate_instances (WblSchema *self,
 
 	klass = WBL_SCHEMA_GET_CLASS (self);
 
-	if (klass->generate_instances != NULL) {
+	if (klass->generate_instance_nodes != NULL) {
 		WblSchemaNode node;
 
 		node.ref_count = 1;
@@ -826,7 +826,7 @@ subschema_generate_instances (WblSchema *self,
 		/* Avoid infinite recursion; see the rationale in
 		 * subschema_validate(). */
 		if (json_object_get_size (node.node) > 0) {
-			klass->generate_instances (self, &node, output);
+			klass->generate_instance_nodes (self, &node, output);
 		}
 	}
 }
@@ -845,9 +845,9 @@ real_apply_schema (WblSchema *self,
                    JsonNode *instance,
                    GError **error);
 static void
-real_generate_instances (WblSchema *self,
-                         WblSchemaNode *schema,
-                         GHashTable/*<owned JsonNode>*/ *output);
+real_generate_instance_nodes (WblSchema *self,
+                              WblSchemaNode *schema,
+                              GHashTable/*<owned JsonNode>*/ *output);
 
 static void
 generate_all_properties (WblSchema                       *self,
@@ -876,7 +876,7 @@ wbl_schema_class_init (WblSchemaClass *klass)
 
 	klass->validate_schema = real_validate_schema;
 	klass->apply_schema = real_apply_schema;
-	klass->generate_instances = real_generate_instances;
+	klass->generate_instance_nodes = real_generate_instance_nodes;
 }
 
 static void
@@ -5805,9 +5805,9 @@ real_apply_schema (WblSchema *self,
 }
 
 static void
-real_generate_instances (WblSchema *self,
-                         WblSchemaNode *schema,
-                         GHashTable/*<owned JsonNode>*/ *output)
+real_generate_instance_nodes (WblSchema *self,
+                              WblSchemaNode *schema,
+                              GHashTable/*<owned JsonNode>*/ *output)
 {
 	guint i;
 
@@ -6240,8 +6240,8 @@ wbl_schema_generate_instances (WblSchema *self,
 	output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
 
 	/* Generate schema instances. */
-	if (klass->generate_instances != NULL) {
-		klass->generate_instances (self, priv->schema, node_output);
+	if (klass->generate_instance_nodes != NULL) {
+		klass->generate_instance_nodes (self, priv->schema, node_output);
 	}
 
 	/* See if they are valid. We cannot do this constructively because

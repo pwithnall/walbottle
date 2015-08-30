@@ -105,10 +105,10 @@ typedef struct {
  *   instance against the schema. The default implementation applies standard
  *   JSON Schema keywords, but overriding implementations could implement extension
  *   keywords. If %NULL, no application will be performed.
- * @generate_instances: Generate a set of JSON instances which are valid and
- *   invalid for this JSON Schema. The default implementation generates for all
- *   standard JSON Schema keywords, but overriding implementations could generate
- *   for extension keywords. If %NULL, no instances will be generated.
+ * @generate_instance_nodes: Generate a set of JSON instances which are valid
+ *   and invalid for this JSON Schema. The default implementation generates for
+ *   all standard JSON Schema keywords, but overriding implementations could
+ *   generate for extension keywords. If %NULL, no instances will be generated.
  *
  * Most of the fields in the #WblSchemaClass structure are private and should
  * never be accessed directly.
@@ -127,9 +127,9 @@ typedef struct {
 	                      WblSchemaNode *root,
 	                      JsonNode *instance,
 	                      GError **error);
-	void (*generate_instances) (WblSchema *self,
-	                            WblSchemaNode *root,
-	                            GHashTable/*<owned JsonNode>*/ *output);
+	void (*generate_instance_nodes) (WblSchema *self,
+	                                 WblSchemaNode *root,
+	                                 GHashTable/*<owned JsonNode>*/ *output);
 } WblSchemaClass;
 
 GType wbl_schema_get_type (void) G_GNUC_CONST;
