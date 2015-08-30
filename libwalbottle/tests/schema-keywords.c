@@ -117,9 +117,6 @@ assert_schema_keyword (const gchar *valid_schema,
 	/* Check generated instances. */
 	instances = wbl_schema_generate_instances (schema,
 	                                           WBL_GENERATE_INSTANCE_NONE);
-for (i = 0; i < instances->len; i++) {
-	g_message ("%s", wbl_generated_instance_get_json (instances->pdata[i]));
-}
 	assert_generated_instances_match (instances, expected_instances);
 
 	/* Check the instance flags do what we expect. */
