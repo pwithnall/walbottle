@@ -117,6 +117,9 @@ assert_schema_keyword (const gchar *valid_schema,
 	/* Check generated instances. */
 	instances = wbl_schema_generate_instances (schema,
 	                                           WBL_GENERATE_INSTANCE_NONE);
+
+	for (i = 0; i < instances->len; i++) { g_message ("TODO: %s", wbl_generated_instance_get_json (instances->pdata[i])); }
+
 	assert_generated_instances_match (instances, expected_instances);
 
 	/* Check the instance flags do what we expect. */
@@ -174,6 +177,7 @@ test_schema_keywords_multiple_of_integer (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -218,6 +222,7 @@ test_schema_keywords_multiple_of_double (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -254,6 +259,7 @@ test_schema_keywords_maximum_integer (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -304,6 +310,7 @@ test_schema_keywords_maximum_float (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -357,6 +364,7 @@ test_schema_keywords_exclusive_maximum_integer (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -397,6 +405,7 @@ test_schema_keywords_exclusive_maximum_float (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -432,6 +441,7 @@ test_schema_keywords_minimum_integer (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -480,6 +490,7 @@ test_schema_keywords_minimum_float (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -532,6 +543,7 @@ test_schema_keywords_exclusive_minimum_integer (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -571,6 +583,7 @@ test_schema_keywords_exclusive_minimum_float (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -611,6 +624,7 @@ test_schema_keywords_max_length (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -651,6 +665,7 @@ test_schema_keywords_min_length (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		NULL,
 	};
@@ -689,6 +704,285 @@ test_schema_keywords_pattern (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
+		"{}",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* additionalItems set to true. json-schema-validation§5.3.1. */
+static void
+test_schema_keywords_additional_items_true (void)
+{
+	const gchar *valid_schema = "{ \"additionalItems\": true, "
+	                              "\"items\": [] }";
+	const gchar *invalid_schemas[] = {
+		"{ \"additionalItems\": null }",  /* incorrect type */
+		"{ \"additionalItems\": 0 }",  /* incorrect type */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[]",  /* matching items */
+		"[ 1 ]",  /* extra items */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Always valid if additionalItems is true. */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"[]",
+		"[null]",
+		/* For the default properties: */
+		"\"\"",
+		"{}",
+		"{\"0\":null}",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* additionalItems set to a schema. json-schema-validation§5.3.1. */
+static void
+test_schema_keywords_additional_items_schema (void)
+{
+	const gchar *valid_schema = "{ \"additionalItems\": "
+	                                "{"
+	                                     "\"required\": [ \"a\" ], "
+	                                     "\"properties\": {"
+	                                         "\"a\": { \"type\": \"string\" }"
+	                                     "}"
+	                                "},"
+	                              "\"items\": [] }";
+	const gchar *invalid_schemas[] = {
+		"{ \"additionalItems\": "
+		  "{ \"additionalItems\": null} }",  /* invalid schema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[]",  /* matching items */
+		"[ 1 ]",  /* extra items (wrong type) */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		/* Only invalid subschema instances are invalid. */
+		"[ { \"a\": null } ]",  /* wrong type */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"{\"0\":null}",
+		"[{\"a\":\"\",\"0\":null}]",
+		"[{\"a\":{\"0\":null},\"0\":null}]",
+		"[{\"a\":[null,null],\"0\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":{},\"0\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":{},\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":null,\"0\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":{},\"0\":null}]",
+		"[[null,null]]",
+		"[\"\"]",
+		"\"\"",
+		"[[null]]",
+		"[{\"a\":\"\",\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":[null],\"0\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":{\"0\":null}}]",
+		"[{\"a\":[null,null],\"0\":null}]",
+		"[{\"0\":null}]",
+		"[{\"a\":{\"0\":null},\"0\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":[null],\"0\":null}]",
+		"[{\"a\":[],\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":[null]}]",
+		"[{\"a\":\"\",\"0\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":[null],\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":[],\"0\":null,\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":[null,null],\"additionalProperties-test-unique\":null}]",
+		"[{\"a\":[]}]",
+		"[{\"a\":null,\"0\":null}]",
+		"[{\"a\":{}}]",
+		"[{\"a\":{\"0\":null},\"additionalProperties-test-unique\":null}]",
+		"[]",
+		"[[]]",
+		"[{\"a\":null}]",
+		"[{\"a\":\"\"}]",
+		"[{}]",
+		"{}",
+		"[{\"a\":[null,null]}]",
+		"[{\"a\":[],\"0\":null}]",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* additionalItems set to false. json-schema-validation§5.3.1. */
+static void
+test_schema_keywords_additional_items_false (void)
+{
+	const gchar *valid_schema = "{ \"additionalItems\": false, "
+	                              "\"items\": [ { \"type\": \"number\" } ]}";
+	const gchar *invalid_schemas[] = {
+		/* Covered in the other additionalItems tests. */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[ 1 ]",  /* matching item */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"[ 1, 2 ]",  /* extra item */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"[0.10000000000000001]",
+		"[0.10000000000000001,null]",
+		"[[null,null],null]",
+		"[[null,null]]",
+		"[]",
+		"[[]]",
+		"[[null]]",
+		"\"\"",
+		"[{\"0\":null},null]",
+		"[\"\"]",
+		"[{}]",
+		"[\"\",null]",
+		"[{\"0\":null}]",
+		"[null]",
+		"[[],null]",
+		"{\"0\":null}",
+		"[{},null]",
+		"[null,null]",
+		"[[null],null]",
+		"{}",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* items set to an array. json-schema-validation§5.3.1. */
+static void
+test_schema_keywords_items_array (void)
+{
+	const gchar *valid_schema = "{ \"items\": ["
+		"{},"
+		"{ \"type\": \"boolean\" },"
+		"{ \"type\": \"number\" }"
+	"], \"additionalItems\": false }";
+	const gchar *invalid_schemas[] = {
+		"{ \"items\": null }",  /* incorrect type */
+		"{ \"items\": 0 }",  /* incorrect type */
+		"{ \"items\": [ null ] }",  /* incorrect type */
+		"{ \"items\": [ { \"type\": false } ]}",  /* invalid schema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[]",  /* matching items */
+		"[ null ]",  /* matching items */
+		"[ \"matches anything\", true ]",  /* matching items */
+		"[ false, true, 1 ]",  /* matching items */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"[ false, true, 1, \"extra\" ]",  /* extra item */
+		"[ null, \"not a boolean\" ]",  /* invalid item */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"[null,{\"0\":null},{\"0\":null},null]",
+		"[null,null,null,null]",
+		"[null,true]",
+		"[null,[null],[null,null]]",
+		"{}",
+		"[null,{},[],null]",
+		"[null,[null,null],0.10000000000000001,null]",
+		"[null,[],[null],null]",
+		"[null,\"\"]",
+		"[null,{\"0\":null},{\"0\":null}]",
+		"[null,true,\"\",null]",
+		"[null,{}]",
+		"[null,{},[]]",
+		"[null,null,null]",
+		"[null,{\"0\":null}]",
+		"[null,\"\",{}]",
+		"\"\"",
+		"[null,[]]",
+		"[null]",
+		"[]",
+		"{\"0\":null}",
+		"[null,[null,null]]",
+		"[null,true,\"\"]",
+		"[null,[null],[null,null],null]",
+		"[null,[null]]",
+		"[null,[],[null]]",
+		"[null,null]",
+		"[null,[null,null],0.10000000000000001]",
+		"[null,\"\",{},null]",
+		NULL,
+	};
+
+	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
+	                       invalid_instances, expected_instances);
+}
+
+/* items set to a subschema. json-schema-validation§5.3.1. */
+static void
+test_schema_keywords_items_subschema (void)
+{
+	const gchar *valid_schema = "{ \"items\": { \"type\": \"number\" } }";
+	const gchar *invalid_schemas[] = {
+		/* Other invalid instances are checked in other tests. */
+		"{ \"items\": { \"type\": false } }",  /* invalid schema */
+		NULL,
+	};
+	const gchar *valid_instances[] = {
+		"null",  /* wrong type */
+		"0",  /* wrong type */
+		"[]",  /* matching items */
+		"[ 1 ]",  /* matching items */
+		"[ 1, 2 ]",  /* matching items */
+		"[ 1, 2, 5.3 ]",  /* matching items */
+		NULL,
+	};
+	const gchar *invalid_instances[] = {
+		"[ false ]",  /* invalid item */
+		"[ 3.1, \"not a number\" ]",  /* invalid item */
+		NULL,
+	};
+	const gchar *expected_instances[] = {
+		"[0.10000000000000001]",
+		"[0.10000000000000001,0.10000000000000001]",
+		"[[null,null],[null,null]]",
+		"[[null,null]]",
+		"[[null]]",
+		"[]",
+		"\"\"",
+		"[[]]",
+		"[\"\",\"\"]",
+		"[\"\"]",
+		"[{}]",
+		"[{\"0\":null},{\"0\":null}]",
+		"[{\"0\":null}]",
+		"[null]",
+		"[[],[]]",
+		"{\"0\":null}",
+		"[{},{}]",
+		"[null,null]",
+		"[[null],[null]]",
 		"{}",
 		NULL,
 	};
@@ -760,9 +1054,9 @@ test_schema_keywords_min_items (void)
 	const gchar *expected_instances[] = {
 		"[null]",
 		"[null,null]",
+		"[null,null,null]",
 		/* For the default properties: */
 		"{\"0\":null}",
-		"[]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -800,6 +1094,7 @@ test_schema_keywords_unique_items_false (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -833,6 +1128,7 @@ test_schema_keywords_unique_items_true (void)
 	const gchar *expected_instances[] = {
 		"[null]",
 		"[null,null]",
+		"[null,null,null]",
 		/* For the default properties: */
 		"{\"0\":null}",
 		"[]",
@@ -880,6 +1176,7 @@ test_schema_keywords_max_properties (void)
 		/* For the default properties: */
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -917,6 +1214,7 @@ test_schema_keywords_min_properties (void)
 		/* For the default properties: */
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -961,6 +1259,7 @@ test_schema_keywords_required (void)
 		/* For the default properties: */
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -997,6 +1296,7 @@ test_schema_keywords_additional_properties_true (void)
 		/* For the default properties: */
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -1066,8 +1366,14 @@ test_schema_keywords_additional_properties_schema (void)
 		"{\"0\":{\"a\":null,\"0\":null,\"additionalProperties-test-unique\":null}}",
 		"{\"0\":{\"a\":[null],\"additionalProperties-test-unique\":null}}",
 		"{\"0\":{\"a\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":[null,null]}}",
+		"{\"0\":{\"a\":[null,null],\"0\":null}}",
+		"{\"0\":{\"a\":[null,null],\"0\":null,\"additionalProperties-test-unique\":null}}",
+		"{\"0\":{\"a\":[null,null],\"additionalProperties-test-unique\":null}}",
 		"{\"0\":[null]}",
+		"{\"0\":[null,null]}",
 		"[null]",
+		"[null,null]",
 		NULL,
 	};
 
@@ -1103,6 +1409,7 @@ test_schema_keywords_additional_properties_false (void)
 		/* For the default properties: */
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -1149,18 +1456,20 @@ test_schema_keywords_properties (void)
 		"{\"a\":null,\"additionalProperties-test-unique\":null}",
 		"{\"a\":null,\"b\":{\"0\":null},\"c\":{\"0\":null}}",
 		"{\"a\":null,\"b\":{\"0\":null},\"c\":{\"0\":null},\"additionalProperties-test-unique\":null}",
-		"{\"a\":null,\"b\":[],\"c\":[]}",
-		"{\"a\":null,\"b\":{},\"c\":{}}",
-		"{\"a\":null,\"b\":\"\",\"c\":\"\"}",
-		"{\"a\":null,\"b\":[],\"c\":[],\"additionalProperties-test-unique\":null}",
-		"{\"a\":null,\"b\":{},\"c\":{},\"additionalProperties-test-unique\":null}",
-		"{\"a\":null,\"b\":\"\",\"c\":\"\",\"additionalProperties-test-unique\":null}",
-		"{\"a\":null,\"b\":null,\"c\":0.10000000000000001}",
-		"{\"a\":null,\"b\":null,\"c\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
-		"{\"a\":null,\"b\":[null],\"c\":[null]}",
-		"{\"a\":null,\"b\":[null],\"c\":[null],\"additionalProperties-test-unique\":null}",
-		"{\"a\":null,\"b\":true,\"c\":null}",
-		"{\"a\":null,\"b\":true,\"c\":null,\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":{},\"c\":[]}",
+		"{\"a\":null,\"b\":\"\",\"c\":{}}",
+		"{\"a\":null,\"b\":{},\"c\":[],\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":\"\",\"c\":{},\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":[],\"c\":[null]}",
+		"{\"a\":null,\"b\":[],\"c\":[null],\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":null,\"c\":null}",
+		"{\"a\":null,\"b\":null,\"c\":null,\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":[null],\"c\":[null,null]}",
+		"{\"a\":null,\"b\":[null],\"c\":[null,null],\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":[null,null],\"c\":0.10000000000000001}",
+		"{\"a\":null,\"b\":[null,null],\"c\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"b\":true,\"c\":\"\"}",
+		"{\"a\":null,\"b\":true,\"c\":\"\",\"additionalProperties-test-unique\":null}",
 		"{\"b\":[]}",
 		"{\"b\":{}}",
 		"{\"b\":\"\"}",
@@ -1173,6 +1482,8 @@ test_schema_keywords_properties (void)
 		"{\"b\":null}",
 		"{\"b\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"b\":null,\"additionalProperties-test-unique\":null}",
+		"{\"b\":[null,null]}",
+		"{\"b\":[null,null],\"additionalProperties-test-unique\":null}",
 		"{\"b\":true}",
 		"{\"b\":true,\"additionalProperties-test-unique\":null}",
 		"{\"c\":[]}",
@@ -1189,7 +1500,10 @@ test_schema_keywords_properties (void)
 		"{\"c\":null}",
 		"{\"c\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"c\":null,\"additionalProperties-test-unique\":null}",
+		"{\"c\":[null,null]}",
+		"{\"c\":[null,null],\"additionalProperties-test-unique\":null}",
 		"[null]",
+		"[null,null]",
 		NULL,
 	};
 
@@ -1245,36 +1559,43 @@ test_schema_keywords_pattern_properties (void)
 		"{\"0\":null}",
 		"{\"0\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"0\":null,\"additionalProperties-test-unique\":null}",
-		"{\"additionalProperties-test-unique\":null}",
+		"{\"0\":[null,null]}",
+		"{\"0\":[null,null],\"additionalProperties-test-unique\":null}",
 		"{\"a\":[]}",
 		"{\"a\":{}}",
 		"{\"a\":\"\"}",
+		"{\"a\":{},\"0\":[]}",
+		"{\"a\":\"\",\"0\":{}}",
+		"{\"a\":{},\"0\":[],\"additionalProperties-test-unique\":null}",
+		"{\"a\":\"\",\"0\":{},\"additionalProperties-test-unique\":null}",
+		"{\"a\":[],\"0\":[null]}",
 		"{\"a\":{\"0\":null}}",
 		"{\"a\":{\"0\":null},\"0\":{\"0\":null}}",
 		"{\"a\":{\"0\":null},\"0\":{\"0\":null},\"additionalProperties-test-unique\":null}",
+		"{\"a\":[],\"0\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"a\":{\"0\":null},\"additionalProperties-test-unique\":null}",
-		"{\"a\":[],\"0\":[]}",
-		"{\"a\":{},\"0\":{}}",
-		"{\"a\":\"\",\"0\":\"\"}",
-		"{\"a\":[],\"0\":[],\"additionalProperties-test-unique\":null}",
-		"{\"a\":{},\"0\":{},\"additionalProperties-test-unique\":null}",
-		"{\"a\":\"\",\"0\":\"\",\"additionalProperties-test-unique\":null}",
 		"{\"a\":[],\"additionalProperties-test-unique\":null}",
 		"{\"a\":{},\"additionalProperties-test-unique\":null}",
 		"{\"a\":\"\",\"additionalProperties-test-unique\":null}",
+		"{\"additionalProperties-test-unique\":null}",
 		"{\"a\":[null]}",
 		"{\"a\":null}",
-		"{\"a\":null,\"0\":0.10000000000000001}",
-		"{\"a\":null,\"0\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
-		"{\"a\":[null],\"0\":[null]}",
-		"{\"a\":[null],\"0\":[null],\"additionalProperties-test-unique\":null}",
+		"{\"a\":null,\"0\":null}",
+		"{\"a\":null,\"0\":null,\"additionalProperties-test-unique\":null}",
+		"{\"a\":[null],\"0\":[null,null]}",
+		"{\"a\":[null],\"0\":[null,null],\"additionalProperties-test-unique\":null}",
 		"{\"a\":[null],\"additionalProperties-test-unique\":null}",
 		"{\"a\":null,\"additionalProperties-test-unique\":null}",
+		"{\"a\":[null,null]}",
+		"{\"a\":[null,null],\"0\":0.10000000000000001}",
+		"{\"a\":[null,null],\"0\":0.10000000000000001,\"additionalProperties-test-unique\":null}",
+		"{\"a\":[null,null],\"additionalProperties-test-unique\":null}",
 		"{\"a\":true}",
-		"{\"a\":true,\"0\":null}",
-		"{\"a\":true,\"0\":null,\"additionalProperties-test-unique\":null}",
+		"{\"a\":true,\"0\":\"\"}",
+		"{\"a\":true,\"0\":\"\",\"additionalProperties-test-unique\":null}",
 		"{\"a\":true,\"additionalProperties-test-unique\":null}",
 		"[null]",
+		"[null,null]",
 		NULL,
 	};
 
@@ -1312,6 +1633,7 @@ test_schema_keywords_enum (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1347,6 +1669,7 @@ test_schema_keywords_type_string_array (void)
 		/* For the default properties: */
 		"{\"0\":null}",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1383,6 +1706,7 @@ test_schema_keywords_type_string_boolean (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1419,6 +1743,7 @@ test_schema_keywords_type_string_integer (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1456,6 +1781,7 @@ test_schema_keywords_type_string_number (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1492,6 +1818,7 @@ test_schema_keywords_type_string_null (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1528,6 +1855,7 @@ test_schema_keywords_type_string_object (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -1563,6 +1891,7 @@ test_schema_keywords_type_string_string (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		NULL,
 	};
@@ -1600,6 +1929,7 @@ test_schema_keywords_type_array (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		NULL,
 	};
@@ -1656,6 +1986,7 @@ test_schema_keywords_all_of (void)
 		/* For the default properties: */
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -1712,6 +2043,7 @@ test_schema_keywords_any_of (void)
 		/* For the default properties: */
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -1767,6 +2099,7 @@ test_schema_keywords_one_of (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1805,6 +2138,7 @@ test_schema_keywords_not (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"\"\"",
 		NULL,
 	};
@@ -1837,6 +2171,7 @@ test_schema_keywords_title (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1870,6 +2205,7 @@ test_schema_keywords_description (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1902,6 +2238,7 @@ test_schema_keywords_default (void)
 		"{\"0\":null}",
 		"[]",
 		"[null]",
+		"[null,null]",
 		"{}",
 		"\"\"",
 		NULL,
@@ -1950,6 +2287,16 @@ main (int argc, char *argv[])
 	                 test_schema_keywords_min_length);
 	g_test_add_func ("/schema/keywords/pattern",
 	                 test_schema_keywords_pattern);
+	g_test_add_func ("/schema/keywords/additional-items/true",
+	                 test_schema_keywords_additional_items_true);
+	g_test_add_func ("/schema/keywords/additional-items/false",
+	                 test_schema_keywords_additional_items_false);
+	g_test_add_func ("/schema/keywords/additional-items/schema",
+	                 test_schema_keywords_additional_items_schema);
+	g_test_add_func ("/schema/keywords/items/array",
+	                 test_schema_keywords_items_array);
+	g_test_add_func ("/schema/keywords/items/subschema",
+	                 test_schema_keywords_items_subschema);
 	g_test_add_func ("/schema/keywords/max-items",
 	                 test_schema_keywords_max_items);
 	g_test_add_func ("/schema/keywords/min-items",

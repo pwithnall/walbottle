@@ -1136,43 +1136,6 @@ generate_take_node (GHashTable/*<owned JsonNode>*/  *output,
 }
 
 static void
-generate_take_builder (GHashTable/*<owned JsonNode>*/ *output,
-                       JsonBuilder *builder,  /* transfer none */
-                       gboolean valid)
-{
-	JsonNode *instance_root = NULL;  /* owned */
-
-	instance_root = json_builder_get_root (builder);
-	g_hash_table_add (output, instance_root);  /* transfer */
-	instance_root = NULL;
-
-	json_builder_reset (builder);
-}
-
-static void
-generate_null_array (GHashTable/*<owned JsonNode>*/ *output,
-                     guint n_elements,
-                     gboolean valid)
-{
-	JsonBuilder *builder = NULL;  /* owned */
-	guint i;
-
-	builder = json_builder_new ();
-
-	json_builder_begin_array (builder);
-
-	for (i = 0; i < n_elements; i++) {
-		json_builder_add_null_value (builder);
-	}
-
-	json_builder_end_array (builder);
-
-	generate_take_builder (output, builder, valid);
-
-	g_object_unref (builder);
-}
-
-static void
 generate_filled_string (GHashTable/*<owned JsonNode>*/ *output,
                         gsize length,  /* in Unicode characters */
                         gunichar fill,
@@ -1863,6 +1826,609 @@ generate_pattern (WblSchema *self,
 	generate_take_node (output, node_new_string ("non-empty"));
 }
 
+/**
+ * array_copy_n:
+ * @items: a JSON array instance
+ * @length: number of items to copy
+ *
+ * Build an array containing a copy of the first @length elements of @items.
+ * @length must be less than or equal to the length of @items.
+ *
+ * Returns: (transfer full): a copy of the @length prefix of @items
+ *
+ * Since: UNRELEASED
+ */
+static JsonArray *
+array_copy_n (JsonArray  *items,
+              guint       length)
+{
+	guint i;
+	JsonArray *new_array = NULL;
+
+	g_return_val_if_fail (length <= json_array_get_length (items), NULL);
+
+	new_array = json_array_sized_new (length);
+	for (i = 0; i < length; i++) {
+		json_array_add_element (new_array,
+		                        json_node_copy (json_array_get_element (items, i)));
+	}
+
+	return new_array;
+}
+
+/**
+ * array_copy_append_n:
+ * @items: a JSON array instance
+ * @n_copies: number of elements to append to the array
+ * @additional_items_subschema: subschema to copy
+ *
+ * Build an array containing a complete copy of @items, with @n_copies of
+ * @additional_items_subschema appended.
+ *
+ * Returns: (transfer full): a copy of @items with @n_copies items appended
+ *
+ * Since: UNRELEASED
+ */
+static JsonArray *
+array_copy_append_n (JsonArray   *items,
+                     guint        n_copies,
+                     JsonObject  *additional_items_subschema)
+{
+	guint i;
+	JsonArray *new_array = NULL;
+
+	g_return_val_if_fail (items != NULL, NULL);
+	g_return_val_if_fail (additional_items_subschema != NULL, NULL);
+
+	new_array = json_array_sized_new (json_array_get_length (items) + n_copies);
+	for (i = 0; i < json_array_get_length (items); i++) {
+		json_array_add_element (new_array,
+		                        json_node_copy (json_array_get_element (items, i)));
+	}
+
+	/* Append @n_copies of @additional_items_subschema. */
+	for (i = 0; i < n_copies; i++) {
+		JsonNode *node = NULL;
+
+		node = json_node_new (JSON_NODE_OBJECT);
+		json_node_set_object (node, additional_items_subschema);
+		json_array_add_element (new_array, node);  /* transfer */
+	}
+
+	return new_array;
+}
+
+/**
+ * generate_subschema_arrays:
+ * @items_node: `items` schema keyword
+ * @additional_items_boolean: `additionalItems` schema keyword if it’s a
+ *    boolean; %TRUE if it’s a subschema
+ * @additional_items_subschema: (nullable): `additionalItems` schema keyword if
+ *    it’s a subschema; %NULL otherwise
+ * @min_items: `minItems` schema keyword
+ * @max_items: `maxItems` schema keyword
+ *
+ * Generate a collection of arrays of subschemas which represent the formats of
+ * array we are interested in generating as test vectors. All the returned
+ * subschema arrays should be valid against the schema (for example, they should
+ * all respect @max_items).
+ *
+ * See inline comments for formal descriptions of the code.
+ *
+ * Returns: (transfer full) (element-type JsonArray): array of subschema
+ *    instances
+ *
+ * Since: UNRELEASED
+ */
+static GPtrArray/*<owned JsonArray>*/ *
+generate_subschema_arrays (JsonNode    *items_node,
+                           gboolean     additional_items_boolean,
+                           JsonObject  *additional_items_subschema,
+                           gint64       min_items,
+                           gint64       max_items)
+{
+	GPtrArray/*<owned JsonArray>*/ *output = NULL;
+	guint64 i, limit;
+
+	g_return_val_if_fail (!additional_items_boolean ||
+	                      additional_items_subschema != NULL, NULL);
+
+	g_debug ("%s: additionalItems = %s, minItems = %"
+	         G_GINT64_FORMAT ", maxItems = %" G_GINT64_FORMAT, G_STRFUNC,
+	         additional_items_boolean ? "subschema" : "false", min_items,
+	         max_items);
+
+	/* TODO: Add formal documentation inline. */
+	output = g_ptr_array_new_with_free_func ((GDestroyNotify) json_array_unref);
+
+	if (JSON_NODE_HOLDS_ARRAY (items_node)) {
+		JsonArray *items_array;
+
+		items_array = json_node_get_array (items_node);
+
+		/* Output sub-arrays from @items. */
+		limit = MIN (json_array_get_length (items_array), max_items);
+
+		for (i = min_items; i <= limit; i++) {
+			JsonArray *generated = NULL;
+
+			generated = array_copy_n (items_array, i);
+			g_ptr_array_add (output, generated);  /* transfer */
+		}
+
+		/* And generate arrays of @additional_items_subschema. */
+		if (!additional_items_boolean) {
+			return output;
+		}
+
+		if (max_items == G_MAXINT64) {
+			limit = json_array_get_length (items_array) + 1;
+		} else {
+			limit = max_items;
+		}
+
+		for (i = json_array_get_length (items_array) + 1; i <= limit; i++) {
+			JsonArray *generated = NULL;
+
+			generated = array_copy_append_n (items_array,
+			                                 i - json_array_get_length (items_array),
+			                                 additional_items_subschema);
+			g_ptr_array_add (output, generated);
+		}
+	} else {
+		JsonObject *items_subschema;
+
+		items_subschema = json_node_get_object (items_node);
+
+		/* Output a fixed repetition of @items_subschema and ignore
+		 * @additional_items_subschema.
+		 * json-schema-validation§8.2.3.1. */
+		if (max_items != G_MAXINT64) {
+			limit = max_items;
+		} else if (additional_items_boolean) {
+			/* Push this up to (arbitrarily) 2 to check the parser
+			 * can handle multiple elements. */
+			limit = MAX (min_items, 1) + 1;
+		} else {
+			limit = min_items;
+		}
+
+		for (i = min_items; i <= limit; i++) {
+			JsonArray *generated = NULL;
+			guint j;
+
+			generated = json_array_sized_new (i);
+			for (j = 0; j < i; j++) {
+				JsonNode *node = NULL;
+
+				node = json_node_new (JSON_NODE_OBJECT);
+				json_node_set_object (node, items_subschema);
+				json_array_add_element (generated, node);  /* transfer */
+			}
+
+			g_ptr_array_add (output, generated);  /* transfer */
+		}
+	}
+
+	return output;
+}
+
+/**
+ * instance_drop_n_elements:
+ * @array: a JSON array instance
+ * @n: number of elements to drop
+ *
+ * Build a copy of @array with the last @n of its items removed. @n must be
+ * less than or equal to the length of @array.
+ *
+ * Returns: (transfer full): a new JSON instance with fewer items
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_drop_n_elements (JsonArray  *array,
+                          guint       n)
+{
+	JsonNode *output = NULL;
+
+	g_return_val_if_fail (n <= json_array_get_length (array), NULL);
+
+	output = json_node_new (JSON_NODE_ARRAY);
+	json_node_take_array (output,
+	                      array_copy_n (array, json_array_get_length (array) - n));
+
+	return output;
+}
+
+/**
+ * instance_add_n_elements:
+ * @array: a JSON array instance
+ * @n: number of elements to add
+ * @items_node: `items` schema keyword
+ * @additional_items_node: `additionalItems` schema keyword
+ *
+ * Build a copy of @array with @n items appended. The new items will be
+ * generated to match @items_node or @additional_items_node; if @items_node is
+ * an array, as many items will be generated as there are indices of that array
+ * more than the current length of @array. Any further items will be generated
+ * to match @additional_items_node. If @items_node is a subschema, all new
+ * items will be generated to match it.
+ *
+ * Returns: (transfer full): a new JSON instance with @n extra items
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_add_n_elements (JsonArray  *array,
+                         guint       n,
+                         JsonNode   *items_node,
+                         JsonNode   *additional_items_node)
+{
+	JsonNode *output = NULL;
+	JsonArray *new_array = NULL;
+	guint i;
+
+	output = json_node_new (JSON_NODE_ARRAY);
+	new_array = array_copy_n (array, json_array_get_length (array));
+
+	/* TODO: This really should generate from
+	 * @items_node and @additional_items_node. */
+	for (i = 0; i < n; i++) {
+		json_array_add_null_element (new_array);
+	}
+
+	json_node_take_array (output, new_array);
+
+	return output;
+}
+
+/**
+ * instance_add_null_element:
+ * @array: a JSON array instance
+ *
+ * Build a copy of @array with one `null` JSON instance appended.
+ *
+ * Returns: (transfer full): a new JSON instance with one extra item
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_add_null_element (JsonArray  *array)
+{
+	JsonNode *output = NULL;
+	JsonArray *new_array = NULL;
+
+	output = json_node_new (JSON_NODE_ARRAY);
+	new_array = array_copy_n (array, json_array_get_length (array));
+	json_array_add_null_element (new_array);
+	json_node_take_array (output, new_array);
+
+	return output;
+}
+
+/**
+ * instance_clone_final_element
+ * @array: a JSON array instance
+ *
+ * Build a copy of @array with its final element cloned and appended. If @array
+ * is empty, a new empty array will be returned.
+ *
+ * Returns: (transfer full): a new JSON instance with one extra item
+ *
+ * Since: UNRELEASED
+ */
+static JsonNode *
+instance_clone_final_element (JsonArray  *array)
+{
+	JsonNode *output = NULL;
+	JsonArray *new_array = NULL;
+	guint len;
+
+	len = json_array_get_length (array);
+	output = json_node_new (JSON_NODE_ARRAY);
+	new_array = array_copy_n (array, len);
+
+	if (len > 0) {
+		JsonNode *final_element;
+
+		final_element = json_array_get_element (new_array, len - 1);
+		json_array_add_element (new_array,
+		                        json_node_copy (final_element));
+	}
+
+	json_node_take_array (output, new_array);
+
+	return output;
+}
+
+/**
+ * generate_all_items:
+ * @self: a #WblSchema
+ * @items_node: `items` schema keyword
+ * @additional_items_node: `additionalItems` schema keyword
+ * @min_items: minimum number of items required (inclusive)
+ * @max_items: maximum number of items allowed (inclusive)
+ * @unique_items: %TRUE if all items have to be unique, %FALSE otherwise
+ * @output: caller-allocated hash table for output to be appended to
+ *
+ * Generic implementation for the generate function for all item-related
+ * schema keywords (minItems`, `maxItems`, `items`, `additionalItems`,
+ * `uniqueItems`).
+ *
+ * The overall approach taken by this function is to:
+ *  # Generate a set of arrays of subschemas which match the schema’s
+ *    constraints.
+ *  # For each schema array, generate a set of array instances which all have
+ *    that number of items, each matching the corresponding subschema.
+ *  # For each item schema keyword, mutate all the array instances in some way
+ *    to explore validation of the boundary conditions for validity of that
+ *    keyword.
+ *  # Add all the mutated and non-mutated array instances to @output.
+ *
+ * Since: UNRELEASED
+ */
+static void
+generate_all_items (WblSchema                       *self,
+                    JsonNode                        *items_node,
+                    JsonNode                        *additional_items_node,
+                    gint64                           min_items,
+                    gint64                           max_items,
+                    gboolean                         unique_items,
+                    GHashTable/*<owned JsonNode>*/  *output)
+{
+	GPtrArray/*<owned JsonArray>*/ *subschema_arrays = NULL;
+	gboolean additional_items_boolean;
+	JsonObject *additional_items_subschema = NULL;  /* nullable; owned */
+	GHashTable/*<owned JsonNode>*/ *instance_set = NULL;
+	GHashTable/*<owned JsonNode>*/ *mutation_set = NULL;
+	guint i, j;
+	JsonBuilder *builder = NULL;
+	GHashTableIter iter;
+	JsonNode *node;
+
+	/* Massage the input to remove some irregularities. */
+	if (validate_value_type (additional_items_node, G_TYPE_BOOLEAN)) {
+		additional_items_boolean = json_node_get_boolean (additional_items_node);
+		if (additional_items_boolean) {
+			additional_items_subschema = json_object_new ();
+		} else {
+			additional_items_subschema = NULL;
+		}
+	} else {
+		additional_items_boolean = TRUE;
+		additional_items_subschema = json_node_dup_object (additional_items_node);
+	}
+
+	/* Generate a set of arrays of subschemas. Note that the output must
+	 * differ if @items_node is a subschema vs being a singleton array of
+	 * subschemas — the former is index-independent whereas the latter is
+	 * not. */
+	subschema_arrays = generate_subschema_arrays (items_node,
+	                                              additional_items_boolean,
+	                                              additional_items_subschema,
+	                                              min_items, max_items);
+
+	/* Debug. */
+	for (i = 0; i < subschema_arrays->len; i++) {
+		JsonNode *debug_node = NULL;
+		gchar *json = NULL;
+
+		debug_node = json_node_new (JSON_NODE_ARRAY);
+		json_node_set_array (debug_node, subschema_arrays->pdata[i]);
+		json = node_to_string (debug_node);
+		g_debug ("%s: Subschema array: %s", G_STRFUNC, json);
+		g_free (json);
+		json_node_free (debug_node);
+	}
+
+	/* Generate a set of array instances from the set of arrays of
+	 * subschemas. */
+	instance_set = g_hash_table_new_full (node_hash, node_equal,
+	                                      (GDestroyNotify) json_node_free,
+	                                      NULL);
+	builder = json_builder_new ();
+
+	for (i = 0; i < subschema_arrays->len; i++) {
+		JsonArray *subschema_array;
+		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *instances_array = NULL;
+		GHashTableIter *iters = NULL;
+		guint n_iterations_remaining;
+
+		subschema_array = subschema_arrays->pdata[i];
+		instances_array = g_ptr_array_new_full (json_array_get_length (subschema_array),
+		                                        (GDestroyNotify) g_hash_table_unref);
+
+		for (j = 0; j < json_array_get_length (subschema_array); j++) {
+			GHashTable/*<owned JsonNode>*/ *instances = NULL;
+			JsonObject *subschema;
+
+			instances = g_hash_table_new_full (node_hash,
+			                                   node_equal,
+			                                   (GDestroyNotify) json_node_free,
+			                                   NULL);
+
+			subschema = json_array_get_object_element (subschema_array, j);
+			subschema_generate_instances (self, subschema,
+			                              instances);
+
+			g_ptr_array_add (instances_array, instances);  /* transfer */
+		}
+
+		/* Now combine all the instances for each array position to
+		 * produce a set of output instances. There are various
+		 * heuristics we could choose for this: completeness is
+		 * guaranteed by taking the N-fold cross-product between all the
+		 * instances over all N positions in @subschema_array. That
+		 * produces a combinatorial explosion of output instances,
+		 * however.
+		 *
+		 * Instead, we assume that the code under test is going to
+		 * validate each of the instances independently, so don’t need
+		 * to test combinations of instances from different positions in
+		 * @subschema_array.
+		 *
+		 * Hence, iterate over all the members of the sets in
+		 * @instances_array in parallel, iterating at most as many times
+		 * as the cardinality of the largest member of @instances_array.
+		 */
+		iters = g_new0 (GHashTableIter, instances_array->len);
+		n_iterations_remaining = 0;
+
+		for (j = 0; j < instances_array->len; j++) {
+			GHashTable/*<owned JsonNode>*/ *instances;
+
+			/* TODO: might want to offset each of these iterators
+			 * so we can more easily guarantee unique elements */
+			instances = instances_array->pdata[j];
+			g_hash_table_iter_init (&iters[j], instances);
+			n_iterations_remaining = MAX (n_iterations_remaining,
+			                              g_hash_table_size (instances));
+		}
+
+		g_debug ("%s: n_iterations_remaining = %u",
+		         G_STRFUNC, n_iterations_remaining);
+
+		/* FIXME: This is an enormous hack to ensure we get at least one
+		 * iteration. */
+		n_iterations_remaining = MAX (n_iterations_remaining, 1);
+
+		for (; n_iterations_remaining > 0; n_iterations_remaining--) {
+			JsonNode *instance = NULL;
+			gchar *debug_output = NULL;
+
+			json_builder_begin_array (builder);
+
+			for (j = 0; j < instances_array->len; j++) {
+				GHashTable/*<owned JsonNode>*/ *instances;
+				JsonNode *generated_instance;
+
+				instances = instances_array->pdata[j];
+
+				if (g_hash_table_size (instances) == 0) {
+					generated_instance = NULL;
+				} else if (!g_hash_table_iter_next (&iters[j],
+				                                    (gpointer *) &generated_instance,
+				                                    NULL)) {
+					/* Arbitrarily loop round and start
+					 * again. */
+					g_hash_table_iter_init (&iters[j],
+					                        instances);
+					if (!g_hash_table_iter_next (&iters[j],
+					                             (gpointer *) &generated_instance,
+					                             NULL)) {
+						generated_instance = NULL;
+					}
+				}
+
+				if (generated_instance != NULL) {
+					json_builder_add_value (builder,
+					                        json_node_copy (generated_instance));
+				} else {
+					json_builder_add_null_value (builder);
+				}
+			}
+
+			json_builder_end_array (builder);
+
+			instance = json_builder_get_root (builder);
+			g_hash_table_add (instance_set, instance);  /* transfer */
+
+			/* Debug output. */
+			debug_output = node_to_string (instance);
+			g_debug ("%s: Instance: %s", G_STRFUNC, debug_output);
+			g_free (debug_output);
+
+			json_builder_reset (builder);
+		}
+
+		g_free (iters);
+		g_ptr_array_unref (instances_array);
+	}
+
+	/* The final step is to take each of the generated instances, and
+	 * mutate it for each of the relevant schema properties. */
+	mutation_set = g_hash_table_new_full (node_hash, node_equal,
+	                                      (GDestroyNotify) json_node_free,
+	                                      NULL);
+
+	/* Mutate on minItems, maxItems, additionalItems, items and
+	 * uniqueItems. */
+	g_hash_table_iter_init (&iter, instance_set);
+
+	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+		JsonNode *mutated_instance = NULL;
+		JsonArray *array;
+
+		array = json_node_get_array (node);
+
+		/* minItems. */
+		if (min_items > 0) {
+			g_assert (json_array_get_length (array) >= min_items);
+
+			mutated_instance = instance_drop_n_elements (array,
+			                                             json_array_get_length (array) - min_items + 1);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+
+		/* maxItems. */
+		if (max_items < G_MAXINT64) {
+			g_assert (json_array_get_length (array) <= max_items);
+
+			mutated_instance = instance_add_n_elements (array,
+			                                            max_items - json_array_get_length (array) + 1,
+			                                            items_node,
+			                                            additional_items_node);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+
+		/* items and additionalItems. Add an extra element to the array
+		 * if additionalItems is false. */
+		if (validate_value_type (additional_items_node, G_TYPE_BOOLEAN) &&
+		    !json_node_get_boolean (additional_items_node) &&
+		    (JSON_NODE_HOLDS_OBJECT (items_node) ||
+		     json_array_get_length (array) == json_array_get_length (json_node_get_array (items_node)))) {
+			mutated_instance = instance_add_null_element (array);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+
+		/* TODO: How to do uniqueItems? */
+		if (unique_items && json_array_get_length (array) > 0) {
+			mutated_instance = instance_clone_final_element (array);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		} else if (unique_items) {
+			JsonArray *new_array = NULL;
+
+			mutated_instance = json_node_new (JSON_NODE_ARRAY);
+			new_array = json_array_new ();
+			json_array_add_null_element (new_array);
+			json_array_add_null_element (new_array);
+
+			json_node_take_array (mutated_instance, new_array);
+			g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
+		}
+	}
+
+	/* Throw the output over the fence. */
+	g_hash_table_iter_init (&iter, instance_set);
+
+	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+		generate_take_node (output, json_node_copy (node));
+	}
+
+	g_hash_table_iter_init (&iter, mutation_set);
+
+	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+		generate_take_node (output, json_node_copy (node));
+	}
+
+	g_hash_table_unref (mutation_set);
+	g_hash_table_unref (instance_set);
+	g_ptr_array_unref (subschema_arrays);
+	g_clear_pointer (&additional_items_subschema,
+	                 (GDestroyNotify) json_object_unref);
+	g_object_unref (builder);
+}
+
 /* additionalItems and items. json-schema-validation§5.3.1. */
 static void
 validate_additional_items (WblSchema *self,
@@ -1904,6 +2470,54 @@ validate_additional_items (WblSchema *self,
 	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
 	             _("additionalItems must be a boolean or a valid JSON "
 	               "Schema. See json-schema-validation§5.3.1."));
+}
+
+static void
+generate_additional_items (WblSchema *self,
+                           JsonObject *root,
+                           JsonNode *schema_node,
+                           GHashTable/*<owned JsonNode>*/ *output)
+{
+	JsonNode *items_node, *additional_items_node = NULL;
+	gint64 min_items, max_items;
+	gboolean unique_items;
+
+	if (json_object_has_member (root, "items")) {
+		items_node = json_object_dup_member (root, "items");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (items_node, json_object_new ());
+	}
+
+	additional_items_node = schema_node;
+
+	if (json_object_has_member (root, "minItems")) {
+		min_items = json_object_get_int_member (root, "minItems");
+	} else {
+		/* json-schema-validation§5.3.3.3. */
+		min_items = 0;
+	}
+
+	if (json_object_has_member (root, "maxItems")) {
+		max_items = json_object_get_int_member (root, "maxItems");
+	} else {
+		max_items = G_MAXINT64;
+	}
+
+	if (json_object_has_member (root, "uniqueItems")) {
+		unique_items = json_object_get_boolean_member (root,
+		                                               "uniqueItems");
+	} else {
+		/* json-schema-validation§5.3.4.3. */
+		unique_items = FALSE;
+	}
+
+	/* TODO: this is called multiple times; probably could reduce that */
+	generate_all_items (self, items_node, additional_items_node, min_items,
+	                    max_items, unique_items, output);
+
+	json_node_free (items_node);
 }
 
 static void
@@ -2165,152 +2779,54 @@ apply_items (WblSchema *self,
 	}
 }
 
-/* Generate a JSON array with null elements up to @subschema_position, and an
- * instance generated from @subschema_node at that position. Generate one of
- * these arrays for each instance generated from @subschema_node. */
-static void
-generate_array_with_subschema (WblSchema *self,
-                               JsonNode *subschema_node,
-                               guint subschema_position,
-                               GHashTable/*<owned JsonNode>*/ *output)
-{
-	GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
-	GHashTableIter iter;
-	JsonParser *parser = NULL;  /* owned */
-	JsonBuilder *builder = NULL;  /* owned */
-	JsonNode *child_instance;  /* unowned */
-	JsonObject *subschema_object;
-
-	child_output = g_hash_table_new_full (node_hash,
-	                                      node_equal,
-	                                      (GDestroyNotify) json_node_free,
-	                                      NULL);
-	builder = json_builder_new ();
-	parser = json_parser_new ();
-
-	subschema_object = json_node_get_object (subschema_node);
-	subschema_generate_instances (self, subschema_object, child_output);
-
-	g_hash_table_iter_init (&iter, child_output);
-
-	while (g_hash_table_iter_next (&iter, (gpointer *) &child_instance, NULL)) {
-		guint k;
-
-		json_builder_begin_array (builder);
-
-		for (k = 0; k < subschema_position; k++) {
-			json_builder_add_null_value (builder);
-		}
-
-		json_builder_add_value (builder, json_node_copy (child_instance));
-		json_builder_end_array (builder);
-
-		generate_take_builder (output, builder, TRUE);
-	}
-
-	g_object_unref (parser);
-	g_object_unref (builder);
-	g_hash_table_unref (child_output);
-}
-
 static void
 generate_items (WblSchema *self,
                 JsonObject *root,
                 JsonNode *schema_node,
                 GHashTable/*<owned JsonNode>*/ *output)
 {
-	JsonBuilder *builder = NULL;
-	guint items_length = 0;
+	JsonNode *items_node, *additional_items_node = NULL;
+	gint64 min_items, max_items;
+	gboolean unique_items;
 
-	/* If items is an array, we care about its length. */
-	if (JSON_NODE_HOLDS_ARRAY (schema_node)) {
-		JsonArray *items_array;  /* unowned */
+	items_node = schema_node;
 
-		items_array = json_node_get_array (schema_node);
-		items_length = json_array_get_length (items_array);
+	if (json_object_has_member (root, "additionalItems")) {
+		additional_items_node = json_object_dup_member (root,
+		                                                "additionalItems");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		additional_items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (additional_items_node,
+		                       json_object_new ());
 	}
 
-	/* Always have an empty array. */
-	if (items_length > 0) {
-		JsonNode *node = NULL;
-
-		node = json_node_new (JSON_NODE_ARRAY);
-		json_node_take_array (node, json_array_new ());
-		generate_take_node (output, node);
+	if (json_object_has_member (root, "minItems")) {
+		min_items = json_object_get_int_member (root, "minItems");
+	} else {
+		/* json-schema-validation§5.3.3.3. */
+		min_items = 0;
 	}
 
-	/* Add arrays at @items_length and (@items_length + 1). */
-	generate_null_array (output, items_length, TRUE);
-	generate_null_array (output, items_length + 1, TRUE);
-	/* FIXME: @valid should depend on additionalItems here. */
-
-	builder = json_builder_new ();
-
-	/* If items is an object, all child elements must validate against
-	 * that subschema. */
-	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
-		GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
-		GHashTableIter iter;
-		JsonNode *child_instance;  /* unowned */
-		JsonObject *schema_object;
-
-		child_output = g_hash_table_new_full (node_hash,
-		                                      node_equal,
-		                                      (GDestroyNotify) json_node_free,
-		                                      NULL);
-
-		schema_object = json_node_get_object (schema_node);
-		subschema_generate_instances (self, schema_object,
-		                              child_output);
-
-		g_hash_table_iter_init (&iter, child_output);
-
-		while (g_hash_table_iter_next (&iter, (gpointer *) &child_instance, NULL)) {
-			json_builder_begin_array (builder);
-			json_builder_add_value (builder,
-			                        json_node_copy (child_instance));
-			json_builder_end_array (builder);
-
-			generate_take_builder (output, builder, TRUE);
-		}
-
-		g_hash_table_unref (child_output);
+	if (json_object_has_member (root, "maxItems")) {
+		max_items = json_object_get_int_member (root, "maxItems");
+	} else {
+		max_items = G_MAXINT64;
 	}
 
-	/* If items is an array, all child elements must validate against the
-	 * subschema with the corresponding index.
-	 *
-	 * For each subschema, generate instances for it, and wrap them in an
-	 * array with the generated instances at the index corresponding to the
-	 * subschema. If additionalItems is set, generate an additional array
-	 * with the generated instances for the additionalItems subschema at the
-	 * final index. */
-	if (JSON_NODE_HOLDS_ARRAY (schema_node)) {
-		guint i;
-		JsonArray *schema_array;  /* unowned */
-		JsonNode *ai_schema_node;  /* unowned */
-
-		ai_schema_node = json_object_get_member (root,
-		                                         "additionalItems");
-		schema_array = json_node_get_array (schema_node);
-
-		for (i = 0; i < json_array_get_length (schema_array); i++) {
-			JsonNode *subschema_node;  /* unowned */
-
-			subschema_node = json_array_get_element (schema_array,
-			                                         i);
-			generate_array_with_subschema (self, subschema_node,
-			                               i, output);
-		}
-
-		if (ai_schema_node != NULL &&
-		    JSON_NODE_HOLDS_OBJECT (ai_schema_node)) {
-			generate_array_with_subschema (self, ai_schema_node,
-			                               items_length, output);
-		}
+	if (json_object_has_member (root, "uniqueItems")) {
+		unique_items = json_object_get_boolean_member (root,
+		                                               "uniqueItems");
+	} else {
+		/* json-schema-validation§5.3.4.3. */
+		unique_items = FALSE;
 	}
 
-	g_object_unref (builder);
+	/* TODO: this is called multiple times; probably could reduce that */
+	generate_all_items (self, items_node, additional_items_node, min_items,
+	                    max_items, unique_items, output);
+
+	json_node_free (additional_items_node);
 }
 
 /* maxItems. json-schema-validation§5.3.2. */
@@ -2363,15 +2879,51 @@ generate_max_items (WblSchema *self,
                     JsonNode *schema_node,
                     GHashTable/*<owned JsonNode>*/ *output)
 {
-	gint64 max_items;
+	JsonNode *items_node = NULL, *additional_items_node = NULL;
+	gint64 min_items, max_items;
+	gboolean unique_items;
+
+	if (json_object_has_member (root, "items")) {
+		items_node = json_object_dup_member (root, "items");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (items_node, json_object_new ());
+	}
+
+	if (json_object_has_member (root, "additionalItems")) {
+		additional_items_node = json_object_dup_member (root,
+		                                                "additionalItems");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		additional_items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (additional_items_node,
+		                       json_object_new ());
+	}
+
+	if (json_object_has_member (root, "minItems")) {
+		min_items = json_object_get_int_member (root, "minItems");
+	} else {
+		/* json-schema-validation§5.3.3.3. */
+		min_items = 0;
+	}
 
 	max_items = json_node_get_int (schema_node);
 
-	generate_null_array (output, max_items, TRUE);
-
-	if (max_items < G_MAXINT64) {
-		generate_null_array (output, max_items + 1, FALSE);
+	if (json_object_has_member (root, "uniqueItems")) {
+		unique_items = json_object_get_boolean_member (root,
+		                                               "uniqueItems");
+	} else {
+		/* json-schema-validation§5.3.4.3. */
+		unique_items = FALSE;
 	}
+
+	/* TODO: this is called multiple times; probably could reduce that */
+	generate_all_items (self, items_node, additional_items_node, min_items,
+	                    max_items, unique_items, output);
+
+	json_node_free (additional_items_node);
+	json_node_free (items_node);
 }
 
 /* minItems. json-schema-validation§5.3.3. */
@@ -2424,15 +2976,50 @@ generate_min_items (WblSchema *self,
                     JsonNode *schema_node,
                     GHashTable/*<owned JsonNode>*/ *output)
 {
-	gint64 min_items;
+	JsonNode *items_node = NULL, *additional_items_node = NULL;
+	gint64 min_items, max_items;
+	gboolean unique_items;
+
+	if (json_object_has_member (root, "items")) {
+		items_node = json_object_dup_member (root, "items");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (items_node, json_object_new ());
+	}
+
+	if (json_object_has_member (root, "additionalItems")) {
+		additional_items_node = json_object_dup_member (root,
+		                                                "additionalItems");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		additional_items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (additional_items_node,
+		                       json_object_new ());
+	}
 
 	min_items = json_node_get_int (schema_node);
 
-	generate_null_array (output, min_items, TRUE);
-
-	if (min_items > 0) {
-		generate_null_array (output, min_items - 1, FALSE);
+	if (json_object_has_member (root, "maxItems")) {
+		max_items = json_object_get_int_member (root, "maxItems");
+	} else {
+		max_items = G_MAXINT64;
 	}
+
+	if (json_object_has_member (root, "uniqueItems")) {
+		unique_items = json_object_get_boolean_member (root,
+		                                               "uniqueItems");
+	} else {
+		/* json-schema-validation§5.3.4.3. */
+		unique_items = FALSE;
+	}
+
+	/* TODO: this is called multiple times; probably could reduce that */
+	generate_all_items (self, items_node, additional_items_node, min_items,
+	                    max_items, unique_items, output);
+
+	json_node_free (additional_items_node);
+	json_node_free (items_node);
 }
 
 /* uniqueItems. json-schema-validation§5.3.3. */
@@ -2504,11 +3091,49 @@ generate_unique_items (WblSchema *self,
                        JsonNode *schema_node,
                        GHashTable/*<owned JsonNode>*/ *output)
 {
-	if (json_node_get_boolean (schema_node)) {
-		/* Assume generate_null_array() uses non-unique elements. */
-		generate_null_array (output, 1, TRUE);
-		generate_null_array (output, 2, FALSE);
+	JsonNode *items_node = NULL, *additional_items_node = NULL;
+	gint64 min_items, max_items;
+	gboolean unique_items;
+
+	if (json_object_has_member (root, "items")) {
+		items_node = json_object_dup_member (root, "items");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (items_node, json_object_new ());
 	}
+
+	if (json_object_has_member (root, "additionalItems")) {
+		additional_items_node = json_object_dup_member (root,
+		                                                "additionalItems");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		additional_items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (additional_items_node,
+		                       json_object_new ());
+	}
+
+	if (json_object_has_member (root, "minItems")) {
+		min_items = json_object_get_int_member (root, "minItems");
+	} else {
+		/* json-schema-validation§5.3.3.3. */
+		min_items = 0;
+	}
+
+	if (json_object_has_member (root, "maxItems")) {
+		max_items = json_object_get_int_member (root, "maxItems");
+	} else {
+		max_items = G_MAXINT64;
+	}
+
+	unique_items = json_node_get_boolean (schema_node);
+
+	/* TODO: this is called multiple times; probably could reduce that */
+	generate_all_items (self, items_node, additional_items_node, min_items,
+	                    max_items, unique_items, output);
+
+	json_node_free (additional_items_node);
+	json_node_free (items_node);
 }
 
 /* maxProperties. json-schema-validation§5.4.1. */
@@ -5663,7 +6288,7 @@ static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§5.2.3 */
 	{ "pattern", NULL, validate_pattern, apply_pattern, generate_pattern },
 	/* json-schema-validation§5.3.1 */
-	{ "additionalItems", "{}", validate_additional_items, NULL, NULL },
+	{ "additionalItems", "{}", validate_additional_items, NULL, generate_additional_items },
 	{ "items", "{}", validate_items, apply_items, generate_items },
 	/* json-schema-validation§5.3.2 */
 	{ "maxItems", NULL, validate_max_items, apply_max_items, generate_max_items },
