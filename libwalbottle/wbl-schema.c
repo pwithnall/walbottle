@@ -5757,13 +5757,13 @@ real_validate_schema (WblSchema *self,
 		if (schema_node != NULL && keyword->validate != NULL) {
 			keyword->validate (self, schema->node,
 			                   schema_node, &child_error);
+		}
 
-			g_clear_pointer (&default_schema_node, json_node_free);
+		g_clear_pointer (&default_schema_node, json_node_free);
 
-			if (child_error != NULL) {
-				g_propagate_error (error, child_error);
-				return;
-			}
+		if (child_error != NULL) {
+			g_propagate_error (error, child_error);
+			return;
 		}
 	}
 }
@@ -5793,13 +5793,13 @@ real_apply_schema (WblSchema *self,
 		if (schema_node != NULL && keyword->apply != NULL) {
 			keyword->apply (self, schema->node,
 			                schema_node, instance, &child_error);
+		}
 
-			g_clear_pointer (&default_schema_node, json_node_free);
+		g_clear_pointer (&default_schema_node, json_node_free);
 
-			if (child_error != NULL) {
-				g_propagate_error (error, child_error);
-				return;
-			}
+		if (child_error != NULL) {
+			g_propagate_error (error, child_error);
+			return;
 		}
 	}
 }
