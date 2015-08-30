@@ -17,7 +17,7 @@
  * License along with Walbottle.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
+/*
  * SECTION:wbl-string-set
  * @short_description: Storage of mathematical sets of UTF-8 strings
  * @stability: Private
