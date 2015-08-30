@@ -141,12 +141,12 @@ libwalbottle_libwalbottle_utils_la_LDFLAGS = \
 	$(NULL)
 
 # json-validate utility
-bin_PROGRAMS += utilities/json-validate
+bin_PROGRAMS += utilities/json-validate-@WBL_API_VERSION@
 
-utilities_json_validate_SOURCES = \
+utilities_json_validate_@WBL_API_VERSION@_SOURCES = \
 	utilities/json-validate.c \
 	$(NULL)
-utilities_json_validate_CPPFLAGS = \
+utilities_json_validate_@WBL_API_VERSION@_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/libwalbottle \
 	-I$(top_builddir)/libwalbottle \
@@ -154,13 +154,13 @@ utilities_json_validate_CPPFLAGS = \
 	$(DISABLE_DEPRECATED) \
 	$(AM_CPPFLAGS) \
 	$(NULL)
-utilities_json_validate_CFLAGS = \
+utilities_json_validate_@WBL_API_VERSION@_CFLAGS = \
 	$(GLIB_CFLAGS) \
 	$(JSON_GLIB_CFLAGS) \
 	$(WARN_CFLAGS) \
 	$(AM_CFLAGS) \
 	$(NULL)
-utilities_json_validate_LDADD = \
+utilities_json_validate_@WBL_API_VERSION@_LDADD = \
 	libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
@@ -169,12 +169,12 @@ utilities_json_validate_LDADD = \
 	$(NULL)
 
 # json-schema-validate utility
-bin_PROGRAMS += utilities/json-schema-validate
+bin_PROGRAMS += utilities/json-schema-validate-@WBL_API_VERSION@
 
-utilities_json_schema_validate_SOURCES = \
+utilities_json_schema_validate_@WBL_API_VERSION@_SOURCES = \
 	utilities/json-schema-validate.c \
 	$(NULL)
-utilities_json_schema_validate_CPPFLAGS = \
+utilities_json_schema_validate_@WBL_API_VERSION@_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/libwalbottle \
 	-I$(top_builddir)/libwalbottle \
@@ -182,13 +182,13 @@ utilities_json_schema_validate_CPPFLAGS = \
 	$(DISABLE_DEPRECATED) \
 	$(AM_CPPFLAGS) \
 	$(NULL)
-utilities_json_schema_validate_CFLAGS = \
+utilities_json_schema_validate_@WBL_API_VERSION@_CFLAGS = \
 	$(GLIB_CFLAGS) \
 	$(JSON_GLIB_CFLAGS) \
 	$(WARN_CFLAGS) \
 	$(AM_CFLAGS) \
 	$(NULL)
-utilities_json_schema_validate_LDADD = \
+utilities_json_schema_validate_@WBL_API_VERSION@_LDADD = \
 	libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
@@ -197,12 +197,12 @@ utilities_json_schema_validate_LDADD = \
 	$(NULL)
 
 # json-schema-generate utility
-bin_PROGRAMS += utilities/json-schema-generate
+bin_PROGRAMS += utilities/json-schema-generate-@WBL_API_VERSION@
 
-utilities_json_schema_generate_SOURCES = \
+utilities_json_schema_generate_@WBL_API_VERSION@_SOURCES = \
 	utilities/json-schema-generate.c \
 	$(NULL)
-utilities_json_schema_generate_CPPFLAGS = \
+utilities_json_schema_generate_@WBL_API_VERSION@_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/libwalbottle \
 	-I$(top_builddir)/libwalbottle \
@@ -210,19 +210,33 @@ utilities_json_schema_generate_CPPFLAGS = \
 	$(DISABLE_DEPRECATED) \
 	$(AM_CPPFLAGS) \
 	$(NULL)
-utilities_json_schema_generate_CFLAGS = \
+utilities_json_schema_generate_@WBL_API_VERSION@_CFLAGS = \
 	$(GLIB_CFLAGS) \
 	$(JSON_GLIB_CFLAGS) \
 	$(WARN_CFLAGS) \
 	$(AM_CFLAGS) \
 	$(NULL)
-utilities_json_schema_generate_LDADD = \
+utilities_json_schema_generate_@WBL_API_VERSION@_LDADD = \
 	libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
 	$(WARN_LDFLAGS) \
 	$(AM_LIBADD) \
 	$(NULL)
+
+# Non-versioned symlinks for bin_PROGRAMS utilities
+utilities = json-validate json-schema-validate json-schema-generate
+install-exec-hook:
+	for i in $(utilities); do \
+		(cd $(DESTDIR)$(bindir) && \
+		 $(LN_S) $$i-@WBL_API_VERSION@$(EXEEXT) $$i$(EXEEXT)); \
+	done
+
+uninstall-hook:
+	for i in $(utilities); do \
+		(cd $(DESTDIR)$(bindir) && \
+		 rm -f $$i$(EXEEXT)); \
+	done
 
 # Macros
 EXTRA_DIST += \
