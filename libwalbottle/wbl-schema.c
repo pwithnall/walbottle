@@ -6327,7 +6327,22 @@ static const KeywordData json_schema_keywords[] = {
 	 */
 };
 
-/* TODO: docs; returns transfer full */
+/**
+ * parse_default_value:
+ * @json_string: a JSON string to parse
+ *
+ * Parse the default value for a JSON schema keyword. This is an internal
+ * utility method which takes advantage of the limited set of default values and
+ * uses direct string comparison to instantiate a #JsonNode for the
+ * @json_string, rather than setting up a full JSON parser.
+ *
+ * If new default values are added to @json_schema_keywords, this method must
+ * be updated to handle them.
+ *
+ * Returns: (transfer full): a new #JsonNode representing the parsed string
+ *
+ * Since: UNRELEASED
+ */
 static JsonNode *
 parse_default_value (const gchar *json_string)
 {
