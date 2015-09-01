@@ -3238,10 +3238,9 @@ generate_max_properties (WblSchema *self,
 	if (additional_properties_node != NULL) {
 		additional_properties = json_node_copy (additional_properties_node);
 	} else {
-		JsonObject *obj = json_object_new ();
 		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (additional_properties, obj);
-		json_object_unref (obj);
+		json_node_take_object (additional_properties,
+		                       json_object_new ());
 	}
 
 	if (dependencies_node != NULL) {
@@ -3365,10 +3364,9 @@ generate_min_properties (WblSchema *self,
 	if (additional_properties_node != NULL) {
 		additional_properties = json_node_copy (additional_properties_node);
 	} else {
-		JsonObject *obj = json_object_new ();
 		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (additional_properties, obj);
-		json_object_unref (obj);
+		json_node_take_object (additional_properties,
+		                       json_object_new ());
 	}
 
 	if (dependencies_node != NULL) {
@@ -3528,10 +3526,9 @@ generate_required (WblSchema *self,
 	if (additional_properties_node != NULL) {
 		additional_properties = json_node_copy (additional_properties_node);
 	} else {
-		JsonObject *obj = json_object_new ();
 		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (additional_properties, obj);
-		json_object_unref (obj);
+		json_node_take_object (additional_properties,
+		                       json_object_new ());
 	}
 
 	if (dependencies_node != NULL) {
@@ -5190,10 +5187,9 @@ generate_properties (WblSchema *self,
 	if (additional_properties_node != NULL) {
 		additional_properties = json_node_copy (additional_properties_node);
 	} else {
-		JsonObject *obj = json_object_new ();
 		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (additional_properties, obj);
-		json_object_unref (obj);
+		json_node_take_object (additional_properties,
+		                       json_object_new ());
 	}
 
 	if (dependencies_node != NULL) {
@@ -5273,10 +5269,9 @@ generate_additional_properties (WblSchema *self,
 	if (additional_properties_node != NULL) {
 		additional_properties = json_node_copy (additional_properties_node);
 	} else {
-		JsonObject *obj = json_object_new ();
 		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (additional_properties, obj);
-		json_object_unref (obj);
+		json_node_take_object (additional_properties,
+		                       json_object_new ());
 	}
 
 	if (dependencies_node != NULL) {
@@ -5356,10 +5351,9 @@ generate_pattern_properties (WblSchema *self,
 	if (additional_properties_node != NULL) {
 		additional_properties = json_node_copy (additional_properties_node);
 	} else {
-		JsonObject *obj = json_object_new ();
 		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (additional_properties, obj);
-		json_object_unref (obj);
+		json_node_take_object (additional_properties,
+		                       json_object_new ());
 	}
 
 	if (dependencies_node != NULL) {
@@ -5587,10 +5581,9 @@ generate_dependencies (WblSchema *self,
 	if (additional_properties_node != NULL) {
 		additional_properties = json_node_copy (additional_properties_node);
 	} else {
-		JsonObject *obj = json_object_new ();
 		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_set_object (additional_properties, obj);
-		json_object_unref (obj);
+		json_node_take_object (additional_properties,
+		                       json_object_new ());
 	}
 
 	if (dependencies_node != NULL) {
