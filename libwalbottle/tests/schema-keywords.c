@@ -903,35 +903,39 @@ test_schema_keywords_items_array (void)
 		NULL,
 	};
 	const gchar *expected_instances[] = {
-		"[null,{\"0\":null},{\"0\":null},null]",
-		"[null,null,null,null]",
-		"[null,true]",
-		"[null,[null],[null,null]]",
-		"{}",
-		"[null,{},[],null]",
-		"[null,[null,null],0.10000000000000001,null]",
-		"[null,[],[null],null]",
-		"[null,\"\"]",
-		"[null,{\"0\":null},{\"0\":null}]",
-		"[null,true,\"\",null]",
-		"[null,{}]",
-		"[null,{},[]]",
-		"[null,null,null]",
-		"[null,{\"0\":null}]",
-		"[null,\"\",{}]",
-		"\"\"",
-		"[null,[]]",
-		"[null]",
 		"[]",
+		"{}",
+		"\"\"",
 		"{\"0\":null}",
-		"[null,[null,null]]",
-		"[null,true,\"\"]",
-		"[null,[null],[null,null],null]",
+		"[null,[],{}]",
+		"[null,[]]",
+		"[null,{},\"\"]",
+		"[null,{}]",
+		"[null,\"\"]",
+		"[null]",
+		"[null,{\"0\":null}]",
+		"[null,\"\",{\"0\":null}]",
+		"[null,\"\",{\"0\":null},null]",
+		"[null,{\"0\":null},[null,null]]",
+		"[null,{\"0\":null},[null,null],null]",
+		"[null,[],{},null]",
 		"[null,[null]]",
-		"[null,[],[null]]",
+		"[null,{},\"\",null]",
+		"[null,null,[]]",
 		"[null,null]",
-		"[null,[null,null],0.10000000000000001]",
-		"[null,\"\",{},null]",
+		"[null,[null,null]]",
+		"[null,[null],null]",
+		"[null,null,[],null]",
+		"[null,[null,null],[null]]",
+		"[null,[null],null,null]",
+		"[null,[null,null],[null,null]]",
+		"[null,[null,null],[null],null]",
+		"[null,[null,null],[null,null],null]",
+		"[null,true]",
+		"[null,true,0.10000000000000001]",
+		"[null,true,0.10000000000000001,null]",
+		"[null,true,[null]]",
+		"[null,true,[null],null]",
 		NULL,
 	};
 
@@ -2355,8 +2359,6 @@ main (int argc, char *argv[])
 	                 test_schema_keywords_default);
 
 	/* TODO:
-	 * • additionalItems
-	 * • items, especially {"items":[]}
 	 * • dependencies
 	 * • definitions
 	 * • format

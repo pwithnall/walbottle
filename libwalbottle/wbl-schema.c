@@ -823,9 +823,12 @@ subschema_generate_instances (WblSchema *self,
 		node.node = subschema_object;
 
 		/* Avoid infinite recursion; see the rationale in
-		 * subschema_validate(). */
+		 * subschema_validate(). Generate a null value instead. */
 		if (json_object_get_size (node.node) > 0) {
 			klass->generate_instance_nodes (self, &node, output);
+		} else {
+			g_hash_table_add (output,
+			                  json_node_new (JSON_NODE_NULL));
 		}
 	}
 }
@@ -2142,6 +2145,151 @@ instance_clone_final_element (JsonArray  *array)
 }
 
 /**
+ * generate_boolean_array:
+ * @n_elements: number of elements to generate
+ * @first_false_element: index of the first element to be %FALSE
+ *
+ * Generate an array of boolean values which are all %TRUE until index
+ * @first_false_element, after (and including) which they are all %FALSE.
+ *
+ * Returns: (transfer full): array of @n_elements
+ * Since: UNRELEASED
+ */
+static GArray/*<boolean>*/ *
+generate_boolean_array (guint   n_elements,
+                        guint   first_false_element)
+{
+	GArray/*<boolean>*/ *output = NULL;
+	guint i;
+
+	/* @first_false_element represents the first index to be false. */
+	output = g_array_sized_new (FALSE, TRUE, sizeof (gboolean), n_elements);
+
+	for (i = 0; i < n_elements; i++) {
+		gboolean val = (i < first_false_element);
+		g_array_append_val (output, val);
+	}
+
+	return output;
+}
+
+/**
+ * generate_validity_arrays:
+ * @n_elements: number of elements to generate in each array
+ * @items_node: `items` schema keyword
+ * @max_n_valid_instances: minimum number of arrays to generate containing %TRUE
+ *    for each index (inclusive)
+ * @max_n_invalid_instances: minimum number of arrays to generate containing
+ *    %FALSE for each index (inclusive)
+ *
+ * Generate a collection of arrays controlling the validity of child instances
+ * in test vectors generated for an items schema (@items_node). The idea is that
+ * generated test vectors should test all the control flow paths in the code
+ * under test, and since most JSON vectors will be parsed by either a sequence
+ * of code or a loop which exits on the first invalid child instance, the way to
+ * test such code is to generate test vectors which transition from valid
+ * children to invalid children at different points in the array.
+ *
+ * Each validity array is an array of booleans of length @n_elements which
+ * contains %TRUE elements in the indexes corresponding to child instances which
+ * should be valid, and %FALSE elements for invalid ones. When an array instance
+ * is generated matching a validity array, these booleans are respected.
+ *
+ * It is important that enough array instances are generated such that each
+ * possible child instance is included in at least one array instance — this is
+ * controlled by @max_n_valid_instances and @max_n_invalid_instances.
+ *
+ * Returns: (transfer full): collection of boolean validity arrays
+ * Since: UNRELEASED
+ */
+static GPtrArray/*<owned GArray<boolean>>*/ *
+generate_validity_arrays (guint      n_elements,
+                          JsonNode  *items_node,
+                          guint      max_n_valid_instances,
+                          guint      max_n_invalid_instances)
+{
+	GPtrArray/*<owned GArray<boolean>>*/ *output = NULL;
+	guint i;
+
+	g_debug ("%s: n_elements: %u, items_node: %s, max_n_valid_instances: "
+	         "%u, max_n_invalid_instances: %u", G_STRFUNC, n_elements,
+	         JSON_NODE_HOLDS_OBJECT (items_node) ? "subschema" : "subschema array",
+	         max_n_valid_instances, max_n_invalid_instances);
+
+	output = g_ptr_array_new_with_free_func ((GDestroyNotify) g_array_unref);
+
+	if (!JSON_NODE_HOLDS_OBJECT (items_node)) {
+		/* @items_node is an array of subschemas, which items must
+		 * conform to based on matching indexes. Therefore, we need to
+		 * worry about index-dependent control paths in the code under
+		 * test. One approach for this is to generate validity arrays
+		 * which test [ …, true, true, false, false, … ] step changes
+		 * for each index in @n_elements. The [ false, … ] and
+		 * [ …, true ] base cases are handled below. */
+		for (i = 1; i < n_elements; i++) {
+			/* @i represents the first index to be false. */
+			g_ptr_array_add (output,
+			                 generate_boolean_array (n_elements, i));
+		}
+	}
+
+	/* Now add arrays of the form:
+	 *    [ false, …, false ]
+	 *    [ true, …, true ]
+	 *
+	 * which handle index-independent control paths. The most important ones
+	 * here are the all-valid arrays, as the more valid instances we can
+	 * generate, the better. If these instances are used as child nodes in
+	 * a larger instance, validation of that instance can’t proceed without
+	 * valid child nodes.
+	 *
+	 * Overall, we need to be sure to generate enough instances that the
+	 * *minimum* number of true values for a given index is at least
+	 * @max_n_valid_instances; and similarly for the number of false values
+	 * and @max_n_invalid_instances. This ensures that each of the generated
+	 * instances is used at least once. */
+	for (i = 0; i < max_n_valid_instances; i++) {
+		g_ptr_array_add (output,
+		                 generate_boolean_array (n_elements,
+		                                         n_elements));
+	}
+
+	for (i = 0; i < max_n_invalid_instances; i++) {
+		g_ptr_array_add (output,
+		                 generate_boolean_array (n_elements, 0));
+	}
+
+	/* Fallback output to test the empty array case. */
+	if (n_elements == 0) {
+		g_ptr_array_add (output, generate_boolean_array (0, 0));
+	}
+
+	return output;
+}
+
+static gchar *
+validity_array_to_string (GArray/*<boolean>*/  *arr)
+{
+	guint i;
+	GString *out = NULL;
+
+	out = g_string_new ("[");
+
+	for (i = 0; i < arr->len; i++) {
+		if (i > 0) {
+			g_string_append (out, ",");
+		}
+
+		g_string_append (out,
+		                 g_array_index (arr, gboolean, i) ? "1" : "0");
+	}
+
+	g_string_append (out, (i > 0) ? " ]" : "]");
+
+	return g_string_free (out, FALSE);
+}
+
+/**
  * generate_all_items:
  * @self: a #WblSchema
  * @items_node: `items` schema keyword
@@ -2181,7 +2329,7 @@ generate_all_items (WblSchema                       *self,
 	JsonObject *additional_items_subschema = NULL;  /* nullable; owned */
 	GHashTable/*<owned JsonNode>*/ *instance_set = NULL;
 	GHashTable/*<owned JsonNode>*/ *mutation_set = NULL;
-	guint i, j;
+	guint i, j, k;
 	JsonBuilder *builder = NULL;
 	GHashTableIter iter;
 	JsonNode *node;
@@ -2230,28 +2378,89 @@ generate_all_items (WblSchema                       *self,
 
 	for (i = 0; i < subschema_arrays->len; i++) {
 		JsonArray *subschema_array;
-		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *instances_array = NULL;
-		GHashTableIter *iters = NULL;
+		GPtrArray/*<owned GArray<boolean>>*/ *validity_arrays = NULL;
+		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *valid_instances_array = NULL;
+		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *invalid_instances_array = NULL;
+		GHashTableIter *valid_iters = NULL, *invalid_iters = NULL;
 		guint n_iterations_remaining;
+		guint max_n_valid_instances, max_n_invalid_instances;
 
 		subschema_array = subschema_arrays->pdata[i];
-		instances_array = g_ptr_array_new_full (json_array_get_length (subschema_array),
-		                                        (GDestroyNotify) g_hash_table_unref);
+		valid_instances_array = g_ptr_array_new_full (json_array_get_length (subschema_array),
+		                                              (GDestroyNotify) g_hash_table_unref);
+		invalid_instances_array = g_ptr_array_new_full (json_array_get_length (subschema_array),
+		                                                (GDestroyNotify) g_hash_table_unref);
+		max_n_valid_instances = 0;
+		max_n_invalid_instances = 0;
 
 		for (j = 0; j < json_array_get_length (subschema_array); j++) {
-			GHashTable/*<owned JsonNode>*/ *instances = NULL;
+			GHashTable/*<owned JsonNode>*/ *valid_instances = NULL;
+			GHashTable/*<owned JsonNode>*/ *invalid_instances = NULL;
+			GHashTableIter valid_iter;
 			JsonObject *subschema;
 
-			instances = g_hash_table_new_full (node_hash,
-			                                   node_equal,
-			                                   (GDestroyNotify) json_node_free,
-			                                   NULL);
+			valid_instances = g_hash_table_new_full (node_hash,
+			                                         node_equal,
+			                                         (GDestroyNotify) json_node_free,
+			                                         NULL);
+			invalid_instances = g_hash_table_new_full (node_hash,
+			                                           node_equal,
+			                                           (GDestroyNotify) json_node_free,
+			                                           NULL);
 
 			subschema = json_array_get_object_element (subschema_array, j);
 			subschema_generate_instances (self, subschema,
-			                              instances);
+			                              valid_instances);
 
-			g_ptr_array_add (instances_array, instances);  /* transfer */
+			/* Split the instances into valid and invalid. */
+			g_hash_table_iter_init (&valid_iter, valid_instances);
+
+			while (g_hash_table_iter_next (&valid_iter,
+			                               (gpointer *) &node, NULL)) {
+				GError *child_error = NULL;
+				gchar *debug_output = NULL;
+
+				subschema_apply (self, subschema, node,
+				                 &child_error);
+
+				if (child_error != NULL) {
+					g_hash_table_iter_steal (&valid_iter);
+					g_hash_table_add (invalid_instances,
+					                  node);
+
+					g_error_free (child_error);
+				}
+
+				/* Debug output. */
+				debug_output = node_to_string (node);
+				g_debug ("%s: Subinstance %u (%s): %s",
+				         G_STRFUNC, j,
+				         (child_error == NULL) ? "valid" : "invalid",
+				         debug_output);
+				g_free (debug_output);
+			}
+
+			g_ptr_array_add (valid_instances_array, valid_instances);  /* transfer */
+			g_ptr_array_add (invalid_instances_array, invalid_instances);  /* transfer */
+
+			max_n_valid_instances = MAX (max_n_valid_instances,
+			                             g_hash_table_size (valid_instances));
+			max_n_invalid_instances = MAX (max_n_invalid_instances,
+			                               g_hash_table_size (invalid_instances));
+		}
+
+		validity_arrays = generate_validity_arrays (json_array_get_length (subschema_array),
+		                                            items_node,
+		                                            max_n_valid_instances,
+		                                            max_n_invalid_instances);
+
+		/* Debug. */
+		for (j = 0; j < validity_arrays->len; j++) {
+			gchar *arr;
+
+			arr = validity_array_to_string (validity_arrays->pdata[j]);
+			g_debug ("%s: Validity array: %s", G_STRFUNC, arr);
+			g_free (arr);
 		}
 
 		/* Now combine all the instances for each array position to
@@ -2263,57 +2472,73 @@ generate_all_items (WblSchema                       *self,
 		 * however.
 		 *
 		 * Instead, we assume that the code under test is going to
-		 * validate each of the instances independently, so don’t need
-		 * to test combinations of instances from different positions in
-		 * @subschema_array.
+		 * validate each of the instances in order, and hence we only
+		 * need to care about true → false transitions. We need to
+		 * ensure we generate at least one valid array instance (valid
+		 * instance in each index) and one invalid instance (invalid
+		 * instance in at least one index); we also want to ensure we
+		 * include each valid child instance in at least one valid
+		 * array, and each invalid child instance in at least one
+		 * invalid array.
 		 *
 		 * Hence, iterate over all the members of the sets in
-		 * @instances_array in parallel, iterating at most as many times
-		 * as the cardinality of the largest member of @instances_array.
+		 * @instances_array in parallel, iterating for each validity
+		 * array in @validity_arrays as a template.
 		 */
-		iters = g_new0 (GHashTableIter, instances_array->len);
+		valid_iters = g_new0 (GHashTableIter, valid_instances_array->len);
+		invalid_iters = g_new0 (GHashTableIter, invalid_instances_array->len);
 		n_iterations_remaining = 0;
 
-		for (j = 0; j < instances_array->len; j++) {
+		for (j = 0; j < valid_instances_array->len; j++) {
 			GHashTable/*<owned JsonNode>*/ *instances;
 
-			/* TODO: might want to offset each of these iterators
-			 * so we can more easily guarantee unique elements */
-			instances = instances_array->pdata[j];
-			g_hash_table_iter_init (&iters[j], instances);
+			instances = valid_instances_array->pdata[j];
+			g_hash_table_iter_init (&valid_iters[j], instances);
 			n_iterations_remaining = MAX (n_iterations_remaining,
 			                              g_hash_table_size (instances));
 		}
 
-		g_debug ("%s: n_iterations_remaining = %u",
-		         G_STRFUNC, n_iterations_remaining);
+		for (j = 0; j < invalid_instances_array->len; j++) {
+			GHashTable/*<owned JsonNode>*/ *instances;
 
-		/* FIXME: This is an enormous hack to ensure we get at least one
-		 * iteration. */
-		n_iterations_remaining = MAX (n_iterations_remaining, 1);
+			instances = invalid_instances_array->pdata[j];
+			g_hash_table_iter_init (&invalid_iters[j], instances);
+			n_iterations_remaining = MAX (n_iterations_remaining,
+			                              g_hash_table_size (instances));
+		}
 
-		for (; n_iterations_remaining > 0; n_iterations_remaining--) {
+		for (j = 0; j < validity_arrays->len; j++) {
+			GArray/*<boolean>*/ *validity_array;
 			JsonNode *instance = NULL;
 			gchar *debug_output = NULL;
 
+			validity_array = validity_arrays->pdata[j];
+
 			json_builder_begin_array (builder);
 
-			for (j = 0; j < instances_array->len; j++) {
+			for (k = 0; k < validity_array->len; k++) {
 				GHashTable/*<owned JsonNode>*/ *instances;
+				GHashTableIter *instances_iter;
 				JsonNode *generated_instance;
 
-				instances = instances_array->pdata[j];
+				if (g_array_index (validity_array, gboolean, k)) {
+					instances = valid_instances_array->pdata[k];
+					instances_iter = &valid_iters[k];
+				} else {
+					instances = invalid_instances_array->pdata[k];
+					instances_iter = &invalid_iters[k];
+				}
 
 				if (g_hash_table_size (instances) == 0) {
 					generated_instance = NULL;
-				} else if (!g_hash_table_iter_next (&iters[j],
+				} else if (!g_hash_table_iter_next (instances_iter,
 				                                    (gpointer *) &generated_instance,
 				                                    NULL)) {
 					/* Arbitrarily loop round and start
 					 * again. */
-					g_hash_table_iter_init (&iters[j],
+					g_hash_table_iter_init (instances_iter,
 					                        instances);
-					if (!g_hash_table_iter_next (&iters[j],
+					if (!g_hash_table_iter_next (instances_iter,
 					                             (gpointer *) &generated_instance,
 					                             NULL)) {
 						generated_instance = NULL;
@@ -2341,8 +2566,11 @@ generate_all_items (WblSchema                       *self,
 			json_builder_reset (builder);
 		}
 
-		g_free (iters);
-		g_ptr_array_unref (instances_array);
+		g_free (valid_iters);
+		g_free (invalid_iters);
+		g_ptr_array_unref (valid_instances_array);
+		g_ptr_array_unref (invalid_instances_array);
+		g_ptr_array_unref (validity_arrays);
 	}
 
 	/* The final step is to take each of the generated instances, and
