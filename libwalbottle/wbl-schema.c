@@ -790,7 +790,7 @@ subschema_validate (WblSchema *self,
 
 static void
 subschema_apply (WblSchema *self,
-                 JsonNode *subschema_node,
+                 JsonObject *subschema_object,
                  JsonNode *instance_node,
                  GError **error)
 {
@@ -802,9 +802,8 @@ subschema_apply (WblSchema *self,
 		WblSchemaNode node;
 
 		node.ref_count = 1;
-		node.node = json_node_dup_object (subschema_node);
+		node.node = subschema_object;
 		klass->apply_schema (self, &node, instance_node, error);
-		json_object_unref (node.node);
 	}
 }
 
@@ -1042,12 +1041,13 @@ apply_schema_array (WblSchema *self,
 	n_successes = 0;
 
 	for (i = 0; i < json_array_get_length (schema_array); i++) {
-		JsonNode *child_node;  /* unowned */
+		JsonObject *child_object = NULL;
 		GError *child_error = NULL;
 
-		child_node = json_array_get_element (schema_array, i);
+		child_object = json_array_get_object_element (schema_array, i);
 
-		subschema_apply (self, child_node, instance_node, &child_error);
+		subschema_apply (self, child_object, instance_node,
+		                 &child_error);
 
 		/* Count successes. */
 		if (child_error == NULL) {
@@ -2721,8 +2721,8 @@ apply_items_child_schema (WblSchema *self,
 
 		/* Validate the child instance. */
 		child_node = json_array_get_element (instance_array, i);
-		subschema_apply (self, sub_schema_node, child_node,
-		                 &child_error);
+		subschema_apply (self, json_node_get_object (sub_schema_node),
+		                 child_node, &child_error);
 
 		if (child_error != NULL) {
 			g_set_error (error,
@@ -3952,8 +3952,9 @@ apply_properties_child_schema (WblSchema *self,
 		                               (gpointer *) &child_schema)) {
 			GError *child_error = NULL;
 
-			subschema_apply (self, child_schema, child_node,
-			                 &child_error);
+			subschema_apply (self,
+			                 json_node_get_object (child_schema),
+			                 child_node, &child_error);
 
 			/* Report the first error. */
 			if (child_error != NULL) {
@@ -5477,8 +5478,9 @@ apply_dependencies (WblSchema *self,
 			 * schema. */
 			GError *child_error = NULL;
 
-			subschema_apply (self, child_node, instance_node,
-			                 &child_error);
+			subschema_apply (self,
+			                 json_node_get_object (child_node),
+			                 instance_node, &child_error);
 
 			if (child_error != NULL) {
 				g_set_error (error,
@@ -6166,7 +6168,8 @@ apply_not (WblSchema *self,
 {
 	GError *child_error = NULL;
 
-	subschema_apply (self, schema_node, instance_node, &child_error);
+	subschema_apply (self, json_node_get_object (schema_node),
+	                 instance_node, &child_error);
 
 	/* Fail if application succeeded. */
 	if (child_error == NULL) {
