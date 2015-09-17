@@ -120,7 +120,7 @@ main (int argc, char *argv[])
 
 		message = g_strdup_printf (_("Option parsing failed: %s"),
 		                           error->message);
-		g_printerr ("%s\n", message);
+		g_printerr ("%s: %s\n", argv[0], message);
 		g_free (message);
 
 		g_clear_error (&error);
@@ -152,7 +152,7 @@ main (int argc, char *argv[])
 		                            option_format);
 		message2 = g_strdup_printf (_("Option parsing failed: %s"),
 		                            message1);
-		g_printerr ("%s\n", message2);
+		g_printerr ("%s: %s\n", argv[0], message2);
 		g_free (message2);
 		g_free (message1);
 
@@ -200,7 +200,7 @@ main (int argc, char *argv[])
 				message = g_strdup_printf (_("Invalid JSON schema ‘%s’: %s"),
 				                           option_schema_filenames[i],
 				                           error->message);
-				g_printerr ("%s\n", message);
+				g_printerr ("%s: %s\n", argv[0], message);
 				g_free (message);
 			}
 
