@@ -21,39 +21,8 @@
 #include <locale.h>
 #include <string.h>
 
+#include "utils.h"
 #include "wbl-schema.h"
-
-/* Utility method to assert that the generated instances in two arrays match,
- * ignoring order. */
-static void
-assert_generated_instances_match (GPtrArray/*<owned WblGeneratedInstance>*/ *actual,
-                                  const gchar **expected  /* NULL terminated */)
-{
-	guint i;
-
-	for (i = 0; i < actual->len; i++) {
-		const gchar *actual_json;
-		gboolean found = FALSE;
-		guint j;
-
-		actual_json = wbl_generated_instance_get_json (actual->pdata[i]);
-
-		for (j = 0; expected[j] != NULL; j++) {
-			if (g_strcmp0 (actual_json, expected[j]) == 0) {
-				found = TRUE;
-				break;
-			}
-		}
-
-		/* Nice error message. */
-		if (!found) {
-			g_assert_cmpstr (actual_json, ==, "not found");
-		}
-		g_assert (found);
-	}
-
-	g_assert_cmpuint (actual->len, ==, g_strv_length ((gchar **) expected));
-}
 
 /* multipleOf. json-schema-validation§5.1.1. */
 static void
@@ -117,10 +86,8 @@ assert_schema_keyword (const gchar *valid_schema,
 	/* Check generated instances. */
 	instances = wbl_schema_generate_instances (schema,
 	                                           WBL_GENERATE_INSTANCE_NONE);
-
-	for (i = 0; i < instances->len; i++) { g_message ("TODO: %s", wbl_generated_instance_get_json (instances->pdata[i])); }
-
-	assert_generated_instances_match (instances, expected_instances);
+	wbl_test_assert_generated_instances_match (instances,
+	                                           expected_instances, NULL);
 
 	/* Check the instance flags do what we expect. */
 	generated_valid_instances = wbl_schema_generate_instances (schema,
