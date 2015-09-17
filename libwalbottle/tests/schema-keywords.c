@@ -34,10 +34,10 @@ assert_schema_keyword (const gchar *valid_schema,
 {
 	WblSchema *schema = NULL;  /* owned */
 	JsonParser *parser = NULL;  /* owned */
-	GPtrArray/*<owned WblGeneratedInstace>*/ *instances = NULL;  /* owned */
-	GPtrArray/*<owned WblGeneratedInstace>*/ *generated_valid_instances = NULL;  /* owned */
-	GPtrArray/*<owned WblGeneratedInstace>*/ *generated_invalid_instances = NULL;  /* owned */
-	GPtrArray/*<owned WblGeneratedInstace>*/ *generated_null_instances = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstance>*/ *instances = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstance>*/ *generated_valid_instances = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstance>*/ *generated_invalid_instances = NULL;  /* owned */
+	GPtrArray/*<owned WblGeneratedInstance>*/ *generated_null_instances = NULL;  /* owned */
 	guint i;
 	GError *error = NULL;
 
