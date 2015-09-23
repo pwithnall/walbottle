@@ -735,6 +735,11 @@ node_equal (gconstpointer a,
 	node_a = (JsonNode *) a;
 	node_b = (JsonNode *) b;
 
+	/* Identity comparison. */
+	if (node_a == node_b) {
+		return TRUE;
+	}
+
 	type_a = primitive_type_from_json_node (node_a);
 	type_b = primitive_type_from_json_node (node_b);
 
@@ -796,6 +801,11 @@ node_equal (gconstpointer a,
 		array_a = json_node_get_array (node_a);
 		array_b = json_node_get_array (node_b);
 
+		/* Identity comparison. */
+		if (array_a == array_b) {
+			return TRUE;
+		}
+
 		/* Check lengths. */
 		length_a = json_array_get_length (array_a);
 		length_b = json_array_get_length (array_b);
@@ -828,6 +838,11 @@ node_equal (gconstpointer a,
 
 		object_a = json_node_get_object (node_a);
 		object_b = json_node_get_object (node_b);
+
+		/* Identity comparison. */
+		if (object_a == object_b) {
+			return TRUE;
+		}
 
 		/* Check sizes. */
 		size_a = json_object_get_size (object_a);
