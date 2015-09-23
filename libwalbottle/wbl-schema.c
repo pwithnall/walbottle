@@ -5153,6 +5153,7 @@ generate_all_properties (WblSchema                       *self,
 	JsonNode *node;
 	guint i;
 	WblStringSet *required = NULL;
+	GHashTable/*<owned utf8, GHashTable<owned JsonNode>>*/ *instance_map = NULL;
 
 	builder = json_builder_new ();
 
@@ -5173,6 +5174,12 @@ generate_all_properties (WblSchema                       *self,
 	                                                    additional_properties_allowed,
 	                                                    dependencies);
 
+	/* Map of property name to a set of possible subinstances for
+	 * it. The @instance_map is not unique to any @valid_property_set. */
+	instance_map = g_hash_table_new_full (g_str_hash, g_str_equal,
+	                                      g_free,
+	                                      (GDestroyNotify) g_hash_table_unref);
+
 	/* Generate a set of probably-valid instances by recursing on the
 	 * property subschemas. */
 	instance_set = g_hash_table_new_full (node_hash, node_equal,
@@ -5185,25 +5192,25 @@ generate_all_properties (WblSchema                       *self,
 	                               NULL)) {
 		WblStringSetIter string_iter;
 		const gchar *property_name;
-		GHashTableIter hash_iter;
-		GHashTable/*<owned utf8, GHashTable<owned JsonNode>>*/ *instance_map = NULL;
 		GHashTable/*<owned JsonNode>*/ *property_instances = NULL;  /* owned */
 		GHashTableIter *iters = NULL;
 		guint n_iterations_remaining;
-
-		/* Map of property name to a set of possible subinstances for
-		 * it. The @instance_map is unique to this
-		 * @valid_property_set. */
-		instance_map = g_hash_table_new_full (g_str_hash, g_str_equal,
-		                                      g_free,
-		                                      (GDestroyNotify) g_hash_table_unref);
 
 		wbl_string_set_iter_init (&string_iter, valid_property_set);
 
 		while (wbl_string_set_iter_next (&string_iter, &property_name)) {
 			/* Work out the subschemas which are applicable for this
-			 * property. */
+			 * property and generate instances from each of them.
+			 *
+			 * If we’re already examined this @property_name from
+			 * a previous @valid_property_set, re-use the
+			 * instances. */
 			GPtrArray/*<owned JsonObject>*/ *subschemas = NULL;
+
+			if (g_hash_table_contains (instance_map,
+			                           property_name)) {
+				continue;
+			}
 
 			property_instances = g_hash_table_new_full (node_hash,
 			                                            node_equal,
@@ -5258,8 +5265,8 @@ generate_all_properties (WblSchema                       *self,
 		 *
 		 * In order to get full coverage, this should really be an
 		 * N-fold cross-product between all the subinstance sets, where
-		 * N is g_hash_table_size(instance_map). However, that would be
-		 * massive.
+		 * N is wbl_string_set_get_size(valid_property_set). However,
+		 * that would be massive.
 		 *
 		 * In order to get reasonable coverage, we can assume that the
 		 * values of the different subinstances are probably
@@ -5273,14 +5280,17 @@ generate_all_properties (WblSchema                       *self,
 		 * subinstances from it.
 		 */
 		iters = g_new0 (GHashTableIter,
-		                g_hash_table_size (instance_map));
+		                wbl_string_set_get_size (valid_property_set));
 		n_iterations_remaining = 0;
 
-		for (i = 0, g_hash_table_iter_init (&hash_iter, instance_map);
-		     g_hash_table_iter_next (&hash_iter,
-		                             (gpointer *) &property_name,
-		                             (gpointer *) &property_instances);
+		for (i = 0, wbl_string_set_iter_init (&string_iter,
+		                                      valid_property_set);
+		     wbl_string_set_iter_next (&string_iter, &property_name);
 		     i++) {
+			property_instances = g_hash_table_lookup (instance_map,
+			                                          property_name);
+			g_assert (property_instances != NULL);
+
 			g_hash_table_iter_init (&iters[i], property_instances);
 			n_iterations_remaining = MAX (n_iterations_remaining,
 			                              g_hash_table_size (property_instances));
@@ -5299,12 +5309,15 @@ generate_all_properties (WblSchema                       *self,
 
 			json_builder_begin_object (builder);
 
-			for (i = 0, g_hash_table_iter_init (&hash_iter, instance_map);
-			     g_hash_table_iter_next (&hash_iter,
-			                             (gpointer *) &property_name,
-			                             (gpointer *) &property_instances);
+			for (i = 0, wbl_string_set_iter_init (&string_iter,
+			                                      valid_property_set);
+			     wbl_string_set_iter_next (&string_iter, &property_name);
 			     i++) {
 				JsonNode *generated_instance;
+
+				property_instances = g_hash_table_lookup (instance_map,
+				                                          property_name);
+				g_assert (property_instances != NULL);
 
 				if (g_hash_table_size (property_instances) == 0) {
 					generated_instance = NULL;
@@ -5347,8 +5360,9 @@ generate_all_properties (WblSchema                       *self,
 		}
 
 		g_free (iters);
-		g_hash_table_unref (instance_map);
 	}
+
+	g_hash_table_unref (instance_map);
 
 	/* The final step is to take each of the generated instances, and
 	 * mutate it for each of the relevant schema properties. */
