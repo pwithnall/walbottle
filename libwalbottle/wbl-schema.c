@@ -608,6 +608,14 @@ string_equal (gconstpointer a,
 	return g_str_equal (a, b);
 }
 
+/* strcmp()-style version of string_equal(). */
+static gint
+string_equal_cmp (gconstpointer a,
+                  gconstpointer b)
+{
+	return (string_equal (a, b) ? 0 : -1);
+}
+
 /* JSON instance equality via hash tables, json-schema-core§3.6. */
 static guint
 node_hash (gconstpointer key)
@@ -683,18 +691,47 @@ node_hash (gconstpointer key)
 }
 
 /* Check whether two sets of JSON object member names are equal. The comparison
- * is unordered. */
+ * is unordered. @length_a and @length_b must be set to
+ * g_list_length(member_names_a) and g_list_length(member_names_b) respectively,
+ * and are provided by the caller purely as an optimisation. */
 static gboolean
 member_names_equal (GList/*<unowned utf8>*/ *member_names_a  /* unowned */,
-                    GList/*<unowned utf8>*/ *member_names_b  /* unowned */)
+                    guint                    length_a,
+                    GList/*<unowned utf8>*/ *member_names_b  /* unowned */,
+                    guint                    length_b)
 {
 	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
 	gboolean retval = TRUE;
 
+	/* Maximum list length to use the O(N^2) direct list comparison for.
+	 * member_names_equal() is a hot path in the code (it’s used for almost
+	 * all node_equal() calls for JSON objects, which is in turn used for
+	 * a lot of hash table operations. */
+	const guint list_comparison_threshold = 10;
+
 	/* Special case for empty objects. */
 	if (member_names_a == NULL || member_names_b == NULL) {
 		return (member_names_a == member_names_b);
+	}
+
+	/* Check lengths. */
+	if (length_a != length_b) {
+		return FALSE;
+	}
+
+	/* If the lengths are below a threshold, it’s faster to do the O(N^2)
+	 * direct list comparison than to allocate and hash everything with a
+	 * hash table. */
+	if (length_a < list_comparison_threshold) {
+		for (l = member_names_a; l != NULL; l = l->next) {
+			if (g_list_find_custom (member_names_b, l->data,
+			                        string_equal_cmp) == NULL) {
+				return FALSE;
+			}
+		}
+
+		return TRUE;
 	}
 
 	/* Add all the names from @member_names_a to a set, then remove all the
@@ -856,7 +893,8 @@ node_equal (gconstpointer a,
 		member_names_a = json_object_get_members (object_a);
 		member_names_b = json_object_get_members (object_b);
 
-		if (!member_names_equal (member_names_a, member_names_b)) {
+		if (!member_names_equal (member_names_a, size_a,
+		                         member_names_b, size_b)) {
 			retval = FALSE;
 		}
 
