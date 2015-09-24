@@ -32,7 +32,7 @@ AC_PROG_LN_S
 
 # Requirements
 GLIB_REQS=2.31.0
-JSON_GLIB_REQS=1.0.0
+JSON_GLIB_REQS=1.1.1
 
 # Before making a release, the WBL_LT_VERSION string should be modified. The string is of the form c:r:a. Follow these instructions sequentially:
 #

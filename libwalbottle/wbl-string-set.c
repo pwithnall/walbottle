@@ -192,17 +192,16 @@ wbl_string_set_new_singleton (const gchar  *element)
 WblStringSet *
 wbl_string_set_new_from_object_members (JsonObject  *obj)
 {
+	JsonObjectIter iter;
 	WblStringSet *set = NULL;
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	const gchar *member_name;
 
 	set = _wbl_string_set_new ();
-	members = json_object_get_members (obj);
+	json_object_iter_init (&iter, obj);
 
-	for (l = members; l != NULL; l = l->next) {
-		_wbl_string_set_add (set, l->data);
+	while (json_object_iter_next (&iter, &member_name, NULL)) {
+		_wbl_string_set_add (set, member_name);
 	}
-
-	g_list_free (members);
 
 	set->state |= STATE_IMMUTABLE;
 

@@ -3334,8 +3334,8 @@ apply_required (WblSchema *self,
 	JsonObject *instance_object;  /* unowned */
 	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
 	GPtrArray/*<unowned utf8>*/ *schema_member_names = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *instance_member_names = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+	JsonObjectIter instance_member_names_iter;
+	const gchar *member_name;
 	guint i;
 
 	/* Quick type check. */
@@ -3345,7 +3345,7 @@ apply_required (WblSchema *self,
 
 	schema_array = json_node_get_array (schema_node);
 	instance_object = json_node_get_object (instance_node);
-	instance_member_names = json_object_get_members (instance_object);
+	json_object_iter_init (&instance_member_names_iter, instance_object);
 
 	schema_member_names = g_ptr_array_new ();
 	set = g_hash_table_new (wbl_json_string_hash, wbl_json_string_equal);
@@ -3360,14 +3360,13 @@ apply_required (WblSchema *self,
 	}
 
 	/* Put the instance member names in the @set. */
-	for (l = instance_member_names; l != NULL; l = l->next) {
-		g_hash_table_add (set, l->data);
+	while (json_object_iter_next (&instance_member_names_iter,
+	                               &member_name, NULL)) {
+		g_hash_table_add (set, (gpointer) member_name);
 	}
 
-	/* Check each of the @set against the @instance_member_names. */
+	/* Check each of the @set against the @schema_member_names. */
 	for (i = 0; i < schema_member_names->len; i++) {
-		const gchar *member_name;
-
 		member_name = schema_member_names->pdata[i];
 
 		if (!g_hash_table_contains (set, member_name)) {
@@ -3385,7 +3384,6 @@ apply_required (WblSchema *self,
 
 	g_ptr_array_unref (schema_member_names);
 	g_hash_table_unref (set);
-	g_list_free (instance_member_names);
 }
 
 static void
@@ -3520,8 +3518,8 @@ validate_properties (WblSchema *self,
                      GError **error)
 {
 	JsonObject *schema_object;  /* unowned */
-	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *l;  /* unowned */
+	JsonObjectIter iter;
+	JsonNode *child_node;  /* unowned */
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
 		/* Invalid. */
@@ -3534,13 +3532,10 @@ validate_properties (WblSchema *self,
 	}
 
 	schema_object = json_node_get_object (schema_node);
-	member_names = json_object_get_members (schema_object);
+	json_object_iter_init (&iter, schema_object);
 
-	for (l = member_names; l != NULL; l = l->next) {
-		JsonNode *child_node;  /* unowned */
+	while (json_object_iter_next (&iter, NULL, &child_node)) {
 		GError *child_error = NULL;
-
-		child_node = json_object_get_member (schema_object, l->data);
 
 		if (!JSON_NODE_HOLDS_OBJECT (child_node)) {
 			/* Invalid. */
@@ -3573,8 +3568,6 @@ validate_properties (WblSchema *self,
 			break;
 		}
 	}
-
-	g_list_free (member_names);
 }
 
 static void
@@ -3584,8 +3577,9 @@ validate_pattern_properties (WblSchema *self,
                              GError **error)
 {
 	JsonObject *schema_object;  /* unowned */
-	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *l;  /* unowned */
+	JsonObjectIter iter;
+	const gchar *member_name;
+	JsonNode *child_node;  /* unowned */
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
 		/* Invalid. */
@@ -3599,16 +3593,10 @@ validate_pattern_properties (WblSchema *self,
 	}
 
 	schema_object = json_node_get_object (schema_node);
-	member_names = json_object_get_members (schema_object);
+	json_object_iter_init (&iter, schema_object);
 
-	for (l = member_names; l != NULL; l = l->next) {
-		JsonNode *child_node;  /* unowned */
-		const gchar *member_name;
+	while (json_object_iter_next (&iter, &member_name, &child_node)) {
 		GError *child_error = NULL;
-
-		member_name = l->data;
-		child_node = json_object_get_member (schema_object,
-		                                     member_name);
 
 		/* Validate the member name is a valid regex and the value is
 		 * a valid JSON Schema. */
@@ -3646,8 +3634,6 @@ validate_pattern_properties (WblSchema *self,
 			break;
 		}
 	}
-
-	g_list_free (member_names);
 }
 
 /* Version of g_list_remove() which does string comparison of @data, rather
@@ -3785,10 +3771,12 @@ apply_properties_child_schema (WblSchema *self,
 {
 	JsonObject *p_object;  /* unowned */
 	JsonObject *pp_object = NULL;  /* unowned; nullable */
-	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
+	JsonObjectIter instance_object_iter;
+	const gchar *member_name;
+	JsonNode *child_node;  /* unowned */
 	GList/*<unowned utf8>*/ *set_p = NULL;  /* owned */
 	GList/*<unowned utf8>*/ *set_pp = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *m = NULL, *l = NULL;  /* unowned */
+	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
 	GHashTable/*<unowned JsonNode,
 	             unowned JsonNode>*/ *set_s = NULL;  /* owned */
 
@@ -3806,17 +3794,12 @@ apply_properties_child_schema (WblSchema *self,
 		set_pp = json_object_get_members (pp_object);
 	}
 
-	member_names = json_object_get_members (instance_object);
+	json_object_iter_init (&instance_object_iter, instance_object);
 
-	for (m = member_names; m != NULL; m = m->next) {
-		const gchar *member_name;
+	while (json_object_iter_next (&instance_object_iter,
+	                              &member_name, &child_node)) {
 		GHashTableIter/*<unowned JsonNode, unowned JsonNode>*/ iter;
-		JsonNode *child_node;  /* unowned */
 		JsonNode *child_schema;  /* unowned */
-
-		member_name = m->data;
-		child_node = json_object_get_member (instance_object,
-		                                     member_name);
 
 		/* If @set_p contains @member_name, then the corresponding
 		 * schema in ‘properties’ is added to @set_s.
@@ -3900,7 +3883,6 @@ apply_properties_child_schema (WblSchema *self,
 done:
 	g_list_free (set_pp);
 	g_list_free (set_p);
-	g_list_free (member_names);
 	g_hash_table_unref (set_s);
 }
 
@@ -3982,19 +3964,21 @@ pattern_properties_find_match (JsonObject   *pattern_properties,
                                const gchar  *property)
 {
 	JsonObject *subschema = NULL;  /* unowned */
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonObjectIter iter;
+	const gchar *member_name;
+	JsonNode *child_node;
 
-	members = json_object_get_members (pattern_properties);
+	json_object_iter_init (&iter, pattern_properties);
 
-	for (l = members; l != NULL && subschema == NULL; l = l->next) {
+	while (subschema == NULL &&
+	       json_object_iter_next (&iter, &member_name, &child_node)) {
 		GRegex *regex = NULL;
 
-		regex = g_regex_new (l->data, 0, 0, NULL);
+		regex = g_regex_new (member_name, 0, 0, NULL);
 		g_assert (regex != NULL);
 
 		if (g_regex_match (regex, property, 0, NULL)) {
-			subschema = json_object_get_object_member (pattern_properties,
-			                                           l->data);
+			subschema = json_node_get_object (child_node);
 		}
 
 		g_regex_unref (regex);
@@ -4082,12 +4066,13 @@ pattern_properties_generate_instances (JsonObject    *pattern_properties,
                                        WblStringSet  *properties)
 {
 	WblStringSet *output = NULL;
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonObjectIter iter;
+	const gchar *member_name;
 
 	output = wbl_string_set_new_empty ();
-	members = json_object_get_members (pattern_properties);
+	json_object_iter_init (&iter, pattern_properties);
 
-	for (l = members; l != NULL; l = l->next) {
+	while (json_object_iter_next (&iter, &member_name, NULL)) {
 		GRegex *regex = NULL;
 		guint i;
 		const gchar *candidate_properties[] = {
@@ -4102,7 +4087,7 @@ pattern_properties_generate_instances (JsonObject    *pattern_properties,
 
 		/* FIXME: This is a horrendous hack and should instead be
 		 * handled by exploring the regex’s FSM. */
-		regex = g_regex_new (l->data, 0, 0, NULL);
+		regex = g_regex_new (member_name, 0, 0, NULL);
 		g_assert (regex != NULL);
 
 		for (i = 0; i < G_N_ELEMENTS (candidate_properties); i++) {
@@ -4117,7 +4102,7 @@ pattern_properties_generate_instances (JsonObject    *pattern_properties,
 		if (i >= G_N_ELEMENTS (candidate_properties)) {
 			g_critical ("%s: Could not generate an instance "
 			            "matching regex ‘%s’. Fix this code.",
-			            G_STRLOC, (const gchar *) l->data);
+			            G_STRLOC, member_name);
 			g_assert_not_reached ();
 		}
 
@@ -4126,8 +4111,6 @@ pattern_properties_generate_instances (JsonObject    *pattern_properties,
 
 		g_regex_unref (regex);
 	}
-
-	g_list_free (members);
 
 	return output;
 }
@@ -4383,7 +4366,9 @@ get_subschemas_for_property (JsonObject   *properties,
 {
 	GPtrArray/*<owned JsonObject>*/ *output = NULL;
 	JsonObject *subschema;
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonObjectIter iter;
+	const gchar *member_name;
+	JsonNode *child_node;
 
 	output = g_ptr_array_new_with_free_func ((GDestroyNotify) json_object_unref);
 
@@ -4399,24 +4384,21 @@ get_subschemas_for_property (JsonObject   *properties,
 	 *
 	 * Any errors in the regex should have been caught in
 	 * validate_pattern(). */
-	members = json_object_get_members (pattern_properties);
+	json_object_iter_init (&iter, pattern_properties);
 
-	for (l = members; l != NULL; l = l->next) {
+	while (json_object_iter_next (&iter, &member_name, &child_node)) {
 		GRegex *regex = NULL;
 
-		regex = g_regex_new (l->data, 0, 0, NULL);
+		regex = g_regex_new (member_name, 0, 0, NULL);
 		g_assert (regex != NULL);
 
 		if (g_regex_match (regex, property, 0, NULL)) {
-			subschema = json_object_get_object_member (pattern_properties,
-			                                           l->data);
+			subschema = json_node_get_object (child_node);
 			g_ptr_array_add (output, json_object_ref (subschema));
 		}
 
 		g_regex_unref (regex);
 	}
-
-	g_list_free (members);
 
 	/* @additionalProperties should be a subschema if it’s non-%FALSE.
 	 *
@@ -4486,10 +4468,11 @@ instance_drop_n_properties (JsonObject    *instance,
 {
 	JsonBuilder *builder = NULL;
 	guint n_properties_remaining;
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonObjectIter instance_iter;
 	JsonNode *output = NULL;
 	WblStringSetIter iter;
 	const gchar *property;
+	JsonNode *property_node;
 
 	/* Build a copy of @instance with @n fewer properties; ideally taking
 	 * those properties from the complement of @required. */
@@ -4497,14 +4480,13 @@ instance_drop_n_properties (JsonObject    *instance,
 	json_builder_begin_object (builder);
 
 	n_properties_remaining = json_object_get_size (instance) - n;
-	members = json_object_get_members (instance);
+	json_object_iter_init (&instance_iter, instance);
 
-	for (l = members; n_properties_remaining > 0 && l != NULL; l = l->next) {
-		property = l->data;
-
+	while (n_properties_remaining > 0 &&
+	       json_object_iter_next (&instance_iter, &property, &property_node)) {
 		if (!wbl_string_set_contains (required, property)) {
 			json_builder_set_member_name (builder, property);
-			json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, property)));
+			json_builder_add_value (builder, json_node_copy (property_node));
 
 			n_properties_remaining--;
 		}
@@ -4528,7 +4510,6 @@ instance_drop_n_properties (JsonObject    *instance,
 	json_builder_end_object (builder);
 	output = json_builder_get_root (builder);
 
-	g_list_free (members);
 	g_object_unref (builder);
 
 	return output;
@@ -4551,26 +4532,27 @@ instance_drop_property (JsonObject   *instance,
                         const gchar  *property)
 {
 	JsonBuilder *builder = NULL;
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonObjectIter iter;
 	JsonNode *output = NULL;
+	const gchar *member_name;
+	JsonNode *child_node;
 
 	/* Build a copy of @instance without @property. */
 	builder = json_builder_new ();
 	json_builder_begin_object (builder);
 
-	members = json_object_get_members (instance);
+	json_object_iter_init (&iter, instance);
 
-	for (l = members; l != NULL; l = l->next) {
-		if (g_strcmp0 (property, l->data) != 0) {
-			json_builder_set_member_name (builder, l->data);
-			json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, l->data)));
+	while (json_object_iter_next (&iter, &member_name, &child_node)) {
+		if (g_strcmp0 (property, member_name) != 0) {
+			json_builder_set_member_name (builder, member_name);
+			json_builder_add_value (builder, json_node_copy (child_node));
 		}
 	}
 
 	json_builder_end_object (builder);
 	output = json_builder_get_root (builder);
 
-	g_list_free (members);
 	g_object_unref (builder);
 
 	return output;
@@ -4603,8 +4585,9 @@ instance_add_n_properties (JsonObject  *instance,
 {
 	JsonBuilder *builder = NULL;
 	JsonNode *output = NULL;
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonObjectIter iter;
 	const gchar *property;
+	JsonNode *property_node;
 	guint i;
 
 	/* Add @n properties to a copy of @instance, which match the given
@@ -4612,13 +4595,11 @@ instance_add_n_properties (JsonObject  *instance,
 	builder = json_builder_new ();
 	json_builder_begin_object (builder);
 
-	members = json_object_get_members (instance);
+	json_object_iter_init (&iter, instance);
 
-	for (l = members; l != NULL; l = l->next) {
-		property = l->data;
-
+	while (json_object_iter_next (&iter, &property, &property_node)) {
 		json_builder_set_member_name (builder, property);
-		json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, property)));
+		json_builder_add_value (builder, json_node_copy (property_node));
 	}
 
 	/* FIXME: Make sure the new property matches one of the constraints,
@@ -4637,7 +4618,6 @@ instance_add_n_properties (JsonObject  *instance,
 	json_builder_end_object (builder);
 	output = json_builder_get_root (builder);
 
-	g_list_free (members);
 	g_object_unref (builder);
 
 	return output;
@@ -4668,21 +4648,20 @@ instance_add_non_matching_property (JsonObject  *instance,
 {
 	JsonBuilder *builder = NULL;
 	JsonNode *output = NULL;
-	GList/*<unowned utf8>*/ *members = NULL, *l;
+	JsonObjectIter iter;
 	const gchar *property;
+	JsonNode *property_node;
 
 	/* Add 1 property to a copy of @instance, which matches none of the
 	 * given constraints. */
 	builder = json_builder_new ();
 	json_builder_begin_object (builder);
 
-	members = json_object_get_members (instance);
+	json_object_iter_init (&iter, instance);
 
-	for (l = members; l != NULL; l = l->next) {
-		property = l->data;
-
+	while (json_object_iter_next (&iter, &property, &property_node)) {
 		json_builder_set_member_name (builder, property);
-		json_builder_add_value (builder, json_node_copy (json_object_get_member (instance, property)));
+		json_builder_add_value (builder, json_node_copy (property_node));
 	}
 
 	/* FIXME: Make sure the new property matches none of the constraints. */
@@ -4692,7 +4671,6 @@ instance_add_non_matching_property (JsonObject  *instance,
 	json_builder_end_object (builder);
 	output = json_builder_get_root (builder);
 
-	g_list_free (members);
 	g_object_unref (builder);
 
 	return output;
@@ -4986,7 +4964,9 @@ generate_all_properties (WblSchema                       *self,
 	                               (gpointer *) &node, NULL)) {
 		JsonNode *mutated_instance = NULL;
 		JsonObject *obj;
-		GList/*<unowned JsonNode>*/ *dependency_keys, *l;
+		JsonObjectIter dependencies_iter;
+		const gchar *dependency_key;
+		JsonNode *dependency_node;
 
 		obj = json_node_get_object (node);
 
@@ -5036,14 +5016,12 @@ generate_all_properties (WblSchema                       *self,
 		}
 
 		/* dependencies. */
-		dependency_keys = json_object_get_members (dependencies);
+		json_object_iter_init (&dependencies_iter, dependencies);
 
-		for (l = dependency_keys; l != NULL; l = l->next) {
-			JsonNode *dependency_node;
+		while (json_object_iter_next (&dependencies_iter,
+		                              &dependency_key,
+		                              &dependency_node)) {
 			JsonArray *dependency_array;
-
-			dependency_node = json_object_get_member (dependencies,
-			                                          l->data);
 
 			/* We only care about property dependencies. */
 			if (!JSON_NODE_HOLDS_ARRAY (dependency_node)) {
@@ -5064,8 +5042,6 @@ generate_all_properties (WblSchema                       *self,
 				g_hash_table_add (mutation_set, mutated_instance);  /* transfer */
 			}
 		}
-
-		g_list_free (dependency_keys);
 	}
 
 	/* Throw the output over the fence. */
@@ -5405,8 +5381,9 @@ apply_dependencies (WblSchema *self,
 {
 	JsonObject *schema_object;  /* unowned */
 	JsonObject *instance_object;  /* unowned */
-	GList/*<unowned utf8>*/ *member_names = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
+	JsonObjectIter iter;
+	const gchar *member_name;
+	JsonNode *child_node;  /* unowned */
 
 	/* Check type. */
 	if (!JSON_NODE_HOLDS_OBJECT (instance_node)) {
@@ -5415,16 +5392,9 @@ apply_dependencies (WblSchema *self,
 
 	instance_object = json_node_get_object (instance_node);
 	schema_object = json_node_get_object (schema_node);
-	member_names = json_object_get_members (schema_object);
+	json_object_iter_init (&iter, schema_object);
 
-	for (l = member_names; l != NULL; l = l->next) {
-		const gchar *member_name;
-		JsonNode *child_node;  /* unowned */
-
-		member_name = l->data;
-		child_node = json_object_get_member (schema_object,
-		                                     member_name);
-
+	while (json_object_iter_next (&iter, &member_name, &child_node)) {
 		/* Does the instance have a property by this name? */
 		if (!json_object_has_member (instance_object, member_name)) {
 			continue;
@@ -5481,8 +5451,6 @@ apply_dependencies (WblSchema *self,
 			}
 		}
 	}
-
-	g_list_free (member_names);
 }
 
 static void

@@ -417,77 +417,6 @@ wbl_json_node_hash (gconstpointer key)
 	}
 }
 
-/* Check whether two sets of JSON object member names are equal. The comparison
- * is unordered. @length_a and @length_b must be set to
- * g_list_length(member_names_a) and g_list_length(member_names_b) respectively,
- * and are provided by the caller purely as an optimisation. */
-static gboolean
-member_names_equal (GList/*<unowned utf8>*/ *member_names_a  /* unowned */,
-                    guint                    length_a,
-                    GList/*<unowned utf8>*/ *member_names_b  /* unowned */,
-                    guint                    length_b)
-{
-	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
-	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
-	gboolean retval = TRUE;
-
-	/* Maximum list length to use the O(N^2) direct list comparison for.
-	 * member_names_equal() is a hot path in the code (it’s used for almost
-	 * all wbl_json_node_equal() calls for JSON objects, which is in turn
-	 * used for a lot of hash table operations. */
-	const guint list_comparison_threshold = 10;
-
-	/* Special case for empty objects. */
-	if (member_names_a == NULL || member_names_b == NULL) {
-		return (member_names_a == member_names_b);
-	}
-
-	/* Check lengths. */
-	if (length_a != length_b) {
-		return FALSE;
-	}
-
-	/* If the lengths are below a threshold, it’s faster to do the O(N^2)
-	 * direct list comparison than to allocate and hash everything with a
-	 * hash table. */
-	if (length_a < list_comparison_threshold) {
-		for (l = member_names_a; l != NULL; l = l->next) {
-			if (g_list_find_custom (member_names_b, l->data,
-			                        wbl_json_string_compare) == NULL) {
-				return FALSE;
-			}
-		}
-
-		return TRUE;
-	}
-
-	/* Add all the names from @member_names_a to a set, then remove all the
-	 * names from @member_names_b and throw an error if any of them don’t
-	 * exist. */
-	set = g_hash_table_new (wbl_json_string_hash, wbl_json_string_equal);
-
-	for (l = member_names_a; l != NULL; l = l->next) {
-		g_hash_table_add (set, l->data);
-	}
-
-	for (l = member_names_b; l != NULL; l = l->next) {
-		if (!g_hash_table_remove (set, l->data)) {
-			retval = FALSE;
-			break;
-		}
-	}
-
-	/* Check the sizes: as we’ve removed all the matching elements, the set
-	 * should now be empty. */
-	if (g_hash_table_size (set) != 0) {
-		retval = FALSE;
-	}
-
-	g_hash_table_unref (set);
-
-	return retval;
-}
-
 /* Reference: json-schema-core§3.6. */
 /**
  * wbl_json_node_equal:
@@ -608,10 +537,9 @@ wbl_json_node_equal (gconstpointer a,
 	case WBL_PRIMITIVE_TYPE_OBJECT: {
 		JsonObject *object_a, *object_b;
 		guint size_a, size_b;
-		GList/*<unowned utf8>*/ *member_names_a = NULL;  /* owned */
-		GList/*<unowned utf8>*/ *member_names_b = NULL;  /* owned */
-		GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
-		gboolean retval = TRUE;
+		JsonObjectIter iter_a;
+		JsonNode *child_a, *child_b;  /* unowned */
+		const gchar *member_name;
 
 		object_a = json_node_get_object (node_a);
 		object_b = json_node_get_object (node_b);
@@ -629,32 +557,28 @@ wbl_json_node_equal (gconstpointer a,
 			return FALSE;
 		}
 
-		/* Check member names. */
-		member_names_a = json_object_get_members (object_a);
-		member_names_b = json_object_get_members (object_b);
+		/* Check member names and values. Check the member names first
+		 * to avoid expensive recursive value comparisons which might
+		 * be unnecessary. */
+		json_object_iter_init (&iter_a, object_a);
 
-		if (!member_names_equal (member_names_a, size_a,
-		                         member_names_b, size_b)) {
-			retval = FALSE;
-		}
-
-		/* Check member values. */
-		for (l = member_names_a; l != NULL && retval; l = l->next) {
-			JsonNode *child_a, *child_b;  /* unowned */
-
-			child_a = json_object_get_member (object_a, l->data);
-			child_b = json_object_get_member (object_b, l->data);
-
-			if (!wbl_json_node_equal (child_a, child_b)) {
-				retval = FALSE;
-				break;
+		while (json_object_iter_next (&iter_a, &member_name, NULL)) {
+			if (!json_object_has_member (object_b, member_name)) {
+				return FALSE;
 			}
 		}
 
-		g_list_free (member_names_b);
-		g_list_free (member_names_a);
+		json_object_iter_init (&iter_a, object_a);
 
-		return retval;
+		while (json_object_iter_next (&iter_a, &member_name, &child_a)) {
+			child_b = json_object_get_member (object_b, member_name);
+
+			if (!wbl_json_node_equal (child_a, child_b)) {
+				return FALSE;
+			}
+		}
+
+		return TRUE;
 	}
 	default:
 		g_assert_not_reached ();
