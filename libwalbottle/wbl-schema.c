@@ -2015,6 +2015,10 @@ generate_all_items (WblSchema                       *self,
 	JsonBuilder *builder = NULL;
 	GHashTableIter iter;
 	JsonNode *node;
+	GHashTable/*<unowned JsonObject,
+	             owned GHashTable<owned JsonNode>>*/ *valid_instances_map = NULL;
+	GHashTable/*<unowned JsonObject,
+	             owned GHashTable<owned JsonNode>>*/ *invalid_instances_map = NULL;
 
 	priv = wbl_schema_get_instance_private (self);
 
@@ -2053,6 +2057,18 @@ generate_all_items (WblSchema                       *self,
 		json_node_free (debug_node);
 	}
 
+	/* Since we encounter the same subschemas many times, and will always
+	 * generate the same set of subinstances for each, store those
+	 * subinstances to avoid repetition. */
+	valid_instances_map = g_hash_table_new_full (g_direct_hash,
+	                                             g_direct_equal,
+	                                             NULL,
+	                                             (GDestroyNotify) g_hash_table_unref);
+	invalid_instances_map = g_hash_table_new_full (g_direct_hash,
+	                                               g_direct_equal,
+	                                               NULL,
+	                                               (GDestroyNotify) g_hash_table_unref);
+
 	/* Generate a set of array instances from the set of arrays of
 	 * subschemas. */
 	instance_set = g_hash_table_new_full (wbl_json_node_hash,
@@ -2064,8 +2080,8 @@ generate_all_items (WblSchema                       *self,
 	for (i = 0; i < subschema_arrays->len; i++) {
 		JsonArray *subschema_array;
 		GPtrArray/*<owned GArray<boolean>>*/ *validity_arrays = NULL;
-		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *valid_instances_array = NULL;
-		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *invalid_instances_array = NULL;
+		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *valid_instances_array;
+		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *invalid_instances_array;
 		GHashTableIter *valid_iters = NULL, *invalid_iters = NULL;
 		guint n_iterations_remaining;
 		guint max_n_valid_instances, max_n_invalid_instances;
@@ -2084,52 +2100,72 @@ generate_all_items (WblSchema                       *self,
 			GHashTableIter valid_iter;
 			JsonObject *subschema;
 
-			valid_instances = g_hash_table_new_full (wbl_json_node_hash,
-			                                         wbl_json_node_equal,
-			                                         (GDestroyNotify) json_node_free,
-			                                         NULL);
-			invalid_instances = g_hash_table_new_full (wbl_json_node_hash,
-			                                           wbl_json_node_equal,
-			                                           (GDestroyNotify) json_node_free,
-			                                           NULL);
-
 			subschema = json_array_get_object_element (subschema_array, j);
-			subschema_generate_instances (self, subschema,
-			                              valid_instances);
 
-			/* Split the instances into valid and invalid. */
-			g_hash_table_iter_init (&valid_iter, valid_instances);
+			valid_instances = g_hash_table_lookup (valid_instances_map,
+			                                       subschema);
+			invalid_instances = g_hash_table_lookup (invalid_instances_map,
+			                                         subschema);
 
-			while (g_hash_table_iter_next (&valid_iter,
-			                               (gpointer *) &node, NULL)) {
-				GError *child_error = NULL;
+			if (valid_instances == NULL ||
+			    invalid_instances == NULL) {
+				valid_instances = g_hash_table_new_full (wbl_json_node_hash,
+				                                         wbl_json_node_equal,
+				                                         (GDestroyNotify) json_node_free,
+				                                         NULL);
+				invalid_instances = g_hash_table_new_full (wbl_json_node_hash,
+				                                           wbl_json_node_equal,
+				                                           (GDestroyNotify) json_node_free,
+				                                           NULL);
 
-				subschema_apply (self, subschema, node,
-				                 &child_error);
+				subschema_generate_instances (self, subschema,
+				                              valid_instances);
 
-				if (child_error != NULL) {
-					g_hash_table_iter_steal (&valid_iter);
-					g_hash_table_add (invalid_instances,
-					                  node);
+				/* Split the instances into valid and invalid. */
+				g_hash_table_iter_init (&valid_iter, valid_instances);
 
-					g_error_free (child_error);
+				while (g_hash_table_iter_next (&valid_iter,
+				                               (gpointer *) &node, NULL)) {
+					GError *child_error = NULL;
+
+					subschema_apply (self, subschema, node,
+					                 &child_error);
+
+					if (child_error != NULL) {
+						g_hash_table_iter_steal (&valid_iter);
+						g_hash_table_add (invalid_instances,
+						                  node);
+
+						g_error_free (child_error);
+					}
+
+					/* Debug output. */
+					if (priv->debug) {
+						gchar *debug_output = NULL;
+
+						debug_output = node_to_string (node);
+						g_debug ("%s: Subinstance %u (%s): %s",
+						         G_STRFUNC, j,
+						         (child_error == NULL) ? "valid" : "invalid",
+						         debug_output);
+						g_free (debug_output);
+					}
 				}
 
-				/* Debug output. */
-				if (priv->debug) {
-					gchar *debug_output = NULL;
-
-					debug_output = node_to_string (node);
-					g_debug ("%s: Subinstance %u (%s): %s",
-					         G_STRFUNC, j,
-					         (child_error == NULL) ? "valid" : "invalid",
-					         debug_output);
-					g_free (debug_output);
-				}
+				/* Store for later re-use. Transfer
+				 * ownership. */
+				g_hash_table_insert (valid_instances_map,
+				                     subschema,
+				                     valid_instances);
+				g_hash_table_insert (invalid_instances_map,
+				                     subschema,
+				                     invalid_instances);
 			}
 
-			g_ptr_array_add (valid_instances_array, valid_instances);  /* transfer */
-			g_ptr_array_add (invalid_instances_array, invalid_instances);  /* transfer */
+			g_ptr_array_add (valid_instances_array,
+			                 g_hash_table_ref (valid_instances));
+			g_ptr_array_add (invalid_instances_array,
+			                 g_hash_table_ref (invalid_instances));
 
 			max_n_valid_instances = MAX (max_n_valid_instances,
 			                             g_hash_table_size (valid_instances));
@@ -2262,6 +2298,9 @@ generate_all_items (WblSchema                       *self,
 		g_ptr_array_unref (invalid_instances_array);
 		g_ptr_array_unref (validity_arrays);
 	}
+
+	g_hash_table_unref (invalid_instances_map);
+	g_hash_table_unref (valid_instances_map);
 
 	/* The final step is to take each of the generated instances, and
 	 * mutate it for each of the relevant schema properties. */
