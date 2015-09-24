@@ -108,6 +108,8 @@ check-headers:
 noinst_LTLIBRARIES = libwalbottle/libwalbottle-utils.la
 
 libwalbottle_libwalbottle_utils_la_SOURCES = \
+	libwalbottle/wbl-json-node.h \
+	libwalbottle/wbl-json-node.c \
 	libwalbottle/wbl-string-set.h \
 	libwalbottle/wbl-string-set.c \
 	$(NULL)
