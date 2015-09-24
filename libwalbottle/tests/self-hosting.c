@@ -21,6 +21,7 @@
 #include <locale.h>
 #include <string.h>
 
+#include "wbl-json-node.h"
 #include "wbl-schema.h"
 #include "wbl-meta-schema.h"
 
@@ -588,6 +589,10 @@ is_failure_expected (const gchar        *json,
                      WblMetaSchemaType   meta_schema_type)
 {
 	const gchar * const *strv;
+	JsonParser *parser = NULL;
+	JsonNode *actual_json_node = NULL;
+	gboolean retval;
+	GError *error = NULL;
 
 	switch (meta_schema_type) {
 	case WBL_META_SCHEMA_META_SCHEMA:
@@ -608,7 +613,32 @@ is_failure_expected (const gchar        *json,
 		g_assert_not_reached ();
 	}
 
-	return g_strv_contains (strv, json);
+	/* See if @json is in @strv. */
+	parser = json_parser_new ();
+
+	json_parser_load_from_data (parser, json, -1, &error);
+	g_assert_no_error (error);
+	actual_json_node = json_node_copy (json_parser_get_root (parser));
+
+	retval = FALSE;
+
+	for (; *strv != NULL; strv++) {
+		JsonNode *expected_node;  /* unowned */
+
+		json_parser_load_from_data (parser, *strv, -1, &error);
+		g_assert_no_error (error);
+		expected_node = json_parser_get_root (parser);
+
+		if (wbl_json_node_equal (actual_json_node, expected_node)) {
+			retval = TRUE;
+			break;
+		}
+	}
+
+	json_node_free (actual_json_node);
+	g_clear_object (&parser);
+
+	return retval;
 }
 
 /* Test generating instances for the given JSON meta-schema.

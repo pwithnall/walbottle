@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "utils.h"
+#include "wbl-json-node.h"
 #include "wbl-schema.h"
 #include "wbl-meta-schema.h"
 
@@ -121,20 +122,35 @@ wbl_test_assert_generated_instances_match (GPtrArray/*<owned WblGeneratedInstanc
                                            const gchar                                *expected_filename)
 {
 	guint i;
+	JsonParser *parser = NULL;
+	GError *error = NULL;
+
+	parser = json_parser_new ();
 
 	for (i = 0; i < actual->len; i++) {
 		const gchar *actual_json;
 		gboolean found = FALSE;
 		guint j;
+		JsonNode *actual_json_node = NULL, *expected_node;
 
 		actual_json = wbl_generated_instance_get_json (actual->pdata[i]);
 
+		json_parser_load_from_data (parser, actual_json, -1, &error);
+		g_assert_no_error (error);
+		actual_json_node = json_node_copy (json_parser_get_root (parser));
+
 		for (j = 0; expected[j] != NULL; j++) {
-			if (g_strcmp0 (actual_json, expected[j]) == 0) {
+			json_parser_load_from_data (parser, expected[j], -1, &error);
+			g_assert_no_error (error);
+			expected_node = json_parser_get_root (parser);
+
+			if (wbl_json_node_equal (actual_json_node, expected_node)) {
 				found = TRUE;
 				break;
 			}
 		}
+
+		json_node_free (actual_json_node);
 
 		/* If there’s going to be an error, dump the actual instances
 		 * to a file which can be diffed easily against the expected
@@ -163,6 +179,8 @@ wbl_test_assert_generated_instances_match (GPtrArray/*<owned WblGeneratedInstanc
 	}
 
 	g_assert_cmpuint (actual->len, ==, g_strv_length ((gchar **) expected));
+
+	g_clear_object (&parser);
 }
 
 /* Utility method combining the above two. */
