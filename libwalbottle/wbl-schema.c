@@ -534,6 +534,7 @@ generate_all_properties (WblSchema                       *self,
 struct _WblSchemaPrivate {
 	JsonParser *parser;  /* owned */
 	WblSchemaNode *schema;  /* owned; NULL when not loading */
+	gboolean debug;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (WblSchema, wbl_schema, G_TYPE_OBJECT)
@@ -553,9 +554,34 @@ wbl_schema_class_init (WblSchemaClass *klass)
 static void
 wbl_schema_init (WblSchema *self)
 {
-	WblSchemaPrivate *priv = wbl_schema_get_instance_private (self);
+	WblSchemaPrivate *priv;
+	const gchar *messages_debug;
+
+	priv = wbl_schema_get_instance_private (self);
 
 	priv->parser = json_parser_new ();
+
+	/* Check whether to enable debug output. */
+	messages_debug = g_getenv ("G_MESSAGES_DEBUG");
+	priv->debug = FALSE;
+
+	if (messages_debug != NULL) {
+		gchar **domains = NULL;
+		const gchar * const *m;
+
+		domains = g_strsplit (messages_debug, ",", -1);
+
+		for (m = (const gchar * const *) domains; *m != NULL; m++) {
+			if (g_str_equal (*m, "all") ||
+			    g_str_equal (*m, G_LOG_DOMAIN)) {
+				priv->debug = TRUE;
+			} else if (g_str_equal (*m, "none")) {
+				priv->debug = FALSE;
+			}
+		}
+
+		g_strfreev (domains);
+	}
 }
 
 static void
@@ -1979,6 +2005,7 @@ generate_all_items (WblSchema                       *self,
                     gboolean                         unique_items,
                     GHashTable/*<owned JsonNode>*/  *output)
 {
+	WblSchemaPrivate *priv;
 	GPtrArray/*<owned JsonArray>*/ *subschema_arrays = NULL;
 	gboolean additional_items_boolean;
 	JsonObject *additional_items_subschema = NULL;  /* nullable; owned */
@@ -1988,6 +2015,8 @@ generate_all_items (WblSchema                       *self,
 	JsonBuilder *builder = NULL;
 	GHashTableIter iter;
 	JsonNode *node;
+
+	priv = wbl_schema_get_instance_private (self);
 
 	/* Massage the input to remove some irregularities. */
 	if (validate_value_type (additional_items_node, G_TYPE_BOOLEAN)) {
@@ -2012,7 +2041,7 @@ generate_all_items (WblSchema                       *self,
 	                                              min_items, max_items);
 
 	/* Debug. */
-	for (i = 0; i < subschema_arrays->len; i++) {
+	for (i = 0; i < subschema_arrays->len && priv->debug; i++) {
 		JsonNode *debug_node = NULL;
 		gchar *json = NULL;
 
@@ -2074,7 +2103,6 @@ generate_all_items (WblSchema                       *self,
 			while (g_hash_table_iter_next (&valid_iter,
 			                               (gpointer *) &node, NULL)) {
 				GError *child_error = NULL;
-				gchar *debug_output = NULL;
 
 				subschema_apply (self, subschema, node,
 				                 &child_error);
@@ -2088,12 +2116,16 @@ generate_all_items (WblSchema                       *self,
 				}
 
 				/* Debug output. */
-				debug_output = node_to_string (node);
-				g_debug ("%s: Subinstance %u (%s): %s",
-				         G_STRFUNC, j,
-				         (child_error == NULL) ? "valid" : "invalid",
-				         debug_output);
-				g_free (debug_output);
+				if (priv->debug) {
+					gchar *debug_output = NULL;
+
+					debug_output = node_to_string (node);
+					g_debug ("%s: Subinstance %u (%s): %s",
+					         G_STRFUNC, j,
+					         (child_error == NULL) ? "valid" : "invalid",
+					         debug_output);
+					g_free (debug_output);
+				}
 			}
 
 			g_ptr_array_add (valid_instances_array, valid_instances);  /* transfer */
@@ -2111,7 +2143,7 @@ generate_all_items (WblSchema                       *self,
 		                                            max_n_invalid_instances);
 
 		/* Debug. */
-		for (j = 0; j < validity_arrays->len; j++) {
+		for (j = 0; j < validity_arrays->len && priv->debug; j++) {
 			gchar *arr;
 
 			arr = validity_array_to_string (validity_arrays->pdata[j]);
@@ -2215,9 +2247,11 @@ generate_all_items (WblSchema                       *self,
 			g_hash_table_add (instance_set, instance);  /* transfer */
 
 			/* Debug output. */
-			debug_output = node_to_string (instance);
-			g_debug ("%s: Instance: %s", G_STRFUNC, debug_output);
-			g_free (debug_output);
+			if (priv->debug) {
+				debug_output = node_to_string (instance);
+				g_debug ("%s: Instance: %s", G_STRFUNC, debug_output);
+				g_free (debug_output);
+			}
 
 			json_builder_reset (builder);
 		}
@@ -4131,14 +4165,14 @@ generate_valid_property_sets (WblStringSet  *required,
                               JsonObject    *properties,
                               JsonObject    *pattern_properties,
                               gboolean       additional_properties_allowed,
-                              JsonObject    *dependencies)
+                              JsonObject    *dependencies,
+                              gboolean       debug)
 {
 	WblStringSet *initial = NULL;
 	WblStringSet *known_properties = NULL;
 	WblStringSet *additional_properties = NULL;
 	GHashTable/*<owned WblStringSet>*/ *set_family = NULL;
 	GHashTable/*<floating WblStringSet>*/ *property_sets = NULL;
-	gchar *debug = NULL;
 	WblStringSetIter iter;
 	const gchar *element;
 	GHashTableIter hash_iter;
@@ -4154,9 +4188,13 @@ generate_valid_property_sets (WblStringSet  *required,
 	wbl_string_set_ref_sink (initial);
 
 	/* Debug. */
-	debug = wbl_string_set_to_string (initial);
-	g_debug ("%s: initial = %s", G_STRFUNC, debug);
-	g_free (debug);
+	if (debug) {
+		gchar *debug_str = NULL;
+
+		debug_str = wbl_string_set_to_string (initial);
+		g_debug ("%s: initial = %s", G_STRFUNC, debug_str);
+		g_free (debug_str);
+	}
 
 	/* Work out the known properties.
 	 *
@@ -4178,9 +4216,13 @@ generate_valid_property_sets (WblStringSet  *required,
 	wbl_string_set_ref_sink (known_properties);
 
 	/* Debug. */
-	debug = wbl_string_set_to_string (known_properties);
-	g_debug ("%s: knownProperties = %s", G_STRFUNC, debug);
-	g_free (debug);
+	if (debug) {
+		gchar *debug_str = NULL;
+
+		debug_str = wbl_string_set_to_string (known_properties);
+		g_debug ("%s: knownProperties = %s", G_STRFUNC, debug_str);
+		g_free (debug_str);
+	}
 
 	/* Work out the additional properties. */
 	if (additional_properties_allowed) {
@@ -4203,9 +4245,13 @@ generate_valid_property_sets (WblStringSet  *required,
 	wbl_string_set_ref_sink (additional_properties);
 
 	/* Debug. */
-	debug = wbl_string_set_to_string (additional_properties);
-	g_debug ("%s: additionalProperties = %s", G_STRFUNC, debug);
-	g_free (debug);
+	if (debug) {
+		gchar *debug_str = NULL;
+
+		debug_str = wbl_string_set_to_string (additional_properties);
+		g_debug ("%s: additionalProperties = %s", G_STRFUNC, debug_str);
+		g_free (debug_str);
+	}
 
 	/* Calculate results. We can’t assume that any significant proportion of
 	 *  the results will be filtered out by the @minProperties and
@@ -4282,9 +4328,13 @@ generate_valid_property_sets (WblStringSet  *required,
 		candidate_size = wbl_string_set_get_size (candidate);
 
 		/* Debug output. */
-		debug = wbl_string_set_to_string (candidate);
-		g_debug ("%s: Candidate: %s", G_STRFUNC, debug);
-		g_free (debug);
+		if (debug) {
+			gchar *debug_str = NULL;
+
+			debug_str = wbl_string_set_to_string (candidate);
+			g_debug ("%s: Candidate: %s", G_STRFUNC, debug_str);
+			g_free (debug_str);
+		}
 
 		if (min_properties <= candidate_size &&
 		    candidate_size <= max_properties) {
@@ -4328,7 +4378,8 @@ static GPtrArray/*<owned JsonObject>*/ *
 get_subschemas_for_property (JsonObject   *properties,
                              JsonObject   *pattern_properties,
                              JsonNode     *additional_properties,
-                             const gchar  *property)
+                             const gchar  *property,
+                             gboolean      debug)
 {
 	GPtrArray/*<owned JsonObject>*/ *output = NULL;
 	JsonObject *subschema;
@@ -4385,7 +4436,7 @@ get_subschemas_for_property (JsonObject   *properties,
 	}
 
 	/* Debug output. */
-	{
+	if (debug) {
 		JsonGenerator *generator = NULL;
 		guint i;
 
@@ -4690,6 +4741,7 @@ generate_all_properties (WblSchema                       *self,
                          JsonObject                      *dependencies,
                          GHashTable/*<owned JsonNode>*/  *output)
 {
+	WblSchemaPrivate *priv;
 	GHashTable/*<floating WblStringSet>*/ *valid_property_sets = NULL;
 	gboolean additional_properties_allowed;
 	GHashTable/*<owned JsonNode>*/ *instance_set = NULL;
@@ -4703,6 +4755,7 @@ generate_all_properties (WblSchema                       *self,
 	WblStringSet *required = NULL;
 	GHashTable/*<owned utf8, GHashTable<owned JsonNode>>*/ *instance_map = NULL;
 
+	priv = wbl_schema_get_instance_private (self);
 	builder = json_builder_new ();
 
 	/* Copy @required so we can handle it as a set. */
@@ -4720,7 +4773,8 @@ generate_all_properties (WblSchema                       *self,
 	                                                    properties,
 	                                                    pattern_properties,
 	                                                    additional_properties_allowed,
-	                                                    dependencies);
+	                                                    dependencies,
+	                                                    priv->debug);
 
 	/* Map of property name to a set of possible subinstances for
 	 * it. The @instance_map is not unique to any @valid_property_set. */
@@ -4769,7 +4823,8 @@ generate_all_properties (WblSchema                       *self,
 			subschemas = get_subschemas_for_property (properties,
 			                                          pattern_properties,
 			                                          additional_properties,
-			                                          property_name);
+			                                          property_name,
+			                                          priv->debug);
 
 			for (i = 0; i < subschemas->len; i++) {
 				subschema_generate_instances (self,
@@ -4778,7 +4833,7 @@ generate_all_properties (WblSchema                       *self,
 			}
 
 			/* Debug. */
-			{
+			if (priv->debug) {
 				GHashTableIter debug_iter;
 				JsonNode *instance;
 
@@ -4854,7 +4909,6 @@ generate_all_properties (WblSchema                       *self,
 
 		for (; n_iterations_remaining > 0; n_iterations_remaining--) {
 			JsonNode *instance = NULL;
-			gchar *debug_output = NULL;
 
 			json_builder_begin_object (builder);
 
@@ -4901,9 +4955,13 @@ generate_all_properties (WblSchema                       *self,
 			g_hash_table_add (instance_set, instance);
 
 			/* Debug output. */
-			debug_output = node_to_string (instance);
-			g_debug ("%s: Instance: %s", G_STRFUNC, debug_output);
-			g_free (debug_output);
+			if (priv->debug) {
+				gchar *debug_output = NULL;
+
+				debug_output = node_to_string (instance);
+				g_debug ("%s: Instance: %s", G_STRFUNC, debug_output);
+				g_free (debug_output);
+			}
 
 			json_builder_reset (builder);
 		}
