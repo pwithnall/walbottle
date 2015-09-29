@@ -1,0 +1,96 @@
+.\" Manpage for json-validate.
+.\" Documentation is under the same licence as the Walbottle package.
+.TH man 8 "29 Sep 2015" "1.0" "json-validate man page"
+
+.SH NAME
+.IX Header "NAME"
+json-validate — JSON instance validator
+
+.SH SYNOPSIS
+.IX Header "SYNOPSIS"
+\fBjson-validate [-s\fP schema-file\fB …] \fPJSON-file\fB [\fPJSON-file\fB …]
+[-q] [-i]
+
+.SH DESCRIPTION
+.IX Header "DESCRIPTION"
+\fBjson-validate\fP is a utility for validating one or more JSON instance files
+against zero or more JSON schemas. It will always check the JSON instances for
+well-formedness. For each JSON schema passed using the \fB-s\fP option, all the
+JSON instance files will be checked to see if the schema applies to them.
+Schemas are checked conjunctively: all schemas must apply to an instance for it
+to be valid. Instances are checked conjunctively: all instances passed to
+json-validate must validate for the program to return success.
+
+For information on JSON Schema, see \fIhttp://json-schema.org/\fP.
+
+.SH OPTIONS
+.IX Header "OPTIONS"
+.IP "\fB\-q \-\-quiet\fP"
+Do not print progress output when starting to validate each JSON instance.
+.IP "\fB\-s \-\-schema\fP <JSON schema file>"
+JSON file containing a single JSON schema to validate the instances against. The
+schema must be well-formed itself.
+.IP "\fB\-i \-\-ignore\-errors\fP"
+Do not stop checking after the first error is found in a JSON instance —
+instead, continue checking until the end, and report all the errors found. This
+is intended to allow bulk fixing of errors.
+
+.SH "ENVIRONMENT"
+.IX Header "ENVIRONMENT"
+json-validate supports the standard GLib environment variables for debugging.
+These variables are \fBnot\fP intended to be used in production:
+.IP \fBG_MESSAGES_DEBUG\fR 4
+.IX Item "G_MESSAGES_DEBUG"
+This variable can contain one or more debug domain names to display debug output
+for. The value \fIall\fP will enable all debug output. The default is for no
+debug output to be enabled.
+
+.SH "EXIT STATUS"
+.IX Header "EXIT STATUS"
+json-validate may return one of several error codes if it encounters problems.
+
+.IP "0" 4
+No problems occurred. All instances were well-formed and validated against all
+schemas.
+.IP "1" 4
+.IX Item "1"
+An invalid option was passed to json-validate on startup.
+.IP "2" 4
+.IX Item "2"
+One of the JSON instances was not well-formed.
+.IP "3" 4
+.IX Item "3"
+One of the JSON schemas was invalid and could not be parsed.
+.IP "4" 4
+.IX Item "4"
+One of the JSON instances did not validate against one of the schemas.
+
+.SH EXAMPLES
+.IX Header "EXAMPLES"
+Here is an example of validating a couple of JSON instances against a single
+schema:
+.br
+.PP
+\fBjson-validate\fP \--schema /path/to/some-schema.schema.json
+/path/to/instance1.json
+/path/to/instance2.json
+
+.SH "SEE ALSO"
+.IX Header "SEE ALSO"
+.I json-schema-validate(8)
+.I json-schema-generate(8)
+
+.SH BUGS
+.IX Header "BUGS"
+Any bugs which are found should be reported on the project website:
+.br
+.I https://gitlab.com/walbottle/walbottle
+
+.SH AUTHOR
+.IX Header "AUTHOR"
+Collabora Ltd.
+
+.SH COPYRIGHT
+.IX Header "COPYRIGHT"
+Copyright © 2015 Collabora Ltd.
+.PP

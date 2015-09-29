@@ -1,0 +1,99 @@
+.\" Manpage for json-schema-validate.
+.\" Documentation is under the same licence as the Walbottle package.
+.TH man 8 "29 Sep 2015" "1.0" "json-schema-validate man page"
+
+.SH NAME
+.IX Header "NAME"
+json-schema-validate — JSON schema validator
+
+.SH SYNOPSIS
+.IX Header "SYNOPSIS"
+\fBjson-schema-validate \fPschema-file\fB [\fPschema-file\fB …] [-q] [-i]
+[--no-hyper]
+
+.SH DESCRIPTION
+.IX Header "DESCRIPTION"
+\fBjson-schema-validate\fP is a utility for validating one or more JSON schema
+files against the JSON meta-schemas and for well-formedness. A meta-schema is
+a schema which defines what other schemas should be like (including itself). It
+is written using the JSON keywords defined by the JSON Schema specification
+(\fIhttp://json-schema.org/latest/json-schema-core.html\fP).
+
+There are two JSON meta-schemas:
+.IP \(em 4
+meta-schema: Used for schemas written for pure validation of JSON instances.
+.IP \(em 4
+hyper-meta-schema: Used for schemas written for validation and hyper-linking.
+
+The hyper-meta-schema is used by default, and is a superset of meta-schema. If
+in doubt, validate against the hyper-meta-schema.
+.PP
+
+For information on JSON Schema, see \fIhttp://json-schema.org/\fP.
+
+.SH OPTIONS
+.IX Header "OPTIONS"
+.IP "\fB\-q \-\-quiet\fP"
+Do not print progress output when starting to validate each JSON schema.
+.IP "\fB\-i \-\-ignore\-errors\fP"
+Do not stop checking after the first error is found in a JSON schema —
+instead, continue checking until the end, and report all the errors found. This
+is intended to allow bulk fixing of errors.
+.IP "\fB\-\-no\-hyper\fP"
+Validate against the meta-schema rather than the hyper-meta-schema.
+
+.SH "ENVIRONMENT"
+.IX Header "ENVIRONMENT"
+json-schema-validate supports the standard GLib environment variables for
+debugging. These variables are \fBnot\fP intended to be used in production:
+.IP \fBG_MESSAGES_DEBUG\fR 4
+.IX Item "G_MESSAGES_DEBUG"
+This variable can contain one or more debug domain names to display debug output
+for. The value \fIall\fP will enable all debug output. The default is for no
+debug output to be enabled.
+
+.SH "EXIT STATUS"
+.IX Header "EXIT STATUS"
+json-schema-validate may return one of several error codes if it encounters
+problems.
+
+.IP "0" 4
+No problems occurred. All schemas were well-formed and validated against the
+meta-schema.
+.IP "1" 4
+.IX Item "1"
+An invalid option was passed to json-schema-validate on startup.
+.IP "2" 4
+.IX Item "2"
+One of the JSON schemas was not well-formed.
+.IP "3" 4
+.IX Item "3"
+One of the JSON schemas did not validate against the meta-schema.
+
+.SH EXAMPLES
+.IX Header "EXAMPLES"
+Here is an example of validating a JSON instance against the default
+hyper-meta-schema:
+.br
+.PP
+\fBjson-schema-validate\fP /path/to/my-schema.schema.json
+
+.SH "SEE ALSO"
+.IX Header "SEE ALSO"
+.I json-validate(8)
+.I json-schema-generate(8)
+
+.SH BUGS
+.IX Header "BUGS"
+Any bugs which are found should be reported on the project website:
+.br
+.I https://gitlab.com/walbottle/walbottle
+
+.SH AUTHOR
+.IX Header "AUTHOR"
+Collabora Ltd.
+
+.SH COPYRIGHT
+.IX Header "COPYRIGHT"
+Copyright © 2015 Collabora Ltd.
+.PP
