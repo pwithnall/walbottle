@@ -41,6 +41,116 @@
  * of the schema. They are designed to be used in testing parser implementations
  * for that schema.
  *
+ * ## Build system integration # {#build-system-integration}
+ *
+ * The most common usage of Walbottle is to integrate it into the unit tests for
+ * a parser in the software under test (SUT). This is typically done with the
+ * `json-schema-generate` utility which comes with Walbottle.
+ *
+ * To do so is straightforward if the SUT is using autotools. Add the following
+ * to the `configure.ac` file in the SUT:
+ * |[
+ * AC_PATH_PROG([JSON_SCHEMA_VALIDATE],[json-schema-validate])
+ * AC_PATH_PROG([JSON_SCHEMA_GENERATE],[json-schema-generate])
+ *
+ * AS_IF([test "$JSON_SCHEMA_VALIDATE" == ""],
+ *       [AC_MSG_ERROR([json-schema-validate not found])])
+ * AS_IF([test "$JSON_SCHEMA_GENERATE" == ""],
+ *       [AC_MSG_ERROR([json-schema-generate not found])])
+ * ]|
+ *
+ * Then add the following in the `Makefile.am` for the SUT’s parser unit tests
+ * and adjust `json_schemas` to point to the schemas for the format (or formats)
+ * accepted by the SUT’s parser:
+ * |[
+ * json_schemas = \
+ * 	my-format.schema.json \
+ * 	my-other-format.schema.json \
+ * 	$(NULL)
+ *
+ * EXTRA_DIST += $(json_schemas)
+ *
+ * check-json-schema: $(json_schemas)
+ * 	$(AM_V_GEN)$(JSON_SCHEMA_VALIDATE) $^
+ * check-local: check-json-schema
+ * .PHONY: check-json-schema
+ *
+ * json_schemas_c = $(json_schemas:.schema.json=.schema.c)
+ *
+ * CLEANFILES += $(json_schemas_c)
+ *
+ * %.schema.c: %.schema.json
+ * 	$(AM_V_GEN)$(JSON_SCHEMA_GENERATE) \
+ * 		--c-variable-name=$(subst -,_,$(notdir $*))_json_instances \
+ * 		--format c $^ > $@
+ * ]|
+ *
+ * If using the GLib test framework, a typical way of then using the generated
+ * test vectors in a test suite is to include the generated C file and add a
+ * unit test for each vector. In `Makefile.am:`
+ * |[
+ * my_test_suite_SOURCES = my-test-suite.c my-format.schema.c
+ * ]|
+ *
+ * And in the test suite code itself (`my-test-suite.c`):
+ * |[
+ * #include "my-format.schema.c"
+ *
+ * …
+ *
+ * // Test the parser with each generated test vector from the JSON schema.
+ * static void
+ * test_parser_generated (gconstpointer user_data)
+ * {
+ *   guint i;
+ *   GObject *parsed = NULL;
+ *   GError *error = NULL;
+ *
+ *   i = GPOINTER_TO_UINT (user_data);
+ *
+ *   parsed = try_parsing_string (my_format_json_instances[i].json,
+ *                                my_format_json_instances[i].size, &error);
+ *
+ *   if (my_format_json_instances[i].is_valid)
+ *     {
+ *       // Assert @parsed is valid.
+ *       g_assert_no_error (error);
+ *       g_assert (G_IS_OBJECT (parser));
+ *     }
+ *   else
+ *     {
+ *       // Assert parsing failed.
+ *       g_assert_error (error, SOME_ERROR_DOMAIN, SOME_ERROR_CODE);
+ *       g_assert (parsed == NULL);
+ *     }
+ *
+ *   g_clear_error (&error);
+ *   g_clear_object (&parsed);
+ * }
+ *
+ * …
+ *
+ * int
+ * main (int argc, char *argv[])
+ * {
+ *   guint i;
+ *
+ *   …
+ *
+ *   for (i = 0; i < G_N_ELEMENTS (my_format_json_instances); i++)
+ *     {
+ *       gchar *test_name = NULL;
+ *
+ *       test_name = g_strdup_printf ("/parser/generated/%u", i);
+ *       g_test_add_data_func (test_name, GUINT_TO_POINTER (i),
+ *                             test_parser_generated);
+ *       g_free (test_name);
+ *     }
+ *
+ *   …
+ * }
+ * ]|
+ *
  * Since: 0.1.0
  */
 
