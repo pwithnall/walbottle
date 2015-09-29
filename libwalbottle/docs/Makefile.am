@@ -51,6 +51,7 @@ IGNORE_HFILES = \
 	wbl-private.h \
 	wbl-string-set.c \
 	wbl-string-set.h \
+	utils.h \
 	$(NULL)
 
 # Images to copy into HTML directory.
