@@ -10,6 +10,58 @@ the code.
 
 libwalbottle’s API is currently unstable and is likely to change wildly.
 
+What is JSON Schema?
+====================
+
+ • http://json-schema.org/latest/json-schema-core.html
+ • http://json-schema.org/latest/json-schema-validation.html
+
+JSON Schema is a way of specifying the permitted format of JSON documents
+(‘instances’). It is entirely analogous to XML schema formats such as XML Schema
+or RELAX NG.
+
+JSON instances can be
+ • well-formed: the JSON is syntactically valid
+ • valid: the JSON has types, structure and values which match those permitted
+          by a given JSON schema
+
+Validation of a JSON instance against a schema checks both of these properties.
+A JSON instance can be valid against one JSON schema but invalid against
+another.
+
+JSON ‘meta-schemas’ are JSON schemas which define the JSON Schema specification
+itself. i.e. They define the types, structure and values which are permitted in
+a JSON Schema document. JSON meta-schemas are themselves JSON schemas. There are
+two meta-schemas: the meta-schema and the hyper-meta-schema. The
+hyper-meta-schema is a superset of the meta-schema, defining some additional
+hypertext properties which can be used in schemas.
+
+The meta-schemas are here:
+ • http://json-schema.org/schema
+ • http://json-schema.org/hyper-schema
+
+What is Walbottle?
+==================
+
+Walbottle is an implementation of JSON Schema. It can:
+ • validate JSON instances against a schema (the json-validate utility);
+ • validate JSON Schemas against the meta-schema (the json-schema-validate
+   utility); and
+ • generate JSON instances from a schema (the json-schema-generate utility).
+
+The final use case is the most important: Walbottle mainly exists in order to
+generate ‘random JSON’ instances for use in testing parsers. If you have written
+a JSON parser, and the format it parses is described by a JSON Schema document
+(if it isn’t, write a schema now), then json-schema-generate can be used to
+generate a number of JSON instances which you can use as test vectors for your
+parser. Each JSON instance is annotated with whether it’s valid according to the
+schema.
+
+The typical way to use these is to feed each one into your parser, and check
+that the parser accepts it if, and only if, it’s a valid instance according to
+the schema. And also check that the parser doesn’t crash or leak or do other bad
+things.
+
 Using Walbottle
 ===============
 
@@ -41,6 +93,10 @@ The utility programs:
        json-schema-generate --valid-only schema.json
      Example (invalid instances only):
        json-schema-generate --invalid-only schema.json
+
+     An example of how to integrate json-schema-generate into an autotools
+     build system and GLib-based test suite is given in the libwalbottle
+     documentation.
 
 As a library, the core object is a WblSchema, representing a single top-level
 JSON schema. See the API documentation for more explanation and examples.
