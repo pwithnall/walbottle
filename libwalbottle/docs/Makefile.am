@@ -48,6 +48,8 @@ CFILE_GLOB=$(top_srcdir)/libwalbottle/*.c
 # Header files to ignore when scanning.
 # e.g. IGNORE_HFILES=gtkdebug.h gtkintl.h
 IGNORE_HFILES = \
+	wbl-json-node.c \
+	wbl-json-node.h \
 	wbl-private.h \
 	wbl-string-set.c \
 	wbl-string-set.h \

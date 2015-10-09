@@ -18,7 +18,7 @@
  * License along with Walbottle.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
+/*
  * SECTION:wbl-json-node
  * @short_description: JSON node utilities
  * @stability: Private
