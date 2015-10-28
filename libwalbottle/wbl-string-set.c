@@ -384,8 +384,8 @@ wbl_string_set_union (WblStringSet  *a,
  * calculates
  *    output = set ∪ ⋃_{d ϵ output} dependencies(d)
  *
+ * Complexity: O(S * D) in the size S of @set and number D of @dependencies keys
  * Returns: the transitive dependency set of @set
- *
  * Since: UNRELEASED
  */
 WblStringSet *

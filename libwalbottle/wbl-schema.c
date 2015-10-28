@@ -476,6 +476,7 @@ subschema_apply (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_instance_nodes) */
 static void
 subschema_generate_instances (WblSchema *self,
                               JsonObject *subschema_object,
@@ -601,6 +602,8 @@ wbl_schema_dispose (GObject *object)
 }
 
 /* A couple of utility functions for validation. */
+
+/* Complexity: O(1) */
 static gboolean
 validate_regex (const gchar *regex)
 {
@@ -617,6 +620,7 @@ validate_regex (const gchar *regex)
 	}
 }
 
+/* Complexity: O(1) */
 static gboolean
 validate_value_type (JsonNode *node, GType value_type)
 {
@@ -624,7 +628,9 @@ validate_value_type (JsonNode *node, GType value_type)
 	        json_node_get_value_type (node) == value_type);
 }
 
-/* Validate a node is a non-empty array of unique strings. */
+/* Validate a node is a non-empty array of unique strings.
+ *
+ * Complexity: O(N) in the length of the array */
 static gboolean
 validate_non_empty_unique_string_array (JsonNode *schema_node)
 {
@@ -675,7 +681,9 @@ validate_non_empty_unique_string_array (JsonNode *schema_node)
 
 /* Validate a node is a non-empty array of valid JSON schemas.
  * If any of the schemas is invalid, return the first validation error as
- * @schema_error. */
+ * @schema_error.
+ *
+ * Complexity: O(N*subschema_validate) in the length of the array */
 static gboolean
 validate_schema_array (WblSchema *self,
                        JsonNode *schema_node,
@@ -728,7 +736,9 @@ validate_schema_array (WblSchema *self,
 	return TRUE;
 }
 
-/* Apply an array of schemas to an instance and count how many succeed. */
+/* Apply an array of schemas to an instance and count how many succeed
+ *
+ * Complexity: O(N * subschema_apply) in the number of schemas */
 static guint
 apply_schema_array (WblSchema *self,
                     JsonArray *schema_array,
@@ -758,7 +768,9 @@ apply_schema_array (WblSchema *self,
 	return n_successes;
 }
 
-/* Generate instances for all of the schemas in a schema array. */
+/* Generate instances for all of the schemas in a schema array.
+ *
+ * Complexity: O(N * subschema_generate_instances) in the number of schemas */
 static void
 generate_schema_array (WblSchema *self,
                        JsonArray *schema_array,
@@ -826,6 +838,8 @@ node_to_string (JsonNode  *node)
 }
 
 /* A couple of utility functions for generation. */
+
+/* Complexity: O(1) */
 static void
 generate_take_node (GHashTable/*<owned JsonNode>*/  *output,
                     JsonNode                        *node)  /* transfer full */
@@ -833,6 +847,7 @@ generate_take_node (GHashTable/*<owned JsonNode>*/  *output,
 	g_hash_table_add (output, node);  /* transfer */
 }
 
+/* Complexity: O(1) */
 static void
 generate_filled_string (GHashTable/*<owned JsonNode>*/ *output,
                         gsize length,  /* in Unicode characters */
@@ -883,7 +898,9 @@ generate_filled_string (GHashTable/*<owned JsonNode>*/ *output,
 }
 
 /* Check whether @obj has a property named after each string in @property_array,
- * which must be a non-empty array of unique strings. */
+ * which must be a non-empty array of unique strings.
+ *
+ * Complexity: O(N) in the length of @property_array */
 static gboolean
 object_has_properties (JsonObject *obj,
                        JsonArray *property_array)
@@ -907,7 +924,9 @@ object_has_properties (JsonObject *obj,
 	return TRUE;
 }
 
-/* multipleOf. json-schema-validation§5.1.1. */
+/* multipleOf. json-schema-validation§5.1.1.
+ *
+ * Complexity: O(1) */
 static void
 validate_multiple_of (WblSchema *self,
                       JsonObject *root,
@@ -925,6 +944,7 @@ validate_multiple_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_multiple_of (WblSchema *self,
                    JsonObject *root,
@@ -987,6 +1007,7 @@ apply_multiple_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 generate_multiple_of (WblSchema *self,
                       JsonObject *root,
@@ -1030,7 +1051,9 @@ generate_multiple_of (WblSchema *self,
 	}
 }
 
-/* maximum and exclusiveMaximum. json-schema-validation§5.1.2. */
+/* maximum and exclusiveMaximum. json-schema-validation§5.1.2.
+ *
+ * Complexity: O(1) */
 static void
 validate_maximum (WblSchema *self,
                   JsonObject *root,
@@ -1046,6 +1069,7 @@ validate_maximum (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 validate_exclusive_maximum (WblSchema *self,
                             JsonObject *root,
@@ -1069,6 +1093,7 @@ validate_exclusive_maximum (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_maximum (WblSchema *self,
                JsonObject *root,
@@ -1118,6 +1143,7 @@ apply_maximum (WblSchema *self,
 	g_free (maximum_str);
 }
 
+/* Complexity: O(1) */
 static void
 generate_maximum (WblSchema *self,
                   JsonObject *root,
@@ -1171,7 +1197,9 @@ generate_maximum (WblSchema *self,
 	}
 }
 
-/* minimum and exclusiveMinimum. json-schema-validation§5.1.3. */
+/* minimum and exclusiveMinimum. json-schema-validation§5.1.3.
+ *
+ * Complexity: O(1) */
 static void
 validate_minimum (WblSchema *self,
                   JsonObject *root,
@@ -1187,6 +1215,7 @@ validate_minimum (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 validate_exclusive_minimum (WblSchema *self,
                             JsonObject *root,
@@ -1210,6 +1239,7 @@ validate_exclusive_minimum (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_minimum (WblSchema *self,
                JsonObject *root,
@@ -1259,6 +1289,7 @@ apply_minimum (WblSchema *self,
 	g_free (minimum_str);
 }
 
+/* Complexity: O(1) */
 static void
 generate_minimum (WblSchema *self,
                   JsonObject *root,
@@ -1313,7 +1344,9 @@ generate_minimum (WblSchema *self,
 	}
 }
 
-/* maxLength. json-schema-validation§5.2.1. */
+/* maxLength. json-schema-validation§5.2.1.
+ *
+ * Complexity: O(1) */
 static void
 validate_max_length (WblSchema *self,
                      JsonObject *root,
@@ -1329,6 +1362,7 @@ validate_max_length (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_max_length (WblSchema *self,
                   JsonObject *root,
@@ -1349,6 +1383,7 @@ apply_max_length (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 generate_max_length (WblSchema *self,
                      JsonObject *root,
@@ -1377,7 +1412,9 @@ generate_max_length (WblSchema *self,
 	}
 }
 
-/* minLength. json-schema-validation§5.2.2. */
+/* minLength. json-schema-validation§5.2.2.
+ *
+ * Complexity: O(1) */
 static void
 validate_min_length (WblSchema *self,
                      JsonObject *root,
@@ -1393,6 +1430,7 @@ validate_min_length (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_min_length (WblSchema *self,
                   JsonObject *root,
@@ -1413,6 +1451,7 @@ apply_min_length (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 generate_min_length (WblSchema *self,
                      JsonObject *root,
@@ -1441,7 +1480,9 @@ generate_min_length (WblSchema *self,
 	}
 }
 
-/* pattern. json-schema-validation§5.2.3. */
+/* pattern. json-schema-validation§5.2.3.
+ *
+ * Complexity: O(1) */
 static void
 validate_pattern (WblSchema *self,
                   JsonObject *root,
@@ -1457,6 +1498,7 @@ validate_pattern (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_pattern (WblSchema *self,
                JsonObject *root,
@@ -1496,6 +1538,7 @@ apply_pattern (WblSchema *self,
 	g_regex_unref (regex);
 }
 
+/* Complexity: O(1) */
 static void
 generate_pattern (WblSchema *self,
                   JsonObject *root,
@@ -1518,8 +1561,8 @@ generate_pattern (WblSchema *self,
  * Build an array containing a copy of the first @length elements of @items.
  * @length must be less than or equal to the length of @items.
  *
+ * Complexity: O(N) in @length
  * Returns: (transfer full): a copy of the @length prefix of @items
- *
  * Since: UNRELEASED
  */
 static JsonArray *
@@ -1549,8 +1592,8 @@ array_copy_n (JsonArray  *items,
  * Build an array containing a complete copy of @items, with @n_copies of
  * @additional_items_subschema appended.
  *
+ * Complexity: O(I + N) in the length I of @items and value N of @n_copies
  * Returns: (transfer full): a copy of @items with @n_copies items appended
- *
  * Since: UNRELEASED
  */
 static JsonArray *
@@ -1599,9 +1642,10 @@ array_copy_append_n (JsonArray   *items,
  *
  * See inline comments for formal descriptions of the code.
  *
+ * Complexity: O(N^2) in the number of array elements in @items_node,
+ *    or @min_items and @max_items
  * Returns: (transfer full) (element-type JsonArray): array of subschema
  *    instances
- *
  * Since: UNRELEASED
  */
 static GPtrArray/*<owned JsonArray>*/ *
@@ -1706,7 +1750,7 @@ generate_subschema_arrays (JsonNode    *items_node,
  * less than or equal to the length of @array.
  *
  * Returns: (transfer full): a new JSON instance with fewer items
- *
+ * Complexity: O(N) in the length of the @array
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -1739,7 +1783,7 @@ instance_drop_n_elements (JsonArray  *array,
  * items will be generated to match it.
  *
  * Returns: (transfer full): a new JSON instance with @n extra items
- *
+ * Complexity: O(N) in the length of the @array
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -1773,7 +1817,7 @@ instance_add_n_elements (JsonArray  *array,
  * Build a copy of @array with one `null` JSON instance appended.
  *
  * Returns: (transfer full): a new JSON instance with one extra item
- *
+ * Complexity: O(N) in the length of the @array
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -1798,7 +1842,7 @@ instance_add_null_element (JsonArray  *array)
  * is empty, a new empty array will be returned.
  *
  * Returns: (transfer full): a new JSON instance with one extra item
- *
+ * Complexity: O(N) in the length of the @array
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -1833,6 +1877,7 @@ instance_clone_final_element (JsonArray  *array)
  * Generate an array of boolean values which are all %TRUE until index
  * @first_false_element, after (and including) which they are all %FALSE.
  *
+ * Complexity: O(n_elements)
  * Returns: (transfer full): array of @n_elements
  * Since: UNRELEASED
  */
@@ -1880,6 +1925,9 @@ generate_boolean_array (guint   n_elements,
  * possible child instance is included in at least one array instance — this is
  * controlled by @max_n_valid_instances and @max_n_invalid_instances.
  *
+ * Complexity: O(n_elements * n_elements +
+ *               max_n_valid_instances * n_elements +
+ *               max_n_invalid_instances * n_elements)
  * Returns: (transfer full): collection of boolean validity arrays
  * Since: UNRELEASED
  */
@@ -1994,6 +2042,15 @@ validity_array_to_string (GArray/*<boolean>*/  *arr)
  *    keyword.
  *  # Add all the mutated and non-mutated array instances to @output.
  *
+ * Complexity: O(generate_subschema_arrays +
+ *               P * M * subschema_generate_instances +
+ *               P * M * N * subschema_apply +
+ *               P * (M^2 + N * M) +
+ *               P * M +
+ *               P * (M + N) * N +
+ *               (M + N) * N +
+ *               (M + N)) in the number P of subschema arrays, N of valid
+ *    instances and M of subschemas
  * Since: UNRELEASED
  */
 static void
@@ -2077,6 +2134,12 @@ generate_all_items (WblSchema                       *self,
 	                                      NULL);
 	builder = json_builder_new ();
 
+        /* Complexity: O(P * M * subschema_generate_instances +
+         *               P * M * N * subschema_apply +
+         *               P * (M^2 + N * M) +
+         *               P * M +
+         *               P * (M + N) * N) in the number P of
+         *    subschema arrays, N of valid instances and M of subschemas */
 	for (i = 0; i < subschema_arrays->len; i++) {
 		JsonArray *subschema_array;
 		GPtrArray/*<owned GArray<boolean>>*/ *validity_arrays = NULL;
@@ -2094,6 +2157,9 @@ generate_all_items (WblSchema                       *self,
 		max_n_valid_instances = 0;
 		max_n_invalid_instances = 0;
 
+                /* Complexity: O(M * subschema_generate_instances +
+                 *               M * N * subschema_apply) in the number N of
+                 *    valid instances and M of subschemas */
 		for (j = 0; j < json_array_get_length (subschema_array); j++) {
 			GHashTable/*<owned JsonNode>*/ *valid_instances = NULL;
 			GHashTable/*<owned JsonNode>*/ *invalid_instances = NULL;
@@ -2107,6 +2173,9 @@ generate_all_items (WblSchema                       *self,
 			invalid_instances = g_hash_table_lookup (invalid_instances_map,
 			                                         subschema);
 
+                        /* Complexity: O(subschema_generate_instances +
+                         *               N * subschema_apply) in the number of
+                         *    valid instances */
 			if (valid_instances == NULL ||
 			    invalid_instances == NULL) {
 				valid_instances = g_hash_table_new_full (wbl_json_node_hash,
@@ -2173,6 +2242,8 @@ generate_all_items (WblSchema                       *self,
 			                               g_hash_table_size (invalid_instances));
 		}
 
+                /* Complexity: O(M^2 + N * M) in the number N of valid
+                 *    instances and M of subschemas */
 		validity_arrays = generate_validity_arrays (json_array_get_length (subschema_array),
 		                                            items_node,
 		                                            max_n_valid_instances,
@@ -2213,6 +2284,7 @@ generate_all_items (WblSchema                       *self,
 		invalid_iters = g_new0 (GHashTableIter, invalid_instances_array->len);
 		n_iterations_remaining = 0;
 
+                /* Complexity: O(M) in the number of subschemas */
 		for (j = 0; j < valid_instances_array->len; j++) {
 			GHashTable/*<owned JsonNode>*/ *instances;
 
@@ -2222,6 +2294,7 @@ generate_all_items (WblSchema                       *self,
 			                              g_hash_table_size (instances));
 		}
 
+                /* Complexity: O(M) in the number of subschemas */
 		for (j = 0; j < invalid_instances_array->len; j++) {
 			GHashTable/*<owned JsonNode>*/ *instances;
 
@@ -2231,6 +2304,7 @@ generate_all_items (WblSchema                       *self,
 			                              g_hash_table_size (instances));
 		}
 
+                /* Complexity: O((M + N) * N) */
 		for (j = 0; j < validity_arrays->len; j++) {
 			GArray/*<boolean>*/ *validity_array;
 			JsonNode *instance = NULL;
@@ -2240,6 +2314,7 @@ generate_all_items (WblSchema                       *self,
 
 			json_builder_begin_array (builder);
 
+                        /* Complexity: O(N) */
 			for (k = 0; k < validity_array->len; k++) {
 				GHashTable/*<owned JsonNode>*/ *instances;
 				GHashTableIter *instances_iter;
@@ -2313,6 +2388,7 @@ generate_all_items (WblSchema                       *self,
 	 * uniqueItems. */
 	g_hash_table_iter_init (&iter, instance_set);
 
+        /* Complexity: O((M + N) * N) */
 	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
 		JsonNode *mutated_instance = NULL;
 		JsonArray *array;
@@ -2387,7 +2463,9 @@ generate_all_items (WblSchema                       *self,
 	g_object_unref (builder);
 }
 
-/* additionalItems and items. json-schema-validation§5.3.1. */
+/* additionalItems and items. json-schema-validation§5.3.1.
+ *
+ * Complexity: O(subschema_validate) */
 static void
 validate_additional_items (WblSchema *self,
                            JsonObject *root,
@@ -2430,6 +2508,7 @@ validate_additional_items (WblSchema *self,
 	               "Schema. See json-schema-validation§5.3.1."));
 }
 
+/* Complexity: O(generate_all_items) */
 static void
 generate_additional_items (WblSchema *self,
                            JsonObject *root,
@@ -2478,6 +2557,8 @@ generate_additional_items (WblSchema *self,
 	json_node_free (items_node);
 }
 
+/* Complexity: O(N * subschema_validate) in the length of the array;
+ *    N=1 for objects */
 static void
 validate_items (WblSchema *self,
                 JsonObject *root,
@@ -2566,7 +2647,9 @@ validate_items (WblSchema *self,
 	               "JSON Schemas. See json-schema-validation§5.3.1."));
 }
 
-/* json-schema-validation§5.3.1.2. */
+/* json-schema-validation§5.3.1.2.
+ *
+ * Complexity: O(1) */
 static void
 apply_items_parent_schema (WblSchema *self,
                            JsonNode *items_schema_node,
@@ -2624,7 +2707,9 @@ apply_items_parent_schema (WblSchema *self,
 	}
 }
 
-/* json-schema-validation§8.2.3. */
+/* json-schema-validation§8.2.3.
+ *
+ * Complexity: O(N * subschema_apply) in the length of @instance_array */
 static void
 apply_items_child_schema (WblSchema *self,
                           JsonNode *items_schema_node,
@@ -2699,6 +2784,7 @@ apply_items_child_schema (WblSchema *self,
 	}
 }
 
+/* Complexity: O(apply_items_parent_schema + apply_items_child_schema) */
 static void
 apply_items (WblSchema *self,
              JsonObject *root,
@@ -2737,6 +2823,7 @@ apply_items (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_all_items) */
 static void
 generate_items (WblSchema *self,
                 JsonObject *root,
@@ -2787,7 +2874,9 @@ generate_items (WblSchema *self,
 	json_node_free (additional_items_node);
 }
 
-/* maxItems. json-schema-validation§5.3.2. */
+/* maxItems. json-schema-validation§5.3.2.
+ *
+ * Complexity: O(1) */
 static void
 validate_max_items (WblSchema *self,
                     JsonObject *root,
@@ -2803,6 +2892,7 @@ validate_max_items (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_max_items (WblSchema *self,
                  JsonObject *root,
@@ -2831,6 +2921,7 @@ apply_max_items (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_all_items) */
 static void
 generate_max_items (WblSchema *self,
                     JsonObject *root,
@@ -2884,7 +2975,9 @@ generate_max_items (WblSchema *self,
 	json_node_free (items_node);
 }
 
-/* minItems. json-schema-validation§5.3.3. */
+/* minItems. json-schema-validation§5.3.3.
+ *
+ * Complexity: O(1) */
 static void
 validate_min_items (WblSchema *self,
                     JsonObject *root,
@@ -2900,6 +2993,7 @@ validate_min_items (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_min_items (WblSchema *self,
                  JsonObject *root,
@@ -2928,6 +3022,7 @@ apply_min_items (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_all_items) */
 static void
 generate_min_items (WblSchema *self,
                     JsonObject *root,
@@ -2980,7 +3075,9 @@ generate_min_items (WblSchema *self,
 	json_node_free (items_node);
 }
 
-/* uniqueItems. json-schema-validation§5.3.3. */
+/* uniqueItems. json-schema-validation§5.3.3.
+ *
+ * Complexity: O(1) */
 static void
 validate_unique_items (WblSchema *self,
                        JsonObject *root,
@@ -2995,6 +3092,7 @@ validate_unique_items (WblSchema *self,
 	}
 }
 
+/* Complexity: O(N) in the length of @instance_array */
 static void
 apply_unique_items (WblSchema *self,
                     JsonObject *root,
@@ -3044,6 +3142,7 @@ apply_unique_items (WblSchema *self,
 	g_hash_table_unref (unique_hash);
 }
 
+/* Complexity: O(generate_all_items) */
 static void
 generate_unique_items (WblSchema *self,
                        JsonObject *root,
@@ -3095,7 +3194,9 @@ generate_unique_items (WblSchema *self,
 	json_node_free (items_node);
 }
 
-/* maxProperties. json-schema-validation§5.4.1. */
+/* maxProperties. json-schema-validation§5.4.1.
+ *
+ * Complexity: O(1) */
 static void
 validate_max_properties (WblSchema *self,
                          JsonObject *root,
@@ -3111,6 +3212,7 @@ validate_max_properties (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_max_properties (WblSchema *self,
                       JsonObject *root,
@@ -3139,6 +3241,7 @@ apply_max_properties (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_all_properties) */
 static void
 generate_max_properties (WblSchema *self,
                          JsonObject *root,
@@ -3221,7 +3324,9 @@ generate_max_properties (WblSchema *self,
 	json_array_unref (required);
 }
 
-/* minProperties. json-schema-validation§5.4.2. */
+/* minProperties. json-schema-validation§5.4.2.
+ *
+ * Complexity: O(1) */
 static void
 validate_min_properties (WblSchema *self,
                          JsonObject *root,
@@ -3237,6 +3342,7 @@ validate_min_properties (WblSchema *self,
 	}
 }
 
+/* Complexity: O(1) */
 static void
 apply_min_properties (WblSchema *self,
                       JsonObject *root,
@@ -3265,6 +3371,7 @@ apply_min_properties (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_all_properties) */
 static void
 generate_min_properties (WblSchema *self,
                          JsonObject *root,
@@ -3347,7 +3454,9 @@ generate_min_properties (WblSchema *self,
 	json_array_unref (required);
 }
 
-/* required. json-schema-validation§5.4.3. */
+/* required. json-schema-validation§5.4.3.
+ *
+ * Complexity: O(validate_non_empty_unique_string_array) */
 static void
 validate_required (WblSchema *self,
                    JsonObject *root,
@@ -3362,6 +3471,8 @@ validate_required (WblSchema *self,
 	}
 }
 
+/* Complexity: O(S + I) in the length S of @schema_node and I of
+ *    @instance_node */
 static void
 apply_required (WblSchema *self,
                 JsonObject *root,
@@ -3425,6 +3536,7 @@ apply_required (WblSchema *self,
 	g_hash_table_unref (set);
 }
 
+/* Complexity: O(generate_all_properties) */
 static void
 generate_required (WblSchema *self,
                    JsonObject *root,
@@ -3508,7 +3620,9 @@ generate_required (WblSchema *self,
 }
 
 /* additionalProperties, properties, patternProperties.
- * json-schema-validation§5.4.4. */
+ * json-schema-validation§5.4.4.
+ *
+ * Complexity: O(1*subschema_validate) */
 static void
 validate_additional_properties (WblSchema *self,
                                 JsonObject *root,
@@ -3550,6 +3664,7 @@ validate_additional_properties (WblSchema *self,
 	}
 }
 
+/* Complexity: O(N * subschema_validate) in the number of properties */
 static void
 validate_properties (WblSchema *self,
                      JsonObject *root,
@@ -3609,6 +3724,7 @@ validate_properties (WblSchema *self,
 	}
 }
 
+/* Complexity: O(N * subschema_validate) in the number of properties */
 static void
 validate_pattern_properties (WblSchema *self,
                              JsonObject *root,
@@ -3676,7 +3792,9 @@ validate_pattern_properties (WblSchema *self,
 }
 
 /* Version of g_list_remove() which does string comparison of @data, rather
- * than pointer comparison. */
+ * than pointer comparison.
+ *
+ * Complexity: O(N) in the length of @list */
 static GList *
 list_remove_string (GList *list, const gchar *data)
 {
@@ -3690,6 +3808,7 @@ list_remove_string (GList *list, const gchar *data)
 	return list;
 }
 
+/* Complexity: O(N) in the length of @list */
 static gboolean
 list_contains_string (GList *list, const gchar *data)
 {
@@ -3700,7 +3819,10 @@ list_contains_string (GList *list, const gchar *data)
 	return (l != NULL);
 }
 
-/* json-schema-validation§5.4.4 */
+/* json-schema-validation§5.4.4
+ *
+ * Complexity: O(P * S + PP * S) in the length P of @p_node, length S of
+ *    @instance_object, and length PP of @pp_node */
 static void
 apply_properties_parent_schema (WblSchema *self,
                                 JsonNode *ap_node,
@@ -3799,7 +3921,10 @@ apply_properties_parent_schema (WblSchema *self,
 	g_list_free (set_s);
 }
 
-/* json-schema-validation§8.3.3 */
+/* json-schema-validation§8.3.3
+ *
+ * Complexity: O(S * (P + PP + (P + PP) * subschema_apply)) in the length P of
+ *    @p_node, length S of @instance_object, and length PP of @pp_node */
 static void
 apply_properties_child_schema (WblSchema *self,
                                JsonNode *ap_node,
@@ -3925,6 +4050,8 @@ done:
 	g_hash_table_unref (set_s);
 }
 
+/* Complexity: O(apply_properties_parent_schema +
+ *               apply_properties_child_schema) */
 static void
 apply_properties_schemas (WblSchema *self,
                           JsonNode *ap_node,
@@ -3962,6 +4089,7 @@ apply_properties_schemas (WblSchema *self,
 	}
 }
 
+/* Complexity: O(apply_properties_schemas) */
 static void
 apply_properties (WblSchema *self,
                   JsonObject *root,
@@ -3979,6 +4107,7 @@ apply_properties (WblSchema *self,
 	                          instance_node, error);
 }
 
+/* Complexity: O(apply_properties_schemas) */
 static void
 apply_pattern_properties (WblSchema *self,
                           JsonObject *root,
@@ -3997,7 +4126,9 @@ apply_pattern_properties (WblSchema *self,
 }
 
 /* Find the subschema of the first pattern to match @property. If no patterns
- * match, return %NULL. */
+ * match, return %NULL.
+ *
+ * Complexity: O(N) in the number of @pattern_properties */
 static JsonObject *
 pattern_properties_find_match (JsonObject   *pattern_properties,
                                const gchar  *property)
@@ -4048,8 +4179,9 @@ pattern_properties_find_match (JsonObject   *pattern_properties,
  * such that (if possible):
  *    |a| ≥ @num_additional_properties
  *
+ * Complexity: O(num_additional_properties * N)
+ *    in the number of @pattern_properties
  * Returns: (transfer floating): a set of newly generated property names
- *
  * Since: UNRELEASED
  */
 static WblStringSet *
@@ -4096,8 +4228,8 @@ generate_n_additional_properties (gint64         num_additional_properties,
  * Note that @properties is not the `knownProperties` formal variable; it is
  * the set of property names from the `properties` schema keyword.
  *
+ * Complexity: O(N) in the number of @pattern_properties
  * Returns: (transfer floating): a set of newly generated property names
- *
  * Since: UNRELEASED
  */
 static WblStringSet *
@@ -4176,8 +4308,10 @@ pattern_properties_generate_instances (JsonObject    *pattern_properties,
  *
  * See the inline comments for a formal specification.
  *
+ * Complexity: O(D + P + A + max_properties * A +
+ *               (D + P + A + max_properties) * D) in the number D
+ *    of @dependencies, P of @properties and A of @pattern_properties
  * Returns: (transfer full): a family of property sets, which may be empty
- *
  * Since: UNRELEASED
  */
 static GHashTable/*<floating WblStringSet>*/ *
@@ -4340,6 +4474,7 @@ generate_valid_property_sets (WblStringSet  *required,
 	 */
 	g_hash_table_iter_init (&hash_iter, set_family);
 
+        /* Complexity: O((D + P + A + max_properties) * D) */
 	while (g_hash_table_iter_next (&hash_iter, (gpointer *) &property_set, NULL)) {
 		WblStringSet *candidate = NULL;
 		guint candidate_size;
@@ -4390,10 +4525,9 @@ generate_valid_property_sets (WblStringSet  *required,
  * match.
  *
  * Reference: json-schema-validation§8.3.3
- *
+ * Complexity: O(A) in the number A of @pattern_properties
  * Returns: (transfer full) (element-type JsonObject): a collection of
  *    subschemas which must apply to @property; the collection may be empty
- *
  * Since: UNRELEASED
  */
 static GPtrArray/*<owned JsonObject>*/ *
@@ -4496,8 +4630,8 @@ get_subschemas_for_property (JsonObject   *properties,
  * there are fewer than @n of these, properties from @required will also be
  * dropped.
  *
+ * Complexity: O(N) in the number N of properties in @instance
  * Returns: (transfer full): a new JSON instance with fewer properties
- *
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -4562,8 +4696,8 @@ instance_drop_n_properties (JsonObject    *instance,
  * Build a copy of @instance with the named @property removed, if possible. If
  * @property does not exist in @instance, a clone of @instance will be returned.
  *
+ * Complexity: O(N) in the number N of properties on @instance
  * Returns: (transfer full): a new JSON instance with @property removed
- *
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -4611,8 +4745,9 @@ instance_drop_property (JsonObject   *instance,
  * properties to match the given constraints (@properties, @pattern_properties,
  * @additional_properties) as much as possible.
  *
+ * Complexity: O(N + n) in the number N of properties
+ *    on @instance
  * Returns: (transfer full): a new JSON instance with @n new properties
- *
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -4675,8 +4810,8 @@ instance_add_n_properties (JsonObject  *instance,
  * property to not match any of the given constraints (@properties,
  * @pattern_properties, @additional_properties).
  *
+ * Complexity: O(N) in the number N of properties on @instance
  * Returns: (transfer full): a new JSON instance with one new property
- *
  * Since: UNRELEASED
  */
 static JsonNode *
@@ -4745,6 +4880,14 @@ instance_add_non_matching_property (JsonObject  *instance,
  *    keyword.
  *  # Add all the mutated and non-mutated object instances to @output.
  *
+ * Complexity: O(generate_valid_property_sets +
+ *               P * (A + A * subschema_generate_instances) +
+ *               V * P +
+ *               V * X * P +
+ *               V * X * (D + P + M + A)) for P properties generated by
+ *    valid_property_sets(), V sets generated by valid_property_sets(), A number
+ *    of pattern properties, X instances generated by
+ *    subschema_generate_instances(), D @dependencies, M @min_properties
  * Since: UNRELEASED
  */
 static void
@@ -5105,6 +5248,7 @@ generate_all_properties (WblSchema                       *self,
 	g_object_unref (builder);
 }
 
+/* Complexity: O(generate_all_properties) */
 static void
 generate_properties (WblSchema *self,
                      JsonObject *root,
@@ -5187,6 +5331,7 @@ generate_properties (WblSchema *self,
 	json_array_unref (required);
 }
 
+/* Complexity: O(generate_all_properties) */
 static void
 generate_additional_properties (WblSchema *self,
                                 JsonObject *root,
@@ -5269,6 +5414,7 @@ generate_additional_properties (WblSchema *self,
 	json_array_unref (required);
 }
 
+/* Complexity: O(generate_all_properties) */
 static void
 generate_pattern_properties (WblSchema *self,
                              JsonObject *root,
@@ -5351,7 +5497,10 @@ generate_pattern_properties (WblSchema *self,
 	json_array_unref (required);
 }
 
-/* dependencies. json-schema-validation§5.4.5. */
+/* dependencies. json-schema-validation§5.4.5.
+ *
+ * Complexity: O(N * subschema_validate + N * D) in the number N of
+ *    properties, D of dependencies per property */
 static void
 validate_dependencies (WblSchema *self,
                        JsonObject *root,
@@ -5411,6 +5560,8 @@ done:
 	}
 }
 
+/* Complexity: O(S * (subschema_apply + N)) in the number S of items in
+ *    @schema_node, and number D of dependencies they have */
 static void
 apply_dependencies (WblSchema *self,
                     JsonObject *root,
@@ -5492,6 +5643,7 @@ apply_dependencies (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_all_properties) */
 static void
 generate_dependencies (WblSchema *self,
                        JsonObject *root,
@@ -5574,7 +5726,9 @@ generate_dependencies (WblSchema *self,
 	json_array_unref (required);
 }
 
-/* enum. json-schema-validation§5.5.1. */
+/* enum. json-schema-validation§5.5.1.
+ *
+ * Complexity: O(N) in the number of enum elements */
 static void
 validate_enum (WblSchema *self,
                JsonObject *root,
@@ -5627,6 +5781,7 @@ done:
 	}
 }
 
+/* Complexity: O(N) in the length of @schema_node */
 static void
 apply_enum (WblSchema *self,
             JsonObject *root,
@@ -5657,6 +5812,7 @@ apply_enum (WblSchema *self,
 	               "See json-schema-validation§5.5.1."));
 }
 
+/* Complexity: O(N) in the number of enum elements */
 static void
 generate_enum (WblSchema *self,
                JsonObject *root,
@@ -5680,7 +5836,9 @@ generate_enum (WblSchema *self,
 	 * members? How would we generate one of those? */
 }
 
-/* type. json-schema-validation§5.5.2. */
+/* type. json-schema-validation§5.5.2.
+ *
+ * Complexity: O(N) in the number of array elements; N=1 for non-array nodes */
 static void
 validate_type (WblSchema *self,
                JsonObject *root,
@@ -5785,6 +5943,7 @@ type_node_to_array (JsonNode *schema_node)
 	return schema_types;
 }
 
+/* Complexity: O(N) in the number of types in @schema_node */
 static void
 apply_type (WblSchema *self,
             JsonObject *root,
@@ -5825,6 +5984,7 @@ done:
 	g_array_unref (schema_types);
 }
 
+/* Complexity: O(N) in the number of types in the @schema_node */
 static void
 generate_type (WblSchema *self,
                JsonObject *root,
@@ -5889,7 +6049,9 @@ generate_type (WblSchema *self,
 	g_array_unref (schema_types);
 }
 
-/* allOf. json-schema-validation§5.5.3. */
+/* allOf. json-schema-validation§5.5.3.
+ *
+ * Complexity: O(validate_schema_array) */
 static void
 validate_all_of (WblSchema *self,
                  JsonObject *root,
@@ -5922,6 +6084,7 @@ validate_all_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(apply_schema_array) */
 static void
 apply_all_of (WblSchema *self,
               JsonObject *root,
@@ -5943,6 +6106,7 @@ apply_all_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_schema_array) */
 static void
 generate_all_of (WblSchema *self,
                  JsonObject *root,
@@ -5956,7 +6120,9 @@ generate_all_of (WblSchema *self,
 	generate_schema_array (self, schema_array, output);
 }
 
-/* anyOf. json-schema-validation§5.5.4. */
+/* anyOf. json-schema-validation§5.5.4.
+ *
+ * Complexity: O(validate_schema_array) */
 static void
 validate_any_of (WblSchema *self,
                  JsonObject *root,
@@ -5989,6 +6155,7 @@ validate_any_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(apply_schema_array) */
 static void
 apply_any_of (WblSchema *self,
               JsonObject *root,
@@ -6010,6 +6177,7 @@ apply_any_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_schema_array) */
 static void
 generate_any_of (WblSchema *self,
                  JsonObject *root,
@@ -6023,7 +6191,9 @@ generate_any_of (WblSchema *self,
 	generate_schema_array (self, schema_array, output);
 }
 
-/* oneOf. json-schema-validation§5.5.5. */
+/* oneOf. json-schema-validation§5.5.5.
+ *
+ * Complexity: O(validate_schema_array) */
 static void
 validate_one_of (WblSchema *self,
                  JsonObject *root,
@@ -6056,6 +6226,7 @@ validate_one_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(apply_schema_array) */
 static void
 apply_one_of (WblSchema *self,
               JsonObject *root,
@@ -6077,6 +6248,7 @@ apply_one_of (WblSchema *self,
 	}
 }
 
+/* Complexity: O(generate_schema_array) */
 static void
 generate_one_of (WblSchema *self,
                  JsonObject *root,
@@ -6090,7 +6262,9 @@ generate_one_of (WblSchema *self,
 	generate_schema_array (self, schema_array, output);
 }
 
-/* not. json-schema-validation§5.5.6. */
+/* not. json-schema-validation§5.5.6.
+ *
+ * Complexity: O(subschema_validate) */
 static void
 validate_not (WblSchema *self,
               JsonObject *root,
@@ -6126,6 +6300,7 @@ validate_not (WblSchema *self,
 	}
 }
 
+/* Complexity: O(subschema_apply) */
 static void
 apply_not (WblSchema *self,
            JsonObject *root,
@@ -6149,6 +6324,7 @@ apply_not (WblSchema *self,
 	g_clear_error (&child_error);
 }
 
+/* Complexity: O(subschema_generate_instances) */
 static void
 generate_not (WblSchema *self,
               JsonObject *root,
@@ -6160,7 +6336,9 @@ generate_not (WblSchema *self,
 	                              output);
 }
 
-/* title. json-schema-validation§6.1. */
+/* title. json-schema-validation§6.1.
+ *
+ * Complexity: O(validate_value_type) */
 static void
 validate_title (WblSchema *self,
                 JsonObject *root,
@@ -6175,7 +6353,9 @@ validate_title (WblSchema *self,
 	}
 }
 
-/* description. json-schema-validation§6.1. */
+/* description. json-schema-validation§6.1.
+ *
+ * Complexity: O(validate_value_type) */
 static void
 validate_description (WblSchema *self,
                       JsonObject *root,
@@ -6190,7 +6370,9 @@ validate_description (WblSchema *self,
 	}
 }
 
-/* default. json-schema-validation§6.2. */
+/* default. json-schema-validation§6.2.
+ *
+ * Complexity: O(1) */
 static void
 generate_default (WblSchema *self,
                   JsonObject *root,
