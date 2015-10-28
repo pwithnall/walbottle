@@ -3471,8 +3471,7 @@ validate_required (WblSchema *self,
 	}
 }
 
-/* Complexity: O(S + I) in the length S of @schema_node and I of
- *    @instance_node */
+/* Complexity: O(S) in the length S of @schema_node */
 static void
 apply_required (WblSchema *self,
                 JsonObject *root,
@@ -3482,10 +3481,7 @@ apply_required (WblSchema *self,
 {
 	JsonArray *schema_array;  /* unowned */
 	JsonObject *instance_object;  /* unowned */
-	GHashTable/*<unowned utf8, unowned utf8>*/ *set = NULL;  /* owned */
-	GPtrArray/*<unowned utf8>*/ *schema_member_names = NULL;  /* owned */
-	JsonObjectIter instance_member_names_iter;
-	const gchar *member_name;
+
 	guint i;
 
 	/* Quick type check. */
@@ -3495,31 +3491,16 @@ apply_required (WblSchema *self,
 
 	schema_array = json_node_get_array (schema_node);
 	instance_object = json_node_get_object (instance_node);
-	json_object_iter_init (&instance_member_names_iter, instance_object);
 
-	schema_member_names = g_ptr_array_new ();
-	set = g_hash_table_new (wbl_json_string_hash, wbl_json_string_equal);
-
-	/* Put the required member names in the @schema_member_names. */
-	for (i = 0; i < json_array_get_length (schema_array); i++) {
+	/* Check each of the @set against the @schema_array. */
+        for (i = 0; i < json_array_get_length (schema_array); i++) {
 		JsonNode *child_node;  /* unowned */
+                const gchar *member_name;
 
 		child_node = json_array_get_element (schema_array, i);
-		g_ptr_array_add (schema_member_names,
-		                 (gpointer) json_node_get_string (child_node));
-	}
+		member_name = json_node_get_string (child_node);
 
-	/* Put the instance member names in the @set. */
-	while (json_object_iter_next (&instance_member_names_iter,
-	                               &member_name, NULL)) {
-		g_hash_table_add (set, (gpointer) member_name);
-	}
-
-	/* Check each of the @set against the @schema_member_names. */
-	for (i = 0; i < schema_member_names->len; i++) {
-		member_name = schema_member_names->pdata[i];
-
-		if (!g_hash_table_contains (set, member_name)) {
+		if (!json_object_has_member (instance_object, member_name)) {
 			g_set_error (error,
 			             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 			             /* Translators: The parameter is a JSON
@@ -3531,9 +3512,6 @@ apply_required (WblSchema *self,
 			break;
 		}
 	}
-
-	g_ptr_array_unref (schema_member_names);
-	g_hash_table_unref (set);
 }
 
 /* Complexity: O(generate_all_properties) */
