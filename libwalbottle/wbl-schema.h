@@ -127,9 +127,8 @@ typedef struct {
 	                      WblSchemaNode *root,
 	                      JsonNode *instance,
 	                      GError **error);
-	void (*generate_instance_nodes) (WblSchema *self,
-	                                 WblSchemaNode *root,
-	                                 GHashTable/*<owned JsonNode>*/ *output);
+	GHashTable/*<owned JsonNode>*/ *(*generate_instance_nodes) (WblSchema      *self,
+	                                                            WblSchemaNode  *root);
 } WblSchemaClass;
 
 GType wbl_schema_get_type (void) G_GNUC_CONST;

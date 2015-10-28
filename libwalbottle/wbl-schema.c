@@ -477,11 +477,11 @@ subschema_apply (WblSchema *self,
 }
 
 /* Complexity: O(generate_instance_nodes) */
-static void
-subschema_generate_instances (WblSchema *self,
-                              JsonObject *subschema_object,
-                              GHashTable/*<owned JsonNode>*/ *output)
+static GHashTable/*<owned JsonNode>*/ *
+subschema_generate_instances (WblSchema   *self,
+                              JsonObject  *subschema_object)
 {
+	GHashTable/*<owned JsonNode>*/ *output = NULL;  /* owned */
 	WblSchemaClass *klass;
 
 	klass = WBL_SCHEMA_GET_CLASS (self);
@@ -495,12 +495,23 @@ subschema_generate_instances (WblSchema *self,
 		/* Avoid infinite recursion; see the rationale in
 		 * subschema_validate(). Generate a null value instead. */
 		if (json_object_get_size (node.node) > 0) {
-			klass->generate_instance_nodes (self, &node, output);
+			output = klass->generate_instance_nodes (self, &node);
 		} else {
+			output = g_hash_table_new_full (wbl_json_node_hash,
+			                                wbl_json_node_equal,
+			                                (GDestroyNotify) json_node_free,
+			                                NULL);
 			g_hash_table_add (output,
 			                  json_node_new (JSON_NODE_NULL));
 		}
+	} else {
+		output = g_hash_table_new_full (wbl_json_node_hash,
+		                                wbl_json_node_equal,
+		                                (GDestroyNotify) json_node_free,
+		                                NULL);
 	}
+
+	return output;
 }
 
 /* Schemas. */
@@ -516,15 +527,17 @@ real_apply_schema (WblSchema *self,
                    WblSchemaNode *schema,
                    JsonNode *instance,
                    GError **error);
-static void
-real_generate_instance_nodes (WblSchema *self,
-                              WblSchemaNode *schema,
-                              GHashTable/*<owned JsonNode>*/ *output);
+static GHashTable/*<owned JsonNode>*/ *
+real_generate_instance_nodes (WblSchema      *self,
+                              WblSchemaNode  *schema);
 
 struct _WblSchemaPrivate {
 	JsonParser *parser;  /* owned */
 	WblSchemaNode *schema;  /* owned; NULL when not loading */
 	gboolean debug;
+
+	/* Cached data used during generation. */
+	GHashTable/*<owned JsonObject, owned GHashTable<owned JsonNode>>*/ *schema_instances_cache;  /* owned */
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (WblSchema, wbl_schema, G_TYPE_OBJECT)
@@ -585,6 +598,9 @@ wbl_schema_dispose (GObject *object)
 		wbl_schema_node_unref (priv->schema);
 		priv->schema = NULL;
 	}
+
+	g_clear_pointer (&priv->schema_instances_cache,
+                         (GDestroyNotify) g_hash_table_unref);
 
 	/* Chain up to the parent class */
 	G_OBJECT_CLASS (wbl_schema_parent_class)->dispose (object);
@@ -672,7 +688,7 @@ validate_non_empty_unique_string_array (JsonNode *schema_node)
  * If any of the schemas is invalid, return the first validation error as
  * @schema_error.
  *
- * Complexity: O(N*subschema_validate) in the length of the array */
+ * Complexity: O(N * subschema_validate) in the length of the array */
 static gboolean
 validate_schema_array (WblSchema *self,
                        JsonNode *schema_node,
@@ -772,9 +788,20 @@ generate_schema_array (WblSchema *self,
 	/* Generate instances for all schemas. */
 	for (i = 0; i < n_schemas; i++) {
 		JsonObject *child_object;  /* unowned */
+		GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
+		GHashTableIter iter;
+		JsonNode *instance = NULL;  /* owned */
 
 		child_object = json_array_get_object_element (schema_array, i);
-		subschema_generate_instances (self, child_object, output);
+		child_output = subschema_generate_instances (self, child_object);
+
+		g_hash_table_iter_init (&iter, child_output);
+		while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
+			g_hash_table_add (output, instance);
+			g_hash_table_iter_steal (&iter);
+		}
+
+		g_hash_table_unref (child_output);
 	}
 }
 
@@ -1666,6 +1693,9 @@ generate_subschema_arrays (JsonNode    *items_node,
 		/* Output sub-arrays from @items. */
 		limit = MIN (json_array_get_length (items_array), max_items);
 
+		g_debug ("%s: O(%" G_GUINT64_FORMAT "^2)",
+		         G_STRFUNC, limit - min_items + 1);
+
 		for (i = min_items; i <= limit; i++) {
 			JsonArray *generated = NULL;
 
@@ -1683,6 +1713,9 @@ generate_subschema_arrays (JsonNode    *items_node,
 		} else {
 			limit = max_items;
 		}
+
+		g_debug ("%s: O(%" G_GUINT64_FORMAT "^2)",
+		         G_STRFUNC, limit - json_array_get_length (items_array) + 1);
 
 		for (i = json_array_get_length (items_array) + 1; i <= limit; i++) {
 			JsonArray *generated = NULL;
@@ -1709,6 +1742,9 @@ generate_subschema_arrays (JsonNode    *items_node,
 		} else {
 			limit = min_items;
 		}
+
+		g_debug ("%s: O(%" G_GUINT64_FORMAT "^2)",
+		         G_STRFUNC, limit - min_items + 1);
 
 		for (i = min_items; i <= limit; i++) {
 			JsonArray *generated = NULL;
@@ -1914,7 +1950,7 @@ generate_boolean_array (guint   n_elements,
  * possible child instance is included in at least one array instance — this is
  * controlled by @max_n_valid_instances and @max_n_invalid_instances.
  *
- * Complexity: O(n_elements * n_elements +
+ * Complexity: O(n_elements^2 +
  *               max_n_valid_instances * n_elements +
  *               max_n_invalid_instances * n_elements)
  * Returns: (transfer full): collection of boolean validity arrays
@@ -1935,6 +1971,10 @@ generate_validity_arrays (guint      n_elements,
 	         max_n_valid_instances, max_n_invalid_instances);
 
 	output = g_ptr_array_new_with_free_func ((GDestroyNotify) g_array_unref);
+
+	g_debug ("%s: O(%u^2)", G_STRFUNC,
+	         MAX (n_elements,
+	              MAX (max_n_valid_instances, max_n_invalid_instances)));
 
 	if (!JSON_NODE_HOLDS_OBJECT (items_node)) {
 		/* @items_node is an array of subschemas, which items must
@@ -2032,8 +2072,8 @@ validity_array_to_string (GArray/*<boolean>*/  *arr)
  *  # Add all the mutated and non-mutated array instances to @output.
  *
  * Complexity: O(generate_subschema_arrays +
- *               P * M * subschema_generate_instances +
- *               P * M * N * subschema_apply +
+ *               M * subschema_generate_instances +
+ *               M * N * subschema_apply +
  *               P * (M^2 + N * M) +
  *               P * M +
  *               P * (M + N) * N +
@@ -2090,6 +2130,9 @@ generate_all_items (WblSchema                       *self,
 	                                              additional_items_subschema,
 	                                              min_items, max_items);
 
+	g_debug ("%s: O(%u^3 * n_valid_instances)",
+	         G_STRFUNC, subschema_arrays->len);
+
 	/* Debug. */
 	for (i = 0; i < subschema_arrays->len && priv->debug; i++) {
 		JsonNode *debug_node = NULL;
@@ -2123,8 +2166,8 @@ generate_all_items (WblSchema                       *self,
 	                                      NULL);
 	builder = json_builder_new ();
 
-        /* Complexity: O(P * M * subschema_generate_instances +
-         *               P * M * N * subschema_apply +
+        /* Complexity: O(M * subschema_generate_instances +
+         *               M * N * subschema_apply +
          *               P * (M^2 + N * M) +
          *               P * M +
          *               P * (M + N) * N) in the number P of
@@ -2167,17 +2210,12 @@ generate_all_items (WblSchema                       *self,
                          *    valid instances */
 			if (valid_instances == NULL ||
 			    invalid_instances == NULL) {
-				valid_instances = g_hash_table_new_full (wbl_json_node_hash,
-				                                         wbl_json_node_equal,
-				                                         (GDestroyNotify) json_node_free,
-				                                         NULL);
 				invalid_instances = g_hash_table_new_full (wbl_json_node_hash,
 				                                           wbl_json_node_equal,
 				                                           (GDestroyNotify) json_node_free,
 				                                           NULL);
-
-				subschema_generate_instances (self, subschema,
-				                              valid_instances);
+				valid_instances = subschema_generate_instances (self,
+				                                                subschema);
 
 				/* Split the instances into valid and invalid. */
 				g_hash_table_iter_init (&valid_iter, valid_instances);
@@ -3137,7 +3175,7 @@ apply_required (WblSchema *self,
 /* additionalProperties, properties, patternProperties.
  * json-schema-validation§5.4.4.
  *
- * Complexity: O(1*subschema_validate) */
+ * Complexity: O(subschema_validate) */
 static void
 validate_additional_properties (WblSchema *self,
                                 JsonObject *root,
@@ -3369,6 +3407,11 @@ apply_properties_parent_schema (WblSchema *self,
 	p_object = (p_node != NULL) ? json_node_get_object (p_node) : NULL;
 	pp_object = (pp_node != NULL) ? json_node_get_object (pp_node) : NULL;
 
+	g_debug ("%s: O(%u * (%u + %u))",
+	         G_STRFUNC, json_object_get_size (instance_object),
+	         (p_object != NULL) ? json_object_get_size (p_object) : 0,
+	         (pp_object != NULL) ? json_object_get_size (pp_object) : 0);
+
 	/* Follow the algorithm in json-schema-validation§5.4.4.4. */
 	set_s = json_object_get_members (instance_object);
 	if (p_object != NULL) {
@@ -3461,6 +3504,11 @@ apply_properties_child_schema (WblSchema *self,
 
 	p_object = (p_node != NULL) ? json_node_get_object (p_node) : NULL;
 	pp_object = (pp_node != NULL) ? json_node_get_object (pp_node) : NULL;
+
+	g_debug ("%s: O(%u * ((%u + %u) * subschema_apply))",
+	         G_STRFUNC, json_object_get_size (instance_object),
+	         (p_object != NULL) ? json_object_get_size (p_object) : 0,
+	         (pp_object != NULL) ? json_object_get_size (pp_object) : 0);
 
 	/* Follow the algorithm in json-schema-validation§8.3.3. */
 	set_s = g_hash_table_new_full (g_direct_hash, g_direct_equal,
@@ -3688,6 +3736,10 @@ generate_n_additional_properties (gint64         num_additional_properties,
 	WblStringSet *output = NULL;
 	gint64 i;
 
+	g_debug ("%s: O(%" G_GUINT64_FORMAT " * %u)",
+	         G_STRFUNC, num_additional_properties,
+	         json_object_get_size (pattern_properties));
+
 	output = wbl_string_set_new_empty ();
 
 	/* FIXME: Reverse-engineer the regexes. */
@@ -3829,6 +3881,12 @@ generate_valid_property_sets (WblStringSet  *required,
 	const gchar *element;
 	GHashTableIter hash_iter;
 	WblStringSet *property_set;
+
+	g_debug ("%s: O((%u + %u + %u + %" G_GINT64_FORMAT ") * %u)",
+	         G_STRFUNC, json_object_get_size (dependencies),
+	         json_object_get_size (properties),
+	         json_object_get_size (pattern_properties), max_properties,
+	         json_object_get_size (dependencies));
 
 	/* Add all properties from @required and transitively satisfy
 	 * dependencies.
@@ -4414,6 +4472,15 @@ generate_all_properties (WblSchema                       *self,
 	priv = wbl_schema_get_instance_private (self);
 	builder = json_builder_new ();
 
+	g_debug ("%s: O(generate_valid_property_sets + "
+	         "P * (A + A * subschema_generate_instances) + "
+	         "V * P + "
+	         "V * X * P + "
+	         "V * X * (D + P + M + A)), P = ?, V = ?, A = %u, X = ?, "
+	         "D = %u, M = %" G_GINT64_FORMAT,
+	         G_STRFUNC, json_object_get_size (pattern_properties),
+	         json_object_get_size (dependencies), min_properties);
+
 	/* Copy @required so we can handle it as a set. */
 	required = wbl_string_set_new_from_array_elements (_required);
 	wbl_string_set_ref_sink (required);
@@ -4483,9 +4550,20 @@ generate_all_properties (WblSchema                       *self,
 			                                          priv->debug);
 
 			for (i = 0; i < subschemas->len; i++) {
-				subschema_generate_instances (self,
-				                              subschemas->pdata[i],
-				                              property_instances);
+				GHashTable/*<owned JsonNode>*/ *child_instances = NULL;  /* owned */
+				GHashTableIter iter;
+				JsonNode *instance = NULL;  /* owned */
+
+				child_instances = subschema_generate_instances (self,
+				                                                subschemas->pdata[i]);
+
+				g_hash_table_iter_init (&iter, child_instances);
+				while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
+					g_hash_table_add (property_instances, instance);
+					g_hash_table_iter_steal (&iter);
+				}
+
+				g_hash_table_unref (child_instances);
 			}
 
 			/* Debug. */
@@ -4887,7 +4965,7 @@ done:
 	}
 }
 
-/* Complexity: O(S * (subschema_apply + N)) in the number S of items in
+/* Complexity: O(S * (subschema_apply + D)) in the number S of items in
  *    @schema_node, and number D of dependencies they have */
 static void
 apply_dependencies (WblSchema *self,
@@ -5575,9 +5653,20 @@ generate_not (WblSchema *self,
               JsonNode *schema_node,
               GHashTable/*<owned JsonNode>*/ *output)
 {
+	GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
+	GHashTableIter iter;
+	JsonNode *instance = NULL;
+
 	/* Generate instances for the schema. */
-	subschema_generate_instances (self, json_node_get_object (schema_node),
-	                              output);
+	child_output = subschema_generate_instances (self, json_node_get_object (schema_node));
+
+	g_hash_table_iter_init (&iter, child_output);
+	while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
+		g_hash_table_add (output, instance);
+		g_hash_table_iter_steal (&iter);
+	}
+
+	g_hash_table_unref (child_output);
 }
 
 /* title. json-schema-validation§6.1.
@@ -5954,45 +6043,80 @@ real_apply_schema (WblSchema *self,
 	}
 }
 
-static void
-real_generate_instance_nodes (WblSchema *self,
-                              WblSchemaNode *schema,
-                              GHashTable/*<owned JsonNode>*/ *output)
+static GHashTable/*<owned JsonNode>*/ *
+real_generate_instance_nodes (WblSchema      *self,
+                              WblSchemaNode  *schema)
 {
+	WblSchemaPrivate *priv;
 	guint i;
+	GHashTable/*<owned JsonNode>*/ *instances = NULL;  /* owned */
 
-	/* Generate for each keyword in turn. Handle individual keywords
-	 * first. */
-	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
-		const KeywordData *keyword = &json_schema_keywords[i];
-		JsonNode *schema_node, *default_schema_node = NULL;
+	priv = wbl_schema_get_instance_private (self);
 
-		schema_node = json_object_get_member (schema->node,
-		                                      keyword->name);
-
-		/* Default. */
-		if (schema_node == NULL && keyword->default_value != NULL) {
-			default_schema_node = parse_default_value (keyword->default_value);
-			schema_node = default_schema_node;
-		}
-
-		if (schema_node != NULL && keyword->generate != NULL) {
-			keyword->generate (self, schema->node,
-			                   schema_node, output);
-		}
-
-		g_clear_pointer (&default_schema_node, json_node_free);
+	/* Set up and check the cache. */
+	if (priv->schema_instances_cache == NULL) {
+		priv->schema_instances_cache = g_hash_table_new_full (g_direct_hash,
+		                                                      g_direct_equal,
+		                                                      (GDestroyNotify) json_object_unref,
+		                                                      (GDestroyNotify) g_hash_table_unref);
 	}
 
-	for (i = 0; i < G_N_ELEMENTS (json_schema_group_keywords); i++) {
-		const KeywordGroupData *keyword_group;
+	instances = g_hash_table_lookup (priv->schema_instances_cache,
+	                                 schema->node);
 
-		keyword_group = &json_schema_group_keywords[i];
+	if (instances != NULL) {
+		g_hash_table_ref (instances);
+	} else {
+		instances = g_hash_table_new_full (wbl_json_node_hash,
+		                                   wbl_json_node_equal,
+		                                   (GDestroyNotify) json_node_free,
+		                                   NULL);
 
-		if (keyword_group->generate != NULL) {
-			keyword_group->generate (self, schema->node, output);
+                g_debug ("%s: Subschema instance cache miss for subschema %p",
+		         G_STRFUNC, schema->node);
+
+		/* Generate for each keyword in turn. Handle individual keywords
+		 * first. */
+		for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
+			const KeywordData *keyword = &json_schema_keywords[i];
+			JsonNode *schema_node, *default_schema_node = NULL;
+
+			schema_node = json_object_get_member (schema->node,
+			                                      keyword->name);
+
+			/* Default. */
+			if (schema_node == NULL &&
+			    keyword->default_value != NULL) {
+				default_schema_node = parse_default_value (keyword->default_value);
+				schema_node = default_schema_node;
+			}
+
+			if (schema_node != NULL && keyword->generate != NULL) {
+				keyword->generate (self, schema->node,
+				                   schema_node, instances);
+			}
+
+			g_clear_pointer (&default_schema_node, json_node_free);
 		}
+
+		for (i = 0; i < G_N_ELEMENTS (json_schema_group_keywords); i++) {
+			const KeywordGroupData *keyword_group;
+
+			keyword_group = &json_schema_group_keywords[i];
+
+			if (keyword_group->generate != NULL) {
+				keyword_group->generate (self, schema->node,
+				                         instances);
+			}
+		}
+
+		/* Add to the cache. */
+		g_hash_table_insert (priv->schema_instances_cache,
+			             json_object_ref (schema->node),
+		                     g_hash_table_ref (instances));
 	}
+
+	return instances;
 }
 
 /**
@@ -6097,6 +6221,10 @@ start_loading (WblSchema *self)
 		wbl_schema_node_unref (priv->schema);
 		priv->schema = NULL;
 	}
+
+	/* And clear any left-over generation caches. */
+	g_clear_pointer (&priv->schema_instances_cache,
+	                 (GDestroyNotify) g_hash_table_unref);
 }
 
 static void
@@ -6394,15 +6522,12 @@ wbl_schema_generate_instances (WblSchema *self,
 	klass = WBL_SCHEMA_GET_CLASS (self);
 	priv = wbl_schema_get_instance_private (self);
 
-	node_output = g_hash_table_new_full (wbl_json_node_hash,
-	                                     wbl_json_node_equal,
-	                                     (GDestroyNotify) json_node_free,
-	                                     NULL);
 	output = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_generated_instance_free);
 
 	/* Generate schema instances. */
 	if (klass->generate_instance_nodes != NULL) {
-		klass->generate_instance_nodes (self, priv->schema, node_output);
+		node_output = klass->generate_instance_nodes (self,
+		                                              priv->schema);
 	}
 
 	/* See if they are valid. We cannot do this constructively because
