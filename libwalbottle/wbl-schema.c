@@ -521,17 +521,6 @@ real_generate_instance_nodes (WblSchema *self,
                               WblSchemaNode *schema,
                               GHashTable/*<owned JsonNode>*/ *output);
 
-static void
-generate_all_properties (WblSchema                       *self,
-                         JsonArray                       *_required,
-                         gint64                           min_properties,
-                         gint64                           max_properties,
-                         JsonObject                      *properties,
-                         JsonObject                      *pattern_properties,
-                         JsonNode                        *additional_properties,
-                         JsonObject                      *dependencies,
-                         GHashTable/*<owned JsonNode>*/  *output);
-
 struct _WblSchemaPrivate {
 	JsonParser *parser;  /* owned */
 	WblSchemaNode *schema;  /* owned; NULL when not loading */
@@ -2510,10 +2499,9 @@ validate_additional_items (WblSchema *self,
 
 /* Complexity: O(generate_all_items) */
 static void
-generate_additional_items (WblSchema *self,
-                           JsonObject *root,
-                           JsonNode *schema_node,
-                           GHashTable/*<owned JsonNode>*/ *output)
+generate_all_items_wrapper (WblSchema                       *self,
+                            JsonObject                      *root,
+                            GHashTable/*<owned JsonNode>*/  *output)
 {
 	JsonNode *items_node, *additional_items_node = NULL;
 	gint64 min_items, max_items;
@@ -2527,7 +2515,15 @@ generate_additional_items (WblSchema *self,
 		json_node_take_object (items_node, json_object_new ());
 	}
 
-	additional_items_node = schema_node;
+	if (json_object_has_member (root, "additionalItems")) {
+		additional_items_node = json_object_dup_member (root,
+		                                                "additionalItems");
+	} else {
+		/* json-schema-validation§5.3.1.4. */
+		additional_items_node = json_node_new (JSON_NODE_OBJECT);
+		json_node_take_object (additional_items_node,
+		                       json_object_new ());
+	}
 
 	if (json_object_has_member (root, "minItems")) {
 		min_items = json_object_get_int_member (root, "minItems");
@@ -2550,11 +2546,11 @@ generate_additional_items (WblSchema *self,
 		unique_items = FALSE;
 	}
 
-	/* TODO: this is called multiple times; probably could reduce that */
 	generate_all_items (self, items_node, additional_items_node, min_items,
 	                    max_items, unique_items, output);
 
 	json_node_free (items_node);
+	json_node_free (additional_items_node);
 }
 
 /* Complexity: O(N * subschema_validate) in the length of the array;
@@ -2823,57 +2819,6 @@ apply_items (WblSchema *self,
 	}
 }
 
-/* Complexity: O(generate_all_items) */
-static void
-generate_items (WblSchema *self,
-                JsonObject *root,
-                JsonNode *schema_node,
-                GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *items_node, *additional_items_node = NULL;
-	gint64 min_items, max_items;
-	gboolean unique_items;
-
-	items_node = schema_node;
-
-	if (json_object_has_member (root, "additionalItems")) {
-		additional_items_node = json_object_dup_member (root,
-		                                                "additionalItems");
-	} else {
-		/* json-schema-validation§5.3.1.4. */
-		additional_items_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_items_node,
-		                       json_object_new ());
-	}
-
-	if (json_object_has_member (root, "minItems")) {
-		min_items = json_object_get_int_member (root, "minItems");
-	} else {
-		/* json-schema-validation§5.3.3.3. */
-		min_items = 0;
-	}
-
-	if (json_object_has_member (root, "maxItems")) {
-		max_items = json_object_get_int_member (root, "maxItems");
-	} else {
-		max_items = G_MAXINT64;
-	}
-
-	if (json_object_has_member (root, "uniqueItems")) {
-		unique_items = json_object_get_boolean_member (root,
-		                                               "uniqueItems");
-	} else {
-		/* json-schema-validation§5.3.4.3. */
-		unique_items = FALSE;
-	}
-
-	/* TODO: this is called multiple times; probably could reduce that */
-	generate_all_items (self, items_node, additional_items_node, min_items,
-	                    max_items, unique_items, output);
-
-	json_node_free (additional_items_node);
-}
-
 /* maxItems. json-schema-validation§5.3.2.
  *
  * Complexity: O(1) */
@@ -2921,60 +2866,6 @@ apply_max_items (WblSchema *self,
 	}
 }
 
-/* Complexity: O(generate_all_items) */
-static void
-generate_max_items (WblSchema *self,
-                    JsonObject *root,
-                    JsonNode *schema_node,
-                    GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *items_node = NULL, *additional_items_node = NULL;
-	gint64 min_items, max_items;
-	gboolean unique_items;
-
-	if (json_object_has_member (root, "items")) {
-		items_node = json_object_dup_member (root, "items");
-	} else {
-		/* json-schema-validation§5.3.1.4. */
-		items_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (items_node, json_object_new ());
-	}
-
-	if (json_object_has_member (root, "additionalItems")) {
-		additional_items_node = json_object_dup_member (root,
-		                                                "additionalItems");
-	} else {
-		/* json-schema-validation§5.3.1.4. */
-		additional_items_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_items_node,
-		                       json_object_new ());
-	}
-
-	if (json_object_has_member (root, "minItems")) {
-		min_items = json_object_get_int_member (root, "minItems");
-	} else {
-		/* json-schema-validation§5.3.3.3. */
-		min_items = 0;
-	}
-
-	max_items = json_node_get_int (schema_node);
-
-	if (json_object_has_member (root, "uniqueItems")) {
-		unique_items = json_object_get_boolean_member (root,
-		                                               "uniqueItems");
-	} else {
-		/* json-schema-validation§5.3.4.3. */
-		unique_items = FALSE;
-	}
-
-	/* TODO: this is called multiple times; probably could reduce that */
-	generate_all_items (self, items_node, additional_items_node, min_items,
-	                    max_items, unique_items, output);
-
-	json_node_free (additional_items_node);
-	json_node_free (items_node);
-}
-
 /* minItems. json-schema-validation§5.3.3.
  *
  * Complexity: O(1) */
@@ -3020,59 +2911,6 @@ apply_min_items (WblSchema *self,
 		               "See json-schema-validation§5.3.3."),
 		             min_items);
 	}
-}
-
-/* Complexity: O(generate_all_items) */
-static void
-generate_min_items (WblSchema *self,
-                    JsonObject *root,
-                    JsonNode *schema_node,
-                    GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *items_node = NULL, *additional_items_node = NULL;
-	gint64 min_items, max_items;
-	gboolean unique_items;
-
-	if (json_object_has_member (root, "items")) {
-		items_node = json_object_dup_member (root, "items");
-	} else {
-		/* json-schema-validation§5.3.1.4. */
-		items_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (items_node, json_object_new ());
-	}
-
-	if (json_object_has_member (root, "additionalItems")) {
-		additional_items_node = json_object_dup_member (root,
-		                                                "additionalItems");
-	} else {
-		/* json-schema-validation§5.3.1.4. */
-		additional_items_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_items_node,
-		                       json_object_new ());
-	}
-
-	min_items = json_node_get_int (schema_node);
-
-	if (json_object_has_member (root, "maxItems")) {
-		max_items = json_object_get_int_member (root, "maxItems");
-	} else {
-		max_items = G_MAXINT64;
-	}
-
-	if (json_object_has_member (root, "uniqueItems")) {
-		unique_items = json_object_get_boolean_member (root,
-		                                               "uniqueItems");
-	} else {
-		/* json-schema-validation§5.3.4.3. */
-		unique_items = FALSE;
-	}
-
-	/* TODO: this is called multiple times; probably could reduce that */
-	generate_all_items (self, items_node, additional_items_node, min_items,
-	                    max_items, unique_items, output);
-
-	json_node_free (additional_items_node);
-	json_node_free (items_node);
 }
 
 /* uniqueItems. json-schema-validation§5.3.3.
@@ -3142,58 +2980,6 @@ apply_unique_items (WblSchema *self,
 	g_hash_table_unref (unique_hash);
 }
 
-/* Complexity: O(generate_all_items) */
-static void
-generate_unique_items (WblSchema *self,
-                       JsonObject *root,
-                       JsonNode *schema_node,
-                       GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *items_node = NULL, *additional_items_node = NULL;
-	gint64 min_items, max_items;
-	gboolean unique_items;
-
-	if (json_object_has_member (root, "items")) {
-		items_node = json_object_dup_member (root, "items");
-	} else {
-		/* json-schema-validation§5.3.1.4. */
-		items_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (items_node, json_object_new ());
-	}
-
-	if (json_object_has_member (root, "additionalItems")) {
-		additional_items_node = json_object_dup_member (root,
-		                                                "additionalItems");
-	} else {
-		/* json-schema-validation§5.3.1.4. */
-		additional_items_node = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_items_node,
-		                       json_object_new ());
-	}
-
-	if (json_object_has_member (root, "minItems")) {
-		min_items = json_object_get_int_member (root, "minItems");
-	} else {
-		/* json-schema-validation§5.3.3.3. */
-		min_items = 0;
-	}
-
-	if (json_object_has_member (root, "maxItems")) {
-		max_items = json_object_get_int_member (root, "maxItems");
-	} else {
-		max_items = G_MAXINT64;
-	}
-
-	unique_items = json_node_get_boolean (schema_node);
-
-	/* TODO: this is called multiple times; probably could reduce that */
-	generate_all_items (self, items_node, additional_items_node, min_items,
-	                    max_items, unique_items, output);
-
-	json_node_free (additional_items_node);
-	json_node_free (items_node);
-}
-
 /* maxProperties. json-schema-validation§5.4.1.
  *
  * Complexity: O(1) */
@@ -3241,89 +3027,6 @@ apply_max_properties (WblSchema *self,
 	}
 }
 
-/* Complexity: O(generate_all_properties) */
-static void
-generate_max_properties (WblSchema *self,
-                         JsonObject *root,
-                         JsonNode *schema_node,
-                         GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *required_node, *min_properties_node, *max_properties_node;
-	JsonNode *properties_node, *pattern_properties_node;
-	JsonNode *additional_properties_node, *dependencies_node;
-	JsonArray *required = NULL;
-	gint64 min_properties, max_properties;
-	JsonObject *properties = NULL;
-	JsonObject *pattern_properties = NULL;
-	JsonObject *dependencies = NULL;
-	JsonNode *additional_properties = NULL;
-
-	/* Arrange default values for all the relevant schema properties. */
-	required_node = json_object_get_member (root, "required");
-	min_properties_node = json_object_get_member (root, "minProperties");
-	max_properties_node = schema_node;
-	properties_node = json_object_get_member (root, "properties");
-	pattern_properties_node = json_object_get_member (root, "patternProperties");
-	additional_properties_node = json_object_get_member (root, "additionalProperties");
-	dependencies_node = json_object_get_member (root, "dependencies");
-
-	if (required_node != NULL) {
-		required = json_node_dup_array (required_node);
-	} else {
-		required = json_array_new ();
-	}
-
-	if (min_properties_node != NULL) {
-		min_properties = json_node_get_int (min_properties_node);
-	} else {
-		min_properties = 0;
-	}
-
-	if (max_properties_node != NULL) {
-		max_properties = json_node_get_int (max_properties_node);
-	} else {
-		max_properties = G_MAXINT64;
-	}
-
-	if (properties_node != NULL) {
-		properties = json_node_dup_object (properties_node);
-	} else {
-		properties = json_object_new ();
-	}
-
-	if (pattern_properties_node != NULL) {
-		pattern_properties = json_node_dup_object (pattern_properties_node);
-	} else {
-		pattern_properties = json_object_new ();
-	}
-
-	if (additional_properties_node != NULL) {
-		additional_properties = json_node_copy (additional_properties_node);
-	} else {
-		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_properties,
-		                       json_object_new ());
-	}
-
-	if (dependencies_node != NULL) {
-		dependencies = json_node_dup_object (dependencies_node);
-	} else {
-		dependencies = json_object_new ();
-	}
-
-	/* TODO: ideally we would prevent this being called multiple times, but
-	 * this will do for now */
-	generate_all_properties (self, required, min_properties, max_properties,
-	                         properties, pattern_properties,
-	                         additional_properties, dependencies, output);
-
-	json_object_unref (dependencies);
-	json_node_free (additional_properties);
-	json_object_unref (pattern_properties);
-	json_object_unref (properties);
-	json_array_unref (required);
-}
-
 /* minProperties. json-schema-validation§5.4.2.
  *
  * Complexity: O(1) */
@@ -3369,89 +3072,6 @@ apply_min_properties (WblSchema *self,
 		               "keyword. See json-schema-validation§5.4.2."),
 		             min_properties);
 	}
-}
-
-/* Complexity: O(generate_all_properties) */
-static void
-generate_min_properties (WblSchema *self,
-                         JsonObject *root,
-                         JsonNode *schema_node,
-                         GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *required_node, *min_properties_node, *max_properties_node;
-	JsonNode *properties_node, *pattern_properties_node;
-	JsonNode *additional_properties_node, *dependencies_node;
-	JsonArray *required = NULL;
-	gint64 min_properties, max_properties;
-	JsonObject *properties = NULL;
-	JsonObject *pattern_properties = NULL;
-	JsonObject *dependencies = NULL;
-	JsonNode *additional_properties = NULL;
-
-	/* Arrange default values for all the relevant schema properties. */
-	required_node = json_object_get_member (root, "required");
-	min_properties_node = schema_node;
-	max_properties_node = json_object_get_member (root, "maxProperties");
-	properties_node = json_object_get_member (root, "properties");
-	pattern_properties_node = json_object_get_member (root, "patternProperties");
-	additional_properties_node = json_object_get_member (root, "additionalProperties");
-	dependencies_node = json_object_get_member (root, "dependencies");
-
-	if (required_node != NULL) {
-		required = json_node_dup_array (required_node);
-	} else {
-		required = json_array_new ();
-	}
-
-	if (min_properties_node != NULL) {
-		min_properties = json_node_get_int (min_properties_node);
-	} else {
-		min_properties = 0;
-	}
-
-	if (max_properties_node != NULL) {
-		max_properties = json_node_get_int (max_properties_node);
-	} else {
-		max_properties = G_MAXINT64;
-	}
-
-	if (properties_node != NULL) {
-		properties = json_node_dup_object (properties_node);
-	} else {
-		properties = json_object_new ();
-	}
-
-	if (pattern_properties_node != NULL) {
-		pattern_properties = json_node_dup_object (pattern_properties_node);
-	} else {
-		pattern_properties = json_object_new ();
-	}
-
-	if (additional_properties_node != NULL) {
-		additional_properties = json_node_copy (additional_properties_node);
-	} else {
-		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_properties,
-		                       json_object_new ());
-	}
-
-	if (dependencies_node != NULL) {
-		dependencies = json_node_dup_object (dependencies_node);
-	} else {
-		dependencies = json_object_new ();
-	}
-
-	/* TODO: ideally we would prevent this being called multiple times, but
-	 * this will do for now */
-	generate_all_properties (self, required, min_properties, max_properties,
-	                         properties, pattern_properties,
-	                         additional_properties, dependencies, output);
-
-	json_object_unref (dependencies);
-	json_node_free (additional_properties);
-	json_object_unref (pattern_properties);
-	json_object_unref (properties);
-	json_array_unref (required);
 }
 
 /* required. json-schema-validation§5.4.3.
@@ -3512,89 +3132,6 @@ apply_required (WblSchema *self,
 			break;
 		}
 	}
-}
-
-/* Complexity: O(generate_all_properties) */
-static void
-generate_required (WblSchema *self,
-                   JsonObject *root,
-                   JsonNode *schema_node,
-                   GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *required_node, *min_properties_node, *max_properties_node;
-	JsonNode *properties_node, *pattern_properties_node;
-	JsonNode *additional_properties_node, *dependencies_node;
-	JsonArray *required = NULL;
-	gint64 min_properties, max_properties;
-	JsonObject *properties = NULL;
-	JsonObject *pattern_properties = NULL;
-	JsonObject *dependencies = NULL;
-	JsonNode *additional_properties = NULL;
-
-	/* Arrange default values for all the relevant schema properties. */
-	required_node = schema_node;
-	min_properties_node = json_object_get_member (root, "minProperties");
-	max_properties_node = json_object_get_member (root, "maxProperties");
-	properties_node = json_object_get_member (root, "properties");
-	pattern_properties_node = json_object_get_member (root, "patternProperties");
-	additional_properties_node = json_object_get_member (root, "additionalProperties");
-	dependencies_node = json_object_get_member (root, "dependencies");
-
-	if (required_node != NULL) {
-		required = json_node_dup_array (required_node);
-	} else {
-		required = json_array_new ();
-	}
-
-	if (min_properties_node != NULL) {
-		min_properties = json_node_get_int (min_properties_node);
-	} else {
-		min_properties = 0;
-	}
-
-	if (max_properties_node != NULL) {
-		max_properties = json_node_get_int (max_properties_node);
-	} else {
-		max_properties = G_MAXINT64;
-	}
-
-	if (properties_node != NULL) {
-		properties = json_node_dup_object (properties_node);
-	} else {
-		properties = json_object_new ();
-	}
-
-	if (pattern_properties_node != NULL) {
-		pattern_properties = json_node_dup_object (pattern_properties_node);
-	} else {
-		pattern_properties = json_object_new ();
-	}
-
-	if (additional_properties_node != NULL) {
-		additional_properties = json_node_copy (additional_properties_node);
-	} else {
-		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_properties,
-		                       json_object_new ());
-	}
-
-	if (dependencies_node != NULL) {
-		dependencies = json_node_dup_object (dependencies_node);
-	} else {
-		dependencies = json_object_new ();
-	}
-
-	/* TODO: ideally we would prevent this being called multiple times, but
-	 * this will do for now */
-	generate_all_properties (self, required, min_properties, max_properties,
-	                         properties, pattern_properties,
-	                         additional_properties, dependencies, output);
-
-	json_object_unref (dependencies);
-	json_node_free (additional_properties);
-	json_object_unref (pattern_properties);
-	json_object_unref (properties);
-	json_array_unref (required);
 }
 
 /* additionalProperties, properties, patternProperties.
@@ -4069,35 +3606,16 @@ apply_properties_schemas (WblSchema *self,
 
 /* Complexity: O(apply_properties_schemas) */
 static void
-apply_properties (WblSchema *self,
-                  JsonObject *root,
-                  JsonNode *schema_node,
-                  JsonNode *instance_node,
-                  GError **error)
-{
-	JsonNode *ap_node, *p_node, *pp_node;  /* unowned */
-
-	ap_node = json_object_get_member (root, "additionalProperties");
-	p_node = schema_node;
-	pp_node = json_object_get_member (root, "patternProperties");
-
-	apply_properties_schemas (self, ap_node, p_node, pp_node,
-	                          instance_node, error);
-}
-
-/* Complexity: O(apply_properties_schemas) */
-static void
-apply_pattern_properties (WblSchema *self,
-                          JsonObject *root,
-                          JsonNode *schema_node,
-                          JsonNode *instance_node,
-                          GError **error)
+apply_all_properties (WblSchema   *self,
+                      JsonObject  *root,
+                      JsonNode    *instance_node,
+                      GError     **error)
 {
 	JsonNode *ap_node, *p_node, *pp_node;  /* unowned */
 
 	ap_node = json_object_get_member (root, "additionalProperties");
 	p_node = json_object_get_member (root, "properties");
-	pp_node = schema_node;
+	pp_node = json_object_get_member (root, "patternProperties");
 
 	apply_properties_schemas (self, ap_node, p_node, pp_node,
 	                          instance_node, error);
@@ -5228,10 +4746,9 @@ generate_all_properties (WblSchema                       *self,
 
 /* Complexity: O(generate_all_properties) */
 static void
-generate_properties (WblSchema *self,
-                     JsonObject *root,
-                     JsonNode *schema_node,
-                     GHashTable/*<owned JsonNode>*/ *output)
+generate_all_properties_wrapper (WblSchema                       *self,
+                                 JsonObject                      *root,
+                                 GHashTable/*<owned JsonNode>*/  *output)
 {
 	JsonNode *required_node, *min_properties_node, *max_properties_node;
 	JsonNode *properties_node, *pattern_properties_node;
@@ -5247,7 +4764,7 @@ generate_properties (WblSchema *self,
 	required_node = json_object_get_member (root, "required");
 	min_properties_node = json_object_get_member (root, "minProperties");
 	max_properties_node = json_object_get_member (root, "maxProperties");
-	properties_node = schema_node;
+	properties_node = json_object_get_member (root, "properties");
 	pattern_properties_node = json_object_get_member (root, "patternProperties");
 	additional_properties_node = json_object_get_member (root, "additionalProperties");
 	dependencies_node = json_object_get_member (root, "dependencies");
@@ -5296,174 +4813,6 @@ generate_properties (WblSchema *self,
 		dependencies = json_object_new ();
 	}
 
-	/* TODO: ideally we would prevent this being called multiple times, but
-	 * this will do for now */
-	generate_all_properties (self, required, min_properties, max_properties,
-	                         properties, pattern_properties,
-	                         additional_properties, dependencies, output);
-
-	json_object_unref (dependencies);
-	json_node_free (additional_properties);
-	json_object_unref (pattern_properties);
-	json_object_unref (properties);
-	json_array_unref (required);
-}
-
-/* Complexity: O(generate_all_properties) */
-static void
-generate_additional_properties (WblSchema *self,
-                                JsonObject *root,
-                                JsonNode *schema_node,
-                                GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *required_node, *min_properties_node, *max_properties_node;
-	JsonNode *properties_node, *pattern_properties_node;
-	JsonNode *additional_properties_node, *dependencies_node;
-	JsonArray *required = NULL;
-	gint64 min_properties, max_properties;
-	JsonObject *properties = NULL;
-	JsonObject *pattern_properties = NULL;
-	JsonObject *dependencies = NULL;
-	JsonNode *additional_properties = NULL;
-
-	/* Arrange default values for all the relevant schema properties. */
-	required_node = json_object_get_member (root, "required");
-	min_properties_node = json_object_get_member (root, "minProperties");
-	max_properties_node = json_object_get_member (root, "maxProperties");
-	properties_node = json_object_get_member (root, "properties");
-	pattern_properties_node = json_object_get_member (root, "patternProperties");
-	additional_properties_node = schema_node;
-	dependencies_node = json_object_get_member (root, "dependencies");
-
-	if (required_node != NULL) {
-		required = json_node_dup_array (required_node);
-	} else {
-		required = json_array_new ();
-	}
-
-	if (min_properties_node != NULL) {
-		min_properties = json_node_get_int (min_properties_node);
-	} else {
-		min_properties = 0;
-	}
-
-	if (max_properties_node != NULL) {
-		max_properties = json_node_get_int (max_properties_node);
-	} else {
-		max_properties = G_MAXINT64;
-	}
-
-	if (properties_node != NULL) {
-		properties = json_node_dup_object (properties_node);
-	} else {
-		properties = json_object_new ();
-	}
-
-	if (pattern_properties_node != NULL) {
-		pattern_properties = json_node_dup_object (pattern_properties_node);
-	} else {
-		pattern_properties = json_object_new ();
-	}
-
-	if (additional_properties_node != NULL) {
-		additional_properties = json_node_copy (additional_properties_node);
-	} else {
-		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_properties,
-		                       json_object_new ());
-	}
-
-	if (dependencies_node != NULL) {
-		dependencies = json_node_dup_object (dependencies_node);
-	} else {
-		dependencies = json_object_new ();
-	}
-
-	/* TODO: ideally we would prevent this being called multiple times, but
-	 * this will do for now */
-	generate_all_properties (self, required, min_properties, max_properties,
-	                         properties, pattern_properties,
-	                         additional_properties, dependencies, output);
-
-	json_object_unref (dependencies);
-	json_node_free (additional_properties);
-	json_object_unref (pattern_properties);
-	json_object_unref (properties);
-	json_array_unref (required);
-}
-
-/* Complexity: O(generate_all_properties) */
-static void
-generate_pattern_properties (WblSchema *self,
-                             JsonObject *root,
-                             JsonNode *schema_node,
-                             GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *required_node, *min_properties_node, *max_properties_node;
-	JsonNode *properties_node, *pattern_properties_node;
-	JsonNode *additional_properties_node, *dependencies_node;
-	JsonArray *required = NULL;
-	gint64 min_properties, max_properties;
-	JsonObject *properties = NULL;
-	JsonObject *pattern_properties = NULL;
-	JsonObject *dependencies = NULL;
-	JsonNode *additional_properties = NULL;
-
-	/* Arrange default values for all the relevant schema properties. */
-	required_node = json_object_get_member (root, "required");
-	min_properties_node = json_object_get_member (root, "minProperties");
-	max_properties_node = json_object_get_member (root, "maxProperties");
-	properties_node = json_object_get_member (root, "properties");
-	pattern_properties_node = schema_node;
-	additional_properties_node = json_object_get_member (root, "additionalProperties");
-	dependencies_node = json_object_get_member (root, "dependencies");
-
-	if (required_node != NULL) {
-		required = json_node_dup_array (required_node);
-	} else {
-		required = json_array_new ();
-	}
-
-	if (min_properties_node != NULL) {
-		min_properties = json_node_get_int (min_properties_node);
-	} else {
-		min_properties = 0;
-	}
-
-	if (max_properties_node != NULL) {
-		max_properties = json_node_get_int (max_properties_node);
-	} else {
-		max_properties = G_MAXINT64;
-	}
-
-	if (properties_node != NULL) {
-		properties = json_node_dup_object (properties_node);
-	} else {
-		properties = json_object_new ();
-	}
-
-	if (pattern_properties_node != NULL) {
-		pattern_properties = json_node_dup_object (pattern_properties_node);
-	} else {
-		pattern_properties = json_object_new ();
-	}
-
-	if (additional_properties_node != NULL) {
-		additional_properties = json_node_copy (additional_properties_node);
-	} else {
-		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_properties,
-		                       json_object_new ());
-	}
-
-	if (dependencies_node != NULL) {
-		dependencies = json_node_dup_object (dependencies_node);
-	} else {
-		dependencies = json_object_new ();
-	}
-
-	/* TODO: ideally we would prevent this being called multiple times, but
-	 * this will do for now */
 	generate_all_properties (self, required, min_properties, max_properties,
 	                         properties, pattern_properties,
 	                         additional_properties, dependencies, output);
@@ -5619,89 +4968,6 @@ apply_dependencies (WblSchema *self,
 			}
 		}
 	}
-}
-
-/* Complexity: O(generate_all_properties) */
-static void
-generate_dependencies (WblSchema *self,
-                       JsonObject *root,
-                       JsonNode *schema_node,
-                       GHashTable/*<owned JsonNode>*/ *output)
-{
-	JsonNode *required_node, *min_properties_node, *max_properties_node;
-	JsonNode *properties_node, *pattern_properties_node;
-	JsonNode *additional_properties_node, *dependencies_node;
-	JsonArray *required = NULL;
-	gint64 min_properties, max_properties;
-	JsonObject *properties = NULL;
-	JsonObject *pattern_properties = NULL;
-	JsonObject *dependencies = NULL;
-	JsonNode *additional_properties = NULL;
-
-	/* Arrange default values for all the relevant schema properties. */
-	required_node = json_object_get_member (root, "required");
-	min_properties_node = json_object_get_member (root, "minProperties");
-	max_properties_node = json_object_get_member (root, "maxProperties");
-	properties_node = json_object_get_member (root, "properties");
-	pattern_properties_node = json_object_get_member (root, "patternProperties");
-	additional_properties_node = json_object_get_member (root, "additionalProperties");
-	dependencies_node = schema_node;
-
-	if (required_node != NULL) {
-		required = json_node_dup_array (required_node);
-	} else {
-		required = json_array_new ();
-	}
-
-	if (min_properties_node != NULL) {
-		min_properties = json_node_get_int (min_properties_node);
-	} else {
-		min_properties = 0;
-	}
-
-	if (max_properties_node != NULL) {
-		max_properties = json_node_get_int (max_properties_node);
-	} else {
-		max_properties = G_MAXINT64;
-	}
-
-	if (properties_node != NULL) {
-		properties = json_node_dup_object (properties_node);
-	} else {
-		properties = json_object_new ();
-	}
-
-	if (pattern_properties_node != NULL) {
-		pattern_properties = json_node_dup_object (pattern_properties_node);
-	} else {
-		pattern_properties = json_object_new ();
-	}
-
-	if (additional_properties_node != NULL) {
-		additional_properties = json_node_copy (additional_properties_node);
-	} else {
-		additional_properties = json_node_new (JSON_NODE_OBJECT);
-		json_node_take_object (additional_properties,
-		                       json_object_new ());
-	}
-
-	if (dependencies_node != NULL) {
-		dependencies = json_node_dup_object (dependencies_node);
-	} else {
-		dependencies = json_object_new ();
-	}
-
-	/* TODO: ideally we would prevent this being called multiple times, but
-	 * this will do for now */
-	generate_all_properties (self, required, min_properties, max_properties,
-	                         properties, pattern_properties,
-	                         additional_properties, dependencies, output);
-
-	json_object_unref (dependencies);
-	json_node_free (additional_properties);
-	json_object_unref (pattern_properties);
-	json_object_unref (properties);
-	json_array_unref (required);
 }
 
 /* enum. json-schema-validation§5.5.1.
@@ -6379,6 +5645,16 @@ typedef void
                         JsonNode *schema_node,
                         GHashTable/*<owned JsonNode, unowned JsonNode>*/ *output);
 
+typedef void
+(*KeywordGroupApplyFunc) (WblSchema   *self,
+                          JsonObject  *root,
+			  JsonNode    *instance_node,
+                          GError     **error);
+typedef void
+(*KeywordGroupGenerateFunc) (WblSchema   *self,
+                             JsonObject  *root,
+                             GHashTable/*<owned JsonNode, unowned JsonNode>*/ *output);
+
 /* Structure holding information about a single JSON Schema keyword, as defined
  * in json-schema-core§3.2. Default keywords are described in
  * json-schema-validation§4.3. */
@@ -6390,11 +5666,57 @@ typedef struct {
 	KeywordGenerateFunc generate;  /* NULL if generation produces nothing */
 } KeywordData;
 
+typedef struct {
+	KeywordGroupApplyFunc apply;  /* NULL if application always succeeds */
+	KeywordGroupGenerateFunc generate;  /* NULL if generation produces nothing */
+	const KeywordData *keywords;
+	gsize n_keywords;
+} KeywordGroupData;
+
 /* Information about all JSON Schema keywords defined in
  *  - json-schema-core
  *  - json-schema-validation
  *  - json-schema-hypermedia
+ *
+ * @json_schema_group_keywords holds information about keywords which are
+ * handled together as grouyps (for example, all property-related keywords or
+ * item-related keywords). @json_schema_keywords holds information about other
+ * keywords.
  */
+static const KeywordData json_schema_items_keywords[] = {
+	/* json-schema-validation§5.3.1 */
+	{ "additionalItems", "{}", validate_additional_items, NULL, NULL },
+	{ "items", "{}", validate_items, apply_items, NULL },
+	/* json-schema-validation§5.3.2 */
+	{ "maxItems", NULL, validate_max_items, apply_max_items, NULL },
+	/* json-schema-validation§5.3.3 */
+	{ "minItems", "0", validate_min_items, apply_min_items, NULL },
+	/* json-schema-validation§5.3.3 */
+	{ "uniqueItems", "false", validate_unique_items, apply_unique_items, NULL },
+};
+
+static const KeywordData json_schema_properties_keywords[] = {
+	/* json-schema-validation§5.4.1 */
+	{ "maxProperties", NULL, validate_max_properties, apply_max_properties, NULL },
+	/* json-schema-validation§5.4.2 */
+	{ "minProperties", "0", validate_min_properties, apply_min_properties, NULL },
+	/* json-schema-validation§5.4.3 */
+	{ "required", NULL, validate_required, apply_required, NULL },
+	/* json-schema-validation§5.4.4 */
+	{ "additionalProperties", "{}", validate_additional_properties, NULL, NULL },
+	{ "properties", "{}", validate_properties, NULL, NULL },
+	{ "patternProperties", "{}", validate_pattern_properties, NULL, NULL },
+	/* json-schema-validation§5.4.5 */
+	{ "dependencies", NULL, validate_dependencies, apply_dependencies, NULL },
+};
+
+static const KeywordGroupData json_schema_group_keywords[] = {
+	/* json-schema-validation§5.3 */
+	{ NULL, generate_all_items_wrapper, json_schema_items_keywords, G_N_ELEMENTS (json_schema_items_keywords) },
+	/* json-schema-validation§5.4 */
+	{ apply_all_properties, generate_all_properties_wrapper, json_schema_properties_keywords, G_N_ELEMENTS (json_schema_properties_keywords) },
+};
+
 static const KeywordData json_schema_keywords[] = {
 	/* json-schema-validation§5.1.1 */
 	{ "multipleOf", NULL, validate_multiple_of, apply_multiple_of, generate_multiple_of },
@@ -6410,27 +5732,6 @@ static const KeywordData json_schema_keywords[] = {
 	{ "minLength", "0", validate_min_length, apply_min_length, generate_min_length },
 	/* json-schema-validation§5.2.3 */
 	{ "pattern", NULL, validate_pattern, apply_pattern, generate_pattern },
-	/* json-schema-validation§5.3.1 */
-	{ "additionalItems", "{}", validate_additional_items, NULL, generate_additional_items },
-	{ "items", "{}", validate_items, apply_items, generate_items },
-	/* json-schema-validation§5.3.2 */
-	{ "maxItems", NULL, validate_max_items, apply_max_items, generate_max_items },
-	/* json-schema-validation§5.3.3 */
-	{ "minItems", "0", validate_min_items, apply_min_items, generate_min_items },
-	/* json-schema-validation§5.3.3 */
-	{ "uniqueItems", "false", validate_unique_items, apply_unique_items, generate_unique_items },
-	/* json-schema-validation§5.4.1 */
-	{ "maxProperties", NULL, validate_max_properties, apply_max_properties, generate_max_properties },
-	/* json-schema-validation§5.4.2 */
-	{ "minProperties", "0", validate_min_properties, apply_min_properties, generate_min_properties },
-	/* json-schema-validation§5.4.3 */
-	{ "required", NULL, validate_required, apply_required, generate_required },
-	/* json-schema-validation§5.4.4 */
-	{ "additionalProperties", "{}", validate_additional_properties, NULL, generate_additional_properties },
-	{ "properties", "{}", validate_properties, apply_properties, generate_properties },
-	{ "patternProperties", "{}", validate_pattern_properties, apply_pattern_properties, generate_pattern_properties },
-	/* json-schema-validation§5.4.5 */
-	{ "dependencies", NULL, validate_dependencies, apply_dependencies, generate_dependencies },
 	/* json-schema-validation§5.5.1 */
 	{ "enum", NULL, validate_enum, apply_enum, generate_enum },
 	/* json-schema-validation§5.5.2 */
@@ -6466,8 +5767,8 @@ static const KeywordData json_schema_keywords[] = {
  * uses direct string comparison to instantiate a #JsonNode for the
  * @json_string, rather than setting up a full JSON parser.
  *
- * If new default values are added to @json_schema_keywords, this method must
- * be updated to handle them.
+ * If new default values are added to @json_schema_keywords or
+ * @json_schema_group_keywords, this method must be updated to handle them.
  *
  * Returns: (transfer full): a new #JsonNode representing the parsed string
  *
@@ -6529,6 +5830,42 @@ real_validate_schema (WblSchema *self,
 			return;
 		}
 	}
+
+	for (i = 0; i < G_N_ELEMENTS (json_schema_group_keywords); i++) {
+		const KeywordGroupData *keyword_group;
+		guint j;
+
+		keyword_group = &json_schema_group_keywords[i];
+
+		for (j = 0; j < keyword_group->n_keywords; j++) {
+			const KeywordData *keyword;
+			JsonNode *schema_node, *default_schema_node = NULL;
+			GError *child_error = NULL;
+
+			keyword = &keyword_group->keywords[j];
+			schema_node = json_object_get_member (schema->node,
+				                              keyword->name);
+
+			/* Default. */
+			if (schema_node == NULL &&
+			    keyword->default_value != NULL) {
+				default_schema_node = parse_default_value (keyword->default_value);
+				schema_node = default_schema_node;
+			}
+
+			if (schema_node != NULL && keyword->validate != NULL) {
+				keyword->validate (self, schema->node,
+					           schema_node, &child_error);
+			}
+
+			g_clear_pointer (&default_schema_node, json_node_free);
+
+			if (child_error != NULL) {
+				g_propagate_error (error, child_error);
+				return;
+			}
+		}
+	}
 }
 
 static void
@@ -6565,6 +5902,56 @@ real_apply_schema (WblSchema *self,
 			return;
 		}
 	}
+
+	for (i = 0; i < G_N_ELEMENTS (json_schema_group_keywords); i++) {
+		const KeywordGroupData *keyword_group;
+		GError *child_error = NULL;
+		guint j;
+
+		keyword_group = &json_schema_group_keywords[i];
+
+		/* Run the apply() function for the group as a whole. */
+		if (keyword_group->apply != NULL) {
+			keyword_group->apply (self, schema->node, instance,
+			                      &child_error);
+		}
+
+		if (child_error != NULL) {
+			g_propagate_error (error, child_error);
+			return;
+		}
+
+		/* If any of the groups keywords have individual apply()
+		 * functions, run those separately. */
+		for (j = 0; j < keyword_group->n_keywords; j++) {
+			const KeywordData *keyword;
+			JsonNode *schema_node, *default_schema_node = NULL;
+
+			keyword = &keyword_group->keywords[j];
+			schema_node = json_object_get_member (schema->node,
+			                                      keyword->name);
+
+			/* Default. */
+			if (schema_node == NULL &&
+			    keyword->default_value != NULL) {
+				default_schema_node = parse_default_value (keyword->default_value);
+				schema_node = default_schema_node;
+			}
+
+			if (schema_node != NULL && keyword->apply != NULL) {
+				keyword->apply (self, schema->node,
+				                schema_node, instance,
+				                &child_error);
+			}
+
+			g_clear_pointer (&default_schema_node, json_node_free);
+
+			if (child_error != NULL) {
+				g_propagate_error (error, child_error);
+				return;
+			}
+		}
+	}
 }
 
 static void
@@ -6574,7 +5961,8 @@ real_generate_instance_nodes (WblSchema *self,
 {
 	guint i;
 
-	/* Generate for each keyword in turn. */
+	/* Generate for each keyword in turn. Handle individual keywords
+	 * first. */
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
 		const KeywordData *keyword = &json_schema_keywords[i];
 		JsonNode *schema_node, *default_schema_node = NULL;
@@ -6594,6 +5982,16 @@ real_generate_instance_nodes (WblSchema *self,
 		}
 
 		g_clear_pointer (&default_schema_node, json_node_free);
+	}
+
+	for (i = 0; i < G_N_ELEMENTS (json_schema_group_keywords); i++) {
+		const KeywordGroupData *keyword_group;
+
+		keyword_group = &json_schema_group_keywords[i];
+
+		if (keyword_group->generate != NULL) {
+			keyword_group->generate (self, schema->node, output);
+		}
 	}
 }
 
