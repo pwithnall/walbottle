@@ -168,7 +168,7 @@ main (int argc, char *argv[])
 		if (option_c_variable_name == NULL ||
 		    g_strcmp0 (option_c_variable_name, "") == 0) {
 			g_free (option_c_variable_name);
-			option_c_variable_name = g_strdup ("json_instance");
+			option_c_variable_name = g_strdup ("json_instances");
 		}
 	} else if (option_c_variable_name != NULL) {
 		const gchar *message = NULL;
