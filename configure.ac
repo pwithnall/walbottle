@@ -34,12 +34,17 @@ AC_PROG_LN_S
 GLIB_REQS=2.31.0
 JSON_GLIB_REQS=1.1.1
 
-# Before making a release, the WBL_LT_VERSION string should be modified. The string is of the form c:r:a. Follow these instructions sequentially:
+# Before making a release, the WBL_LT_VERSION string should be modified. The
+# string is of the form c:r:a. Follow these instructions sequentially:
 #
-#  1. If the library source code has changed at all since the last update, then increment revision (‘c:r:a’ becomes ‘c:r+1:a’).
-#  2. If any interfaces have been added, removed, or changed since the last update, increment current, and set revision to 0.
-#  3. If any interfaces have been added since the last public release, then increment age.
-#  4. If any interfaces have been removed or changed since the last public release, then set age to 0.
+#  1. If the library source code has changed at all since the last update, then
+#     increment revision (‘c:r:a’ becomes ‘c:r+1:a’).
+#  2. If any interfaces have been added, removed, or changed since the last
+#     update, increment current, and set revision to 0.
+#  3. If any interfaces have been added since the last public release, then
+#     increment age.
+#  4. If any interfaces have been removed or changed since the last public
+#     release, then set age to 0.
 AC_SUBST([WBL_LT_VERSION],[1:0:1])
 
 AC_SUBST([WBL_VERSION_MAJOR],wbl_version_major)
