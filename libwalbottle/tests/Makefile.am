@@ -30,6 +30,12 @@ libwalbottle_test_utils_la_LIBADD = \
 	$(JSON_GLIB_LIBS) \
 	$(NULL)
 
+# Test environment.
+TESTS_ENVIRONMENT = \
+	G_TEST_SRCDIR="$(abs_srcdir)" \
+	G_TEST_BUILDDIR="$(abs_builddir)" \
+	$(NULL)
+
 # Test programs.
 test_cppflags = \
 	-I$(top_srcdir)/ \
