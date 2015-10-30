@@ -171,7 +171,7 @@ wbl_schema_apply (WblSchema *self,
  * @WBL_GENERATE_INSTANCE_IGNORE_VALID: Do not return valid instances.
  * @WBL_GENERATE_INSTANCE_IGNORE_INVALID: Do not return invalid instances.
  * @WBL_GENERATE_INSTANCE_INVALID_JSON: Generate a test vector containing
- *    invalid JSON. (Since: UNRELEASED)
+ *    invalid JSON. (Since: 0.2.0)
  *
  * Flags affecting the generation of JSON instances for schemas using
  * wbl_schema_generate_instances().

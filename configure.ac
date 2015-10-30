@@ -45,7 +45,7 @@ JSON_GLIB_REQS=1.1.1
 #     increment age.
 #  4. If any interfaces have been removed or changed since the last public
 #     release, then set age to 0.
-AC_SUBST([WBL_LT_VERSION],[1:0:1])
+AC_SUBST([WBL_LT_VERSION],[2:0:0])
 
 AC_SUBST([WBL_VERSION_MAJOR],wbl_version_major)
 AC_SUBST([WBL_VERSION_MINOR],wbl_version_minor)

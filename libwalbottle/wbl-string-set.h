@@ -35,7 +35,7 @@ G_BEGIN_DECLS
  * All the fields in the #WblStringSet structure are private and should never
  * be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 typedef struct _WblStringSet WblStringSet;
 
@@ -77,7 +77,7 @@ gchar        *wbl_string_set_to_string               (WblStringSet              
  * All the fields in the #WblStringSetIter structure are private and should
  * never be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 typedef struct {
 	/*< private >*/

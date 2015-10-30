@@ -40,7 +40,7 @@ G_BEGIN_DECLS
  *
  * Reference: http://json-schema.org/latest/json-schema-core.html#rfc.section.3.5
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 typedef enum {
 	WBL_PRIMITIVE_TYPE_ARRAY,

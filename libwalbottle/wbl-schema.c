@@ -417,7 +417,7 @@ wbl_generated_instance_get_json (WblGeneratedInstance *self)
  *
  * Returns: %TRUE if valid, %FALSE otherwise
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_generated_instance_is_valid (WblGeneratedInstance *self)
@@ -1579,7 +1579,7 @@ generate_pattern (WblSchema *self,
  *
  * Complexity: O(N) in @length
  * Returns: (transfer full): a copy of the @length prefix of @items
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonArray *
 array_copy_n (JsonArray  *items,
@@ -1610,7 +1610,7 @@ array_copy_n (JsonArray  *items,
  *
  * Complexity: O(I + N) in the length I of @items and value N of @n_copies
  * Returns: (transfer full): a copy of @items with @n_copies items appended
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonArray *
 array_copy_append_n (JsonArray   *items,
@@ -1662,7 +1662,7 @@ array_copy_append_n (JsonArray   *items,
  *    or @min_items and @max_items
  * Returns: (transfer full) (element-type JsonArray): array of subschema
  *    instances
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static GPtrArray/*<owned JsonArray>*/ *
 generate_subschema_arrays (JsonNode    *items_node,
@@ -1776,7 +1776,7 @@ generate_subschema_arrays (JsonNode    *items_node,
  *
  * Returns: (transfer full): a new JSON instance with fewer items
  * Complexity: O(N) in the length of the @array
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_drop_n_elements (JsonArray  *array,
@@ -1809,7 +1809,7 @@ instance_drop_n_elements (JsonArray  *array,
  *
  * Returns: (transfer full): a new JSON instance with @n extra items
  * Complexity: O(N) in the length of the @array
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_add_n_elements (JsonArray  *array,
@@ -1843,7 +1843,7 @@ instance_add_n_elements (JsonArray  *array,
  *
  * Returns: (transfer full): a new JSON instance with one extra item
  * Complexity: O(N) in the length of the @array
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_add_null_element (JsonArray  *array)
@@ -1868,7 +1868,7 @@ instance_add_null_element (JsonArray  *array)
  *
  * Returns: (transfer full): a new JSON instance with one extra item
  * Complexity: O(N) in the length of the @array
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_clone_final_element (JsonArray  *array)
@@ -1904,7 +1904,7 @@ instance_clone_final_element (JsonArray  *array)
  *
  * Complexity: O(n_elements)
  * Returns: (transfer full): array of @n_elements
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static GArray/*<boolean>*/ *
 generate_boolean_array (guint   n_elements,
@@ -1954,7 +1954,7 @@ generate_boolean_array (guint   n_elements,
  *               max_n_valid_instances * n_elements +
  *               max_n_invalid_instances * n_elements)
  * Returns: (transfer full): collection of boolean validity arrays
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static GPtrArray/*<owned GArray<boolean>>*/ *
 generate_validity_arrays (guint      n_elements,
@@ -2080,7 +2080,7 @@ validity_array_to_string (GArray/*<boolean>*/  *arr)
  *               (M + N) * N +
  *               (M + N)) in the number P of subschema arrays, N of valid
  *    instances and M of subschemas
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static void
 generate_all_items (WblSchema                       *self,
@@ -3726,7 +3726,7 @@ pattern_properties_find_match (JsonObject   *pattern_properties,
  * Complexity: O(num_additional_properties * N)
  *    in the number of @pattern_properties
  * Returns: (transfer floating): a set of newly generated property names
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static WblStringSet *
 generate_n_additional_properties (gint64         num_additional_properties,
@@ -3778,7 +3778,7 @@ generate_n_additional_properties (gint64         num_additional_properties,
  *
  * Complexity: O(N) in the number of @pattern_properties
  * Returns: (transfer floating): a set of newly generated property names
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static WblStringSet *
 pattern_properties_generate_instances (JsonObject    *pattern_properties,
@@ -3860,7 +3860,7 @@ pattern_properties_generate_instances (JsonObject    *pattern_properties,
  *               (D + P + A + max_properties) * D) in the number D
  *    of @dependencies, P of @properties and A of @pattern_properties
  * Returns: (transfer full): a family of property sets, which may be empty
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static GHashTable/*<floating WblStringSet>*/ *
 generate_valid_property_sets (WblStringSet  *required,
@@ -4082,7 +4082,7 @@ generate_valid_property_sets (WblStringSet  *required,
  * Complexity: O(A) in the number A of @pattern_properties
  * Returns: (transfer full) (element-type JsonObject): a collection of
  *    subschemas which must apply to @property; the collection may be empty
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static GPtrArray/*<owned JsonObject>*/ *
 get_subschemas_for_property (JsonObject   *properties,
@@ -4186,7 +4186,7 @@ get_subschemas_for_property (JsonObject   *properties,
  *
  * Complexity: O(N) in the number N of properties in @instance
  * Returns: (transfer full): a new JSON instance with fewer properties
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_drop_n_properties (JsonObject    *instance,
@@ -4252,7 +4252,7 @@ instance_drop_n_properties (JsonObject    *instance,
  *
  * Complexity: O(N) in the number N of properties on @instance
  * Returns: (transfer full): a new JSON instance with @property removed
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_drop_property (JsonObject   *instance,
@@ -4302,7 +4302,7 @@ instance_drop_property (JsonObject   *instance,
  * Complexity: O(N + n) in the number N of properties
  *    on @instance
  * Returns: (transfer full): a new JSON instance with @n new properties
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_add_n_properties (JsonObject  *instance,
@@ -4366,7 +4366,7 @@ instance_add_n_properties (JsonObject  *instance,
  *
  * Complexity: O(N) in the number N of properties on @instance
  * Returns: (transfer full): a new JSON instance with one new property
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 instance_add_non_matching_property (JsonObject  *instance,
@@ -4442,7 +4442,7 @@ instance_add_non_matching_property (JsonObject  *instance,
  *    valid_property_sets(), V sets generated by valid_property_sets(), A number
  *    of pattern properties, X instances generated by
  *    subschema_generate_instances(), D @dependencies, M @min_properties
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static void
 generate_all_properties (WblSchema                       *self,
@@ -5861,7 +5861,7 @@ static const KeywordData json_schema_keywords[] = {
  *
  * Returns: (transfer full): a new #JsonNode representing the parsed string
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static JsonNode *
 parse_default_value (const gchar *json_string)

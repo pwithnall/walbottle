@@ -42,7 +42,7 @@
  *
  * #WblStringSet is unsorted, and iteration over it may happen in any order.
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 
 #include "config.h"
@@ -79,7 +79,7 @@ G_DEFINE_BOXED_TYPE (WblStringSet, wbl_string_set,
  * Add a member to the string set. @set must not be immutable; it is modified
  * in place. This is an internal method.
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static void
 _wbl_string_set_add (WblStringSet  *set,
@@ -100,7 +100,7 @@ _wbl_string_set_add (WblStringSet  *set,
  *
  * Returns: %TRUE if @set is valid, %FALSE otherwise
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static gboolean
 _wbl_string_set_is_valid (WblStringSet  *set)
@@ -117,7 +117,7 @@ _wbl_string_set_is_valid (WblStringSet  *set)
  *
  * Returns: (transfer full): a new #WblStringSet
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 static WblStringSet *
 _wbl_string_set_new (void)
@@ -142,7 +142,7 @@ _wbl_string_set_new (void)
  *
  * Returns: (transfer full): a new #WblStringSet
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_new_empty (void)
@@ -164,7 +164,7 @@ wbl_string_set_new_empty (void)
  *
  * Returns: (transfer full): a new #WblStringSet
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_new_singleton (const gchar  *element)
@@ -187,7 +187,7 @@ wbl_string_set_new_singleton (const gchar  *element)
  *
  * Returns: (transfer full): a new #WblStringSet
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_new_from_object_members (JsonObject  *obj)
@@ -220,7 +220,7 @@ wbl_string_set_new_from_object_members (JsonObject  *obj)
  *
  * Returns: (transfer full): a new #WblStringSet
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_new_from_array_elements (JsonArray  *array)
@@ -249,7 +249,7 @@ wbl_string_set_new_from_array_elements (JsonArray  *array)
  *
  * Returns: (transfer full): a new #WblStringSet
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_dup (WblStringSet  *set)
@@ -266,7 +266,7 @@ wbl_string_set_dup (WblStringSet  *set)
  *
  * Returns: (transfer full): pass through of @set
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_ref_sink (WblStringSet  *set)
@@ -291,7 +291,7 @@ wbl_string_set_ref_sink (WblStringSet  *set)
  *
  * Returns: (transfer full): pass through of @set
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_ref (WblStringSet  *set)
@@ -311,7 +311,7 @@ wbl_string_set_ref (WblStringSet  *set)
  * If @set is floating, its reference count will still be decreased, and it
  * will remain floating.
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 void
 wbl_string_set_unref (WblStringSet  *set)
@@ -335,7 +335,7 @@ wbl_string_set_unref (WblStringSet  *set)
  *
  * Returns: (transfer full): the union of @a and @b
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_union (WblStringSet  *a,
@@ -386,7 +386,7 @@ wbl_string_set_union (WblStringSet  *a,
  *
  * Complexity: O(S * D) in the size S of @set and number D of @dependencies keys
  * Returns: the transitive dependency set of @set
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblStringSet *
 wbl_string_set_union_dependencies (WblStringSet  *set,
@@ -458,7 +458,7 @@ wbl_string_set_union_dependencies (WblStringSet  *set,
  *
  * Returns: %TRUE if @member is in @set, %FALSE otherwise
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_string_set_contains (WblStringSet  *set,
@@ -479,7 +479,7 @@ wbl_string_set_contains (WblStringSet  *set,
  *
  * Returns: cardinality of @set
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 guint
 wbl_string_set_get_size (WblStringSet  *set)
@@ -498,7 +498,7 @@ wbl_string_set_get_size (WblStringSet  *set)
  *
  * Returns: hash value for the set
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 guint
 wbl_string_set_hash (WblStringSet  *set)
@@ -523,7 +523,7 @@ wbl_string_set_hash (WblStringSet  *set)
  *
  * Returns: %TRUE if @a and @b are equal, %FALSE otherwise
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_string_set_equal (WblStringSet  *a,
@@ -564,7 +564,7 @@ wbl_string_set_equal (WblStringSet  *a,
  *
  * Returns: (transfer full): a string representation of @set
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gchar *
 wbl_string_set_to_string (WblStringSet  *set)
@@ -613,7 +613,7 @@ wbl_string_set_to_string (WblStringSet  *set)
  *   }
  * ]|
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 void
 wbl_string_set_iter_init (WblStringSetIter  *iter,
@@ -640,7 +640,7 @@ wbl_string_set_iter_init (WblStringSetIter  *iter,
  * Returns: %TRUE if @member is valid; %FALSE if the end of the set has been
  *    reached
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_string_set_iter_next (WblStringSetIter  *iter,

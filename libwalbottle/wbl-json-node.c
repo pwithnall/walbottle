@@ -28,7 +28,7 @@
  * context of JSON Schema. For example, this implements node hashing and
  * comparison, and a structured form of the JSON Schema type system.
  *
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 
 #include "config.h"
@@ -63,7 +63,7 @@ G_STATIC_ASSERT (G_N_ELEMENTS (wbl_primitive_type_names) ==
  * Use wbl_primitive_type_validate() to validate strings without aborting.
  *
  * Returns: the type represented by @str
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblPrimitiveType
 wbl_primitive_type_from_string (const gchar *str)
@@ -88,7 +88,7 @@ wbl_primitive_type_from_string (const gchar *str)
  * null values as well.
  *
  * Returns: the #WblPrimitiveType of @node
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 WblPrimitiveType
 wbl_primitive_type_from_json_node (JsonNode *node)
@@ -128,7 +128,7 @@ wbl_primitive_type_from_json_node (JsonNode *node)
  * understood by wbl_primitive_type_from_string().
  *
  * Returns: %TRUE if @str is a valid #WblPrimitiveType; %FALSE otherwise
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_primitive_type_validate (const gchar *str)
@@ -159,7 +159,7 @@ wbl_primitive_type_validate (const gchar *str)
  *
  * Returns: %TRUE if @sub is a sub-type of, or equal to, @super; %FALSE
  *    otherwise
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_primitive_type_is_a (WblPrimitiveType sub,
@@ -184,7 +184,7 @@ wbl_primitive_type_is_a (WblPrimitiveType sub,
  *
  * Returns: an integer less than zero if @a < @b, equal to zero if @a == @b, and
  *    greater than zero if @a > @b
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gint
 wbl_json_number_node_comparison (JsonNode *a,
@@ -259,7 +259,7 @@ double_to_string (gdouble i)
  * type #WBL_PRIMITIVE_TYPE_NUMBER or #WBL_PRIMITIVE_TYPE_INTEGER.
  *
  * Returns: (transfer full): string form of @node
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gchar *
 wbl_json_number_node_to_string (JsonNode *node)
@@ -289,7 +289,7 @@ wbl_json_number_node_to_string (JsonNode *node)
  * standard (ECMA-404), but is assumed.
  *
  * Returns: hash value for @key
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 guint
 wbl_json_string_hash (gconstpointer key)
@@ -305,7 +305,7 @@ wbl_json_string_hash (gconstpointer key)
  * Check whether @a and @b are equal UTF-8 JSON strings.
  *
  * Returns: %TRUE if @a and @b are equal; %FALSE otherwise
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_json_string_equal (gconstpointer a,
@@ -324,7 +324,7 @@ wbl_json_string_equal (gconstpointer a,
  *
  * Returns: an integer less than zero if @a < @b, equal to zero if @a == @b, and
  *    greater than zero if @a > @b
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gint
 wbl_json_string_compare (gconstpointer a,
@@ -342,7 +342,7 @@ wbl_json_string_compare (gconstpointer a,
  * Reference: http://json-schema.org/latest/json-schema-core.html#rfc.section.3.6
  *
  * Returns: hash value for @key
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 guint
 wbl_json_node_hash (gconstpointer key)
@@ -429,7 +429,7 @@ wbl_json_node_hash (gconstpointer key)
  * Reference: http://json-schema.org/latest/json-schema-core.html#rfc.section.3.6
  *
  * Returns: %TRUE if @a and @b are equal; %FALSE otherwise
- * Since: UNRELEASED
+ * Since: 0.2.0
  */
 gboolean
 wbl_json_node_equal (gconstpointer a,

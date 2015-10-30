@@ -2,12 +2,21 @@ Overview of changes from Walbottle 0.1.0 to Walbottle 0.2.0
 ===========================================================
 
 Major changes:
+ • Improved support for the ‘default’ keyword
+ • Support multiple output formats in json-schema-generate
+ • Move from Gitorious to GitLab
+ • Performance improvements
+ • Improved support for property keywords (‘minProperties’, etc.)
+ • Improved support for item keywords (‘additionalItems’, etc.)
+ • Improved support for array keywords (‘oneOf’, etc.)
+ • Install versioned copies of utility programs
+   (i.e. json-schema-generate-0, symlinked from json-schema-generate)
+ • Commit to stability of output formats from json-schema-generate
+ • Add man pages
 
 API changes:
-
-Bugs fixed:
-
-Updated translations:
+ • Add wbl_generated_instance_is_valid()
+ • Rename WblSchema.generate_instances to WblSchema.generate_instance_nodes
 
 
 Initial release of Walbottle 0.1.0
