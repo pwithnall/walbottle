@@ -7,7 +7,7 @@ CLEANFILES =
 MAINTAINERCLEANFILES =
 EXTRA_DIST =
 bin_PROGRAMS =
-dist_man8_MANS =
+man8_MANS =
 
 # libwalbottle library
 lib_LTLIBRARIES = libwalbottle/libwalbottle-@WBL_API_VERSION@.la
@@ -171,9 +171,8 @@ utilities_json_validate_@WBL_API_VERSION@_LDADD = \
 	$(AM_LIBADD) \
 	$(NULL)
 
-utilities/docs/json-validate-@WBL_API_VERSION@.8: utilities/docs/json-validate.8
-	$(AM_V_GEN)cp $^ $@
-dist_man8_MANS += $(top_builddir)/utilities/docs/json-validate-@WBL_API_VERSION@.8
+EXTRA_DIST += utilities/docs/json-validate.8
+man8_MANS += $(top_builddir)/utilities/docs/json-validate-@WBL_API_VERSION@.8
 CLEANFILES += utilities/docs/json-validate-@WBL_API_VERSION@.8
 
 # json-schema-validate utility
@@ -204,9 +203,8 @@ utilities_json_schema_validate_@WBL_API_VERSION@_LDADD = \
 	$(AM_LIBADD) \
 	$(NULL)
 
-utilities/docs/json-schema-validate-@WBL_API_VERSION@.8: utilities/docs/json-schema-validate.8
-	$(AM_V_GEN)cp $^ $@
-dist_man8_MANS += $(top_builddir)/utilities/docs/json-schema-validate-@WBL_API_VERSION@.8
+EXTRA_DIST += utilities/docs/json-schema-validate.8
+man8_MANS += $(top_builddir)/utilities/docs/json-schema-validate-@WBL_API_VERSION@.8
 CLEANFILES += utilities/docs/json-schema-validate-@WBL_API_VERSION@.8
 
 # json-schema-generate utility
@@ -237,10 +235,13 @@ utilities_json_schema_generate_@WBL_API_VERSION@_LDADD = \
 	$(AM_LIBADD) \
 	$(NULL)
 
-utilities/docs/json-schema-generate-@WBL_API_VERSION@.8: utilities/docs/json-schema-generate.8
-	$(AM_V_GEN)cp $^ $@
-dist_man8_MANS += $(top_builddir)/utilities/docs/json-schema-generate-@WBL_API_VERSION@.8
+EXTRA_DIST += utilities/docs/json-schema-generate.8
+man8_MANS += $(top_builddir)/utilities/docs/json-schema-generate-@WBL_API_VERSION@.8
 CLEANFILES += utilities/docs/json-schema-generate-@WBL_API_VERSION@.8
+
+# man file versioning rule
+%-@WBL_API_VERSION@.8: %.8
+	$(AM_V_GEN)$(MKDIR_P) $(dir $@) && cp $^ $@
 
 # Non-versioned symlinks for bin_PROGRAMS utilities
 utilities = json-validate json-schema-validate json-schema-generate
