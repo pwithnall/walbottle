@@ -38,7 +38,7 @@ wbl_test_load_json_instances_from_file (const gchar  *filename)
 
 	path = g_test_build_filename (G_TEST_DIST, filename, NULL);
 	g_test_message ("Loading JSON instances from ‘%s’.", path);
-	g_file_get_contents (filename, &file_contents, NULL, &error);
+	g_file_get_contents (path, &file_contents, NULL, &error);
 	g_assert_no_error (error);
 	g_free (path);
 
