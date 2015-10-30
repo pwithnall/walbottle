@@ -80,7 +80,7 @@ libwalbottle_libwalbottle_@WBL_API_VERSION@_la_LDFLAGS = \
 
 EXTRA_DIST += libwalbottle/libwalbottle.symbols
 
-meta_schema_json = $(shell glib-compile-resources --sourcedir=$(top_srcdir)/libwalbottle --generate-dependencies libwalbottle/wbl-meta-schemas.gresource.xml)
+meta_schema_json = $(shell glib-compile-resources --sourcedir=$(top_srcdir)/libwalbottle --generate-dependencies $(top_srcdir)/libwalbottle/wbl-meta-schemas.gresource.xml)
 $(meta_schema_sources): libwalbottle/wbl-meta-schemas.gresource.xml $(meta_schema_json)
 	$(AM_V_GEN) $(GLIB_COMPILE_RESOURCES) \
 		--c-name=wbl_meta_schemas --generate-source \
