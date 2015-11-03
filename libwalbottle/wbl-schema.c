@@ -2254,7 +2254,6 @@ generate_all_items (WblSchema                       *self,
 		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *valid_instances_array;
 		GPtrArray/*<owned GHashTable<owned JsonNode>>*/ *invalid_instances_array;
 		GHashTableIter *valid_iters = NULL, *invalid_iters = NULL;
-		guint n_iterations_remaining;
 		guint max_n_valid_instances, max_n_invalid_instances;
 
 		subschema_array = subschema_arrays->pdata[i];
@@ -2353,7 +2352,6 @@ generate_all_items (WblSchema                       *self,
 		 */
 		valid_iters = g_new0 (GHashTableIter, valid_instances_array->len);
 		invalid_iters = g_new0 (GHashTableIter, invalid_instances_array->len);
-		n_iterations_remaining = 0;
 
                 /* Complexity: O(M) in the number of subschemas */
 		for (j = 0; j < valid_instances_array->len; j++) {
@@ -2361,8 +2359,6 @@ generate_all_items (WblSchema                       *self,
 
 			instances = valid_instances_array->pdata[j];
 			g_hash_table_iter_init (&valid_iters[j], instances);
-			n_iterations_remaining = MAX (n_iterations_remaining,
-			                              g_hash_table_size (instances));
 		}
 
                 /* Complexity: O(M) in the number of subschemas */
@@ -2371,8 +2367,6 @@ generate_all_items (WblSchema                       *self,
 
 			instances = invalid_instances_array->pdata[j];
 			g_hash_table_iter_init (&invalid_iters[j], instances);
-			n_iterations_remaining = MAX (n_iterations_remaining,
-			                              g_hash_table_size (instances));
 		}
 
                 /* Complexity: O((M + N) * N) */
