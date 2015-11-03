@@ -872,8 +872,8 @@ generate_schema_array (WblSchema *self,
 
 		g_hash_table_iter_init (&iter, child_output);
 		while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
-			g_hash_table_add (output, instance);
-			g_hash_table_iter_steal (&iter);
+			g_assert (instance != NULL);
+			g_hash_table_add (output, json_node_copy (instance));
 		}
 
 		g_hash_table_unref (child_output);
@@ -935,6 +935,7 @@ static void
 generate_take_node (GHashTable/*<owned JsonNode>*/  *output,
                     JsonNode                        *node)  /* transfer full */
 {
+	g_assert (node != NULL);
 	g_hash_table_add (output, node);  /* transfer */
 }
 
@@ -5950,8 +5951,8 @@ generate_not (WblSchema *self,
 
 	g_hash_table_iter_init (&iter, child_output);
 	while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
-		g_hash_table_add (output, instance);
-		g_hash_table_iter_steal (&iter);
+		g_assert (instance != NULL);
+		g_hash_table_add (output, json_node_copy (instance));
 	}
 
 	g_hash_table_unref (child_output);
