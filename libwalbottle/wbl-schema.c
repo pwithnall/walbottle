@@ -476,6 +476,8 @@ subschema_apply (WblSchema *self,
 	}
 }
 
+static gchar *node_to_string (JsonNode  *node);
+
 /* Complexity: O(generate_instance_nodes) */
 static GHashTable/*<owned JsonNode>*/ *
 subschema_generate_instances (WblSchema   *self,
@@ -512,6 +514,79 @@ subschema_generate_instances (WblSchema   *self,
 	}
 
 	return output;
+}
+
+/* Variant of subschema_generate_instances() which splits the generated
+ * instances into valid and invalid sets.
+ *
+ * Complexity: O(generate_instance_nodes * n_subschemas^2) */
+static void
+subschema_generate_instances_split (WblSchema                       *self,
+                                    JsonObject                     **subschemas,
+                                    guint                            n_subschemas,
+                                    GHashTable/*<owned JsonNode>*/ **valid_instances,
+                                    GHashTable/*<owned JsonNode>*/ **invalid_instances,
+                                    gboolean                         debug)
+{
+	guint j;
+
+	*valid_instances = g_hash_table_new_full (wbl_json_node_hash,
+	                                          wbl_json_node_equal,
+	                                          (GDestroyNotify) json_node_free,
+	                                          NULL);
+	*invalid_instances = g_hash_table_new_full (wbl_json_node_hash,
+	                                            wbl_json_node_equal,
+	                                            (GDestroyNotify) json_node_free,
+	                                            NULL);
+
+	for (j = 0; j < n_subschemas; j++) {
+		GHashTable/*<owned JsonNode>*/ *instances = NULL;  /* owned */
+		GHashTableIter iter;
+		JsonNode *node;
+
+		instances = subschema_generate_instances (self, subschemas[j]);
+
+		/* Split the instances into valid and invalid. An instance is
+		 * valid if //all// subschemas apply to it successfully. */
+		g_hash_table_iter_init (&iter, instances);
+
+		while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+			GError *child_error = NULL;
+			guint i;
+
+			for (i = 0; i < n_subschemas; i++) {
+				subschema_apply (self, subschemas[i], node,
+				                 &child_error);
+
+				if (child_error != NULL) {
+					g_hash_table_add (*invalid_instances,
+					                  json_node_copy (node));
+					g_error_free (child_error);
+
+					break;
+				}
+			}
+
+			/* Valid after all that? */
+			if (child_error == NULL) {
+				g_hash_table_add (*valid_instances,
+				                  json_node_copy (node));
+			}
+
+			/* Debug output. */
+			if (debug) {
+				gchar *debug_output = NULL;
+
+				debug_output = node_to_string (node);
+				g_debug ("%s: Subinstance (%s): %s", G_STRFUNC,
+				         (child_error == NULL) ? "valid" : "invalid",
+				         debug_output);
+				g_free (debug_output);
+			}
+		}
+
+		g_hash_table_unref (instances);
+	}
 }
 
 /* Schemas. */
@@ -2195,7 +2270,6 @@ generate_all_items (WblSchema                       *self,
 		for (j = 0; j < json_array_get_length (subschema_array); j++) {
 			GHashTable/*<owned JsonNode>*/ *valid_instances = NULL;
 			GHashTable/*<owned JsonNode>*/ *invalid_instances = NULL;
-			GHashTableIter valid_iter;
 			JsonObject *subschema;
 
 			subschema = json_array_get_object_element (subschema_array, j);
@@ -2210,43 +2284,12 @@ generate_all_items (WblSchema                       *self,
                          *    valid instances */
 			if (valid_instances == NULL ||
 			    invalid_instances == NULL) {
-				invalid_instances = g_hash_table_new_full (wbl_json_node_hash,
-				                                           wbl_json_node_equal,
-				                                           (GDestroyNotify) json_node_free,
-				                                           NULL);
-				valid_instances = subschema_generate_instances (self,
-				                                                subschema);
-
-				/* Split the instances into valid and invalid. */
-				g_hash_table_iter_init (&valid_iter, valid_instances);
-
-				while (g_hash_table_iter_next (&valid_iter,
-				                               (gpointer *) &node, NULL)) {
-					GError *child_error = NULL;
-
-					subschema_apply (self, subschema, node,
-					                 &child_error);
-
-					if (child_error != NULL) {
-						g_hash_table_iter_steal (&valid_iter);
-						g_hash_table_add (invalid_instances,
-						                  node);
-
-						g_error_free (child_error);
-					}
-
-					/* Debug output. */
-					if (priv->debug) {
-						gchar *debug_output = NULL;
-
-						debug_output = node_to_string (node);
-						g_debug ("%s: Subinstance %u (%s): %s",
-						         G_STRFUNC, j,
-						         (child_error == NULL) ? "valid" : "invalid",
-						         debug_output);
-						g_free (debug_output);
-					}
-				}
+				subschema_generate_instances_split (self,
+				                                    &subschema,
+				                                    1,
+				                                    &valid_instances,
+				                                    &invalid_instances,
+				                                    priv->debug);
 
 				/* Store for later re-use. Transfer
 				 * ownership. */
@@ -4405,6 +4448,212 @@ instance_add_non_matching_property (JsonObject  *instance,
 }
 
 /**
+ * generate_boolean_object:
+ * @property_names: set of property names to use for the object
+ * @invalid_property_name: (nullable): name of the single property to mark as
+ *    invalid
+ *
+ * Generate a JSON object containing exactly the given @property_names, mapping
+ * them all to a boolean value representing whether the subinstance assigned to
+ * them should be valid or invalid.
+ *
+ * All these boolean values will be %TRUE except that for
+ * @invalid_property_name. If @invalid_property_name is %NULL, all values will
+ * be %TRUE.
+ *
+ * Complexity: O(N) in the size N of @property_names
+ * Returns: (transfer full): validity object for @property_names
+ * Since: UNRELEASED
+ */
+static GHashTable/*<owned utf8, boolean>*/ *
+generate_boolean_object (WblStringSet  *property_names,
+                         const gchar   *invalid_property_name)
+{
+	WblStringSetIter iter;
+	const gchar *property_name;
+	GHashTable/*<owned utf8, boolean>*/ *output = NULL;
+
+	output = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+	wbl_string_set_iter_init (&iter, property_names);
+
+	while (wbl_string_set_iter_next (&iter, &property_name)) {
+		gboolean valid;
+
+		valid = (g_strcmp0 (property_name, invalid_property_name) != 0);
+		g_hash_table_insert (output, g_strdup (property_name),
+		                     GUINT_TO_POINTER (valid));
+	}
+
+	return output;
+}
+
+/**
+ * generate_boolean_object_uniform:
+ * @property_names: set of property names to use for the object
+ * @valid: whether property values should be marked as valid
+ *
+ * Generate a JSON object containign exactly the given @property_names, mapping
+ * them all to a boolean value representing whether the subinstance assigned to
+ * them should be valid or invalid.
+ *
+ * All these boolean values will be set to @valid.
+ *
+ * Complexity: O(N) in the size N of @property_names
+ * Returns: (transfer full): validity object for @property_names
+ * Since: UNRELEASED
+ */
+static GHashTable/*<owned utf8, boolean>*/ *
+generate_boolean_object_uniform (WblStringSet  *property_names,
+                                 gboolean       valid)
+{
+	WblStringSetIter iter;
+	const gchar *property_name;
+	GHashTable/*<owned utf8, boolean>*/ *output = NULL;
+
+	output = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+	wbl_string_set_iter_init (&iter, property_names);
+
+	while (wbl_string_set_iter_next (&iter, &property_name)) {
+		g_hash_table_insert (output, g_strdup (property_name),
+		                     GUINT_TO_POINTER (valid));
+	}
+
+	return output;
+}
+
+/**
+ * generate_validity_objects:
+ * @valid_property_set: set of property names to use
+ * @max_n_valid_instances: minimum number of objects to generate containing
+ *    %TRUE for each member (inclusive)
+ * @max_n_invalid_instances: minimum number of objects to generate containing
+ *    %FALSE for each member (inclusive)
+ *
+ * Generate a collection of objects controlling the validity of child instances
+ * in test vectors generated for a properties schema. The idea is that
+ * generated test vectors should test all the control flow paths in the code
+ * under test, and since most JSON objects will be parsed by either a sequence
+ * of code or a loop which compares all property names, the way to
+ * test such code is to generate test vectors which have one instance at a time
+ * be invalid.
+ *
+ * Each validity object is an object of booleans using the keys from
+ * @valid_property_set which contains %TRUE elements in the members
+ * corresponding to child instances which should be valid, and %FALSE elements
+ * for invalid ones. When an object instance is generated matching a validity
+ * object, these booleans are respected.
+ *
+ * It is important that enough object instances are generated such that each
+ * possible child instance is included in at least one object instance — this is
+ * controlled by @max_n_valid_instances and @max_n_invalid_instances.
+ *
+ * Complexity: O(S^2 +
+ *               max_n_valid_instances * S +
+ *               max_n_invalid_instances * S)
+ *    in the size S of @valid_property_set
+ * Returns: (transfer full): collection of boolean validity objects
+ * Since: UNRELEASED
+ */
+static GPtrArray/*<owned GHashTable<boolean>>*/ *
+generate_validity_objects (WblStringSet  *valid_property_set,
+                           guint          max_n_valid_instances,
+                           guint          max_n_invalid_instances)
+{
+	GPtrArray/*<owned GHashTable<owned utf8, boolean>>*/ *output = NULL;
+	WblStringSetIter iter;
+	const gchar *property_name;
+	guint i;
+
+	g_debug ("%s: valid_property_set size: %u, max_n_valid_instances: %u, "
+	         "max_n_invalid_instances: %u", G_STRFUNC,
+	         wbl_string_set_get_size (valid_property_set),
+	         max_n_valid_instances, max_n_invalid_instances);
+
+	output = g_ptr_array_new_with_free_func ((GDestroyNotify) g_hash_table_unref);
+
+	g_debug ("%s: O(%u^2)", G_STRFUNC,
+	         MAX (wbl_string_set_get_size (valid_property_set),
+	              MAX (max_n_valid_instances, max_n_invalid_instances)));
+
+	/* Add objects of the form:
+	 *    { k0 → false, …, kN → false }
+	 *    { k0 → false, k1 → true, …, kN → true }
+	 *    { k0 → true, k1 → false, k2 → true, …, kN → true }
+	 *    …
+	 *    { k0 → true, …, k{N-1} → true, kN → false }
+	 *    { k0 → true, …, kN → true }
+	 *
+	 * which handle member-independent control paths. The most important
+	 * ones here are the all-valid arrays, as the more valid instances we
+	 * can generate, the better. If these instances are used as child nodes
+	 * in a larger instance, validation of that instance can’t proceed
+	 * without valid child nodes.
+	 *
+	 * Overall, we need to be sure to generate enough instances that the
+	 * *minimum* number of true values for a given member is at least
+	 * @max_n_valid_instances; and similarly for the number of false values
+	 * and @max_n_invalid_instances. This ensures that each of the generated
+	 * instances is used at least once. */
+	wbl_string_set_iter_init (&iter, valid_property_set);
+
+	while (wbl_string_set_iter_next (&iter, &property_name)) {
+		g_ptr_array_add (output,
+		                 generate_boolean_object (valid_property_set,
+		                                          property_name));
+	}
+
+	for (i = 0; i < max_n_valid_instances; i++) {
+		g_ptr_array_add (output,
+		                 generate_boolean_object_uniform (valid_property_set,
+		                                                  TRUE));
+	}
+
+	for (i = 0; i < max_n_invalid_instances; i++) {
+		g_ptr_array_add (output,
+		                 generate_boolean_object_uniform (valid_property_set,
+		                                                  FALSE));
+	}
+
+	/* Fallback output to test the empty object case. */
+	if (wbl_string_set_get_size (valid_property_set) == 0) {
+		g_ptr_array_add (output,
+		                 generate_boolean_object (valid_property_set,
+		                                          NULL));
+	}
+
+	return output;
+}
+
+static gchar *
+validity_object_to_string (GHashTable/*<owned utf8, boolean>*/  *obj)
+{
+	GHashTableIter iter;
+	GString *out = NULL;
+	const gchar *property_name;
+	gpointer valid;
+	gboolean is_first = TRUE;
+
+	out = g_string_new ("{");
+	g_hash_table_iter_init (&iter, obj);
+
+	while (g_hash_table_iter_next (&iter, (gpointer *) &property_name,
+	                               &valid)) {
+		if (!is_first) {
+			g_string_append (out, ", ");
+		}
+
+		g_string_append_printf (out, "%s: %u", property_name,
+		                        GPOINTER_TO_UINT (valid) ? 1 : 0);
+
+		is_first = FALSE;
+	}
+
+	g_string_append (out, !is_first ? " }" : "}");
+
+	return g_string_free (out, FALSE);
+}
+
+/**
  * generate_all_properties:
  * @self: a #WblSchema
  * @_required: JSON array of required property names
@@ -4435,9 +4684,11 @@ instance_add_non_matching_property (JsonObject  *instance,
  *  # Add all the mutated and non-mutated object instances to @output.
  *
  * Complexity: O(generate_valid_property_sets +
- *               P * (A + A * subschema_generate_instances) +
+ *               P * (get_subschemas_for_property +
+ *                    subschema_generate_instances_split) +
+ *               V * generate_validity_objects +
  *               V * P +
- *               V * X * P +
+ *               V * X * P * P +
  *               V * X * (D + P + M + A)) for P properties generated by
  *    valid_property_sets(), V sets generated by valid_property_sets(), A number
  *    of pattern properties, X instances generated by
@@ -4467,7 +4718,9 @@ generate_all_properties (WblSchema                       *self,
 	JsonNode *node;
 	guint i;
 	WblStringSet *required = NULL;
-	GHashTable/*<owned utf8, GHashTable<owned JsonNode>>*/ *instance_map = NULL;
+	GHashTable/*<owned utf8, GHashTable<owned JsonNode>>*/ *valid_instance_map = NULL;
+	GHashTable/*<owned utf8, GHashTable<owned JsonNode>>*/ *invalid_instance_map = NULL;
+	guint max_n_valid_instances, max_n_invalid_instances;
 
 	priv = wbl_schema_get_instance_private (self);
 	builder = json_builder_new ();
@@ -4499,11 +4752,17 @@ generate_all_properties (WblSchema                       *self,
 	                                                    dependencies,
 	                                                    priv->debug);
 
-	/* Map of property name to a set of possible subinstances for
+	/* Map of property name to a set of possible valid subinstances for
 	 * it. The @instance_map is not unique to any @valid_property_set. */
-	instance_map = g_hash_table_new_full (g_str_hash, g_str_equal,
-	                                      g_free,
-	                                      (GDestroyNotify) g_hash_table_unref);
+	valid_instance_map = g_hash_table_new_full (g_str_hash, g_str_equal,
+	                                            g_free,
+	                                            (GDestroyNotify) g_hash_table_unref);
+	invalid_instance_map = g_hash_table_new_full (g_str_hash, g_str_equal,
+	                                              g_free,
+	                                              (GDestroyNotify) g_hash_table_unref);
+
+	max_n_valid_instances = 0;
+	max_n_invalid_instances = 0;
 
 	/* Generate a set of probably-valid instances by recursing on the
 	 * property subschemas. */
@@ -4513,14 +4772,19 @@ generate_all_properties (WblSchema                       *self,
 	                                      NULL);
 	g_hash_table_iter_init (&property_sets_iter, valid_property_sets);
 
+	/* Complexity: O(P * (get_subschemas_for_property +
+	 *                    subschema_generate_instances_split) +
+	 *               V * generate_validity_objects +
+	 *               V * P +
+	 *               V * X * P) */
 	while (g_hash_table_iter_next (&property_sets_iter,
 	                               (gpointer *) &valid_property_set,
 	                               NULL)) {
 		WblStringSetIter string_iter;
 		const gchar *property_name;
-		GHashTable/*<owned JsonNode>*/ *property_instances = NULL;  /* owned */
-		GHashTableIter *iters = NULL;
-		guint n_iterations_remaining;
+		GPtrArray/*<owned GHashTable<boolean>>*/ *validity_objects = NULL;  /* owned */
+		GHashTable/*<owned utf8, owned GHashTableIter>*/ *valid_iters = NULL;
+		GHashTable/*<owned utf8, owned GHashTableIter>*/ *invalid_iters = NULL;
 
 		wbl_string_set_iter_init (&string_iter, valid_property_set);
 
@@ -4531,17 +4795,22 @@ generate_all_properties (WblSchema                       *self,
 			 * If we’re already examined this @property_name from
 			 * a previous @valid_property_set, re-use the
 			 * instances. */
+			GHashTable/*<owned JsonNode>*/ *valid_instances = NULL;  /* owned */
+			GHashTable/*<owned JsonNode>*/ *invalid_instances = NULL;  /* owned */
 			GPtrArray/*<owned JsonObject>*/ *subschemas = NULL;
 
-			if (g_hash_table_contains (instance_map,
-			                           property_name)) {
+			valid_instances = g_hash_table_lookup (valid_instance_map,
+			                                       property_name);
+			invalid_instances = g_hash_table_lookup (invalid_instance_map,
+			                                         property_name);
+
+			if (valid_instances != NULL &&
+			    invalid_instances != NULL) {
 				continue;
 			}
 
-			property_instances = g_hash_table_new_full (wbl_json_node_hash,
-			                                            wbl_json_node_equal,
-			                                            (GDestroyNotify) json_node_free,
-			                                            NULL);
+			g_debug ("%s: Generating subinstances for property "
+			         "‘%s’…", G_STRFUNC, property_name);
 
 			subschemas = get_subschemas_for_property (properties,
 			                                          pattern_properties,
@@ -4549,57 +4818,49 @@ generate_all_properties (WblSchema                       *self,
 			                                          property_name,
 			                                          priv->debug);
 
-			for (i = 0; i < subschemas->len; i++) {
-				GHashTable/*<owned JsonNode>*/ *child_instances = NULL;  /* owned */
-				GHashTableIter iter;
-				JsonNode *instance = NULL;  /* owned */
-
-				child_instances = subschema_generate_instances (self,
-				                                                subschemas->pdata[i]);
-
-				g_hash_table_iter_init (&iter, child_instances);
-				while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
-					g_hash_table_add (property_instances, instance);
-					g_hash_table_iter_steal (&iter);
-				}
-
-				g_hash_table_unref (child_instances);
-			}
-
-			/* Debug. */
-			if (priv->debug) {
-				GHashTableIter debug_iter;
-				JsonNode *instance;
-
-				g_hash_table_iter_init (&debug_iter,
-				                        property_instances);
-
-				while (g_hash_table_iter_next (&debug_iter,
-				                               (gpointer *) &instance,
-				                               NULL)) {
-					gchar *json = node_to_string (instance);
-					g_debug ("%s: Subinstance for ‘%s’: %s",
-					         G_STRFUNC, property_name,
-					         json);
-					g_free (json);
-				}
-			}
+			subschema_generate_instances_split (self,
+			                                    (JsonObject **) subschemas->pdata,
+			                                    subschemas->len,
+			                                    &valid_instances,
+			                                    &invalid_instances,
+			                                    priv->debug);
 
 			/* Add to the instance map. Transfer ownership. */
-			g_hash_table_insert (instance_map,
+			g_hash_table_insert (valid_instance_map,
 			                     g_strdup (property_name),
-			                     property_instances);
-			property_instances = NULL;
+			                     valid_instances);
+			g_hash_table_insert (invalid_instance_map,
+			                     g_strdup (property_name),
+			                     invalid_instances);
+
+			max_n_valid_instances = MAX (max_n_valid_instances,
+			                             g_hash_table_size (valid_instances));
+			max_n_invalid_instances = MAX (max_n_invalid_instances,
+			                               g_hash_table_size (invalid_instances));
 
 			g_ptr_array_unref (subschemas);
 		}
 
-		/* Convert the @instance_map function of type
+		validity_objects = generate_validity_objects (valid_property_set,
+		                                              max_n_valid_instances,
+		                                              max_n_invalid_instances);
+
+		/* Debug. */
+		for (i = 0; i < validity_objects->len && priv->debug; i++) {
+			gchar *arr;
+
+			arr = validity_object_to_string (validity_objects->pdata[i]);
+			g_debug ("%s: Validity object: %s", G_STRFUNC, arr);
+			g_free (arr);
+		}
+
+		/* Convert the @valid_instance_map and @invalid_instance_map
+		 * functions of type
 		 *    property ↦ { subinstance }
 		 * to a set of functions of overall type:
 		 *    { property ↦ subinstance }
 		 * And add them all to @output (since they’re actually each a
-		 * JSON instance.
+		 * JSON instance, using the @validity_objects as templates.
 		 *
 		 * In order to get full coverage, this should really be an
 		 * N-fold cross-product between all the subinstance sets, where
@@ -4607,65 +4868,91 @@ generate_all_properties (WblSchema                       *self,
 		 * that would be massive.
 		 *
 		 * In order to get reasonable coverage, we can assume that the
-		 * values of the different subinstances are probably
-		 * independent. Hence we just need to generate enough instances
-		 * to include each of the subinstances at least once.
+		 * values of the different subinstances are probably independent
+		 * and hence we need to test their validity separately. We need
+		 * to ensure we generate at least one valid object instance
+		 * (valid instance in each member) and one invalid instance
+		 * (invalid instance in at least one member) for each member;
+		 * we also want to ensure we include each valid child instance
+		 * in at least one valid object, and each invalid child instance
+		 * in at least one invalid object.
 		 *
-		 * So, build one instance with its properties set to the first
-		 * subinstance from each subinstance set; the next instance with
-		 * its properties set to the second subinstances, etc. If a
-		 * subinstance set is too small, keep re-using arbitrary
-		 * subinstances from it.
+		 * Hence, iterate over all the members of the sets in
+		 * @valid_instance_map and @invalid_instance_map in parallel,
+		 * iterating for each validity object in @validity_objects as a
+		 * template.
 		 */
-		iters = g_new0 (GHashTableIter,
-		                wbl_string_set_get_size (valid_property_set));
-		n_iterations_remaining = 0;
+		valid_iters = g_hash_table_new_full (g_str_hash, g_str_equal,
+		                                     g_free, g_free);
+		invalid_iters = g_hash_table_new_full (g_str_hash, g_str_equal,
+		                                       g_free, g_free);
 
 		for (i = 0, wbl_string_set_iter_init (&string_iter,
 		                                      valid_property_set);
 		     wbl_string_set_iter_next (&string_iter, &property_name);
 		     i++) {
-			property_instances = g_hash_table_lookup (instance_map,
-			                                          property_name);
-			g_assert (property_instances != NULL);
+			GHashTable/*<owned JsonNode>*/ *valid_instances;
+			GHashTable/*<owned JsonNode>*/ *invalid_instances;
+			GHashTableIter *valid_iter = NULL, *invalid_iter = NULL;
 
-			g_hash_table_iter_init (&iters[i], property_instances);
-			n_iterations_remaining = MAX (n_iterations_remaining,
-			                              g_hash_table_size (property_instances));
+			valid_instances = g_hash_table_lookup (valid_instance_map,
+			                                       property_name);
+			g_assert (valid_instances != NULL);
+			valid_iter = g_new0 (GHashTableIter, 1);
+			g_hash_table_iter_init (valid_iter, valid_instances);
+			g_hash_table_insert (valid_iters,
+			                     g_strdup (property_name),
+			                     valid_iter);  /* transfer */
+
+			invalid_instances = g_hash_table_lookup (invalid_instance_map,
+			                                         property_name);
+			g_assert (invalid_instances != NULL);
+			invalid_iter = g_new0 (GHashTableIter, 1);
+			g_hash_table_iter_init (invalid_iter,
+			                        invalid_instances);
+			g_hash_table_insert (invalid_iters,
+			                     g_strdup (property_name),
+			                     invalid_iter);  /* transfer */
 		}
 
-		g_debug ("%s: n_iterations_remaining = %u",
-		         G_STRFUNC, n_iterations_remaining);
-
-		/* FIXME: This is an enormous hack to ensure we get at least one
-		 * iteration. */
-		n_iterations_remaining = MAX (n_iterations_remaining, 1);
-
-		for (; n_iterations_remaining > 0; n_iterations_remaining--) {
+		/* Complexity: O(X * P) */
+		for (i = 0; i < validity_objects->len; i++) {
+			GHashTable/*<boolean>*/ *validity_object;
 			JsonNode *instance = NULL;
+			gchar *debug_output = NULL;
+			GHashTableIter validity_iter;
+			gpointer is_valid;
+
+			validity_object = validity_objects->pdata[i];
 
 			json_builder_begin_object (builder);
 
-			for (i = 0, wbl_string_set_iter_init (&string_iter,
-			                                      valid_property_set);
-			     wbl_string_set_iter_next (&string_iter, &property_name);
-			     i++) {
+			/* Complexity: O(P) */
+			g_hash_table_iter_init (&validity_iter, validity_object);
+
+			while (g_hash_table_iter_next (&validity_iter, (gpointer *) &property_name, (gpointer *) &is_valid)) {
+				GHashTable/*<owned JsonNode>*/ *instances;
+				GHashTableIter *instances_iter;
 				JsonNode *generated_instance;
 
-				property_instances = g_hash_table_lookup (instance_map,
-				                                          property_name);
-				g_assert (property_instances != NULL);
+				if (GPOINTER_TO_UINT (is_valid)) {
+					instances = g_hash_table_lookup (valid_instance_map, property_name);
+					instances_iter = g_hash_table_lookup (valid_iters, property_name);
+				} else {
+					instances = g_hash_table_lookup (invalid_instance_map, property_name);
+					instances_iter = g_hash_table_lookup (invalid_iters, property_name);
+				}
 
-				if (g_hash_table_size (property_instances) == 0) {
+				if (g_hash_table_size (instances) == 0) {
 					generated_instance = NULL;
-				} else if (!g_hash_table_iter_next (&iters[i],
+				} else if (!g_hash_table_iter_next (instances_iter,
 				                                    (gpointer *) &generated_instance,
 				                                    NULL)) {
 					/* Arbitrarily loop round and start
 					 * again. */
-					g_hash_table_iter_init (&iters[i],
-					                        property_instances);
-					if (!g_hash_table_iter_next (&iters[i],
+					g_hash_table_iter_init (instances_iter,
+					                        instances);
+					if (!g_hash_table_iter_next (instances_iter,
 					                             (gpointer *) &generated_instance,
 					                             NULL)) {
 						generated_instance = NULL;
@@ -4686,12 +4973,10 @@ generate_all_properties (WblSchema                       *self,
 			json_builder_end_object (builder);
 
 			instance = json_builder_get_root (builder);
-			g_hash_table_add (instance_set, instance);
+			g_hash_table_add (instance_set, instance);  /* transfer */
 
 			/* Debug output. */
 			if (priv->debug) {
-				gchar *debug_output = NULL;
-
 				debug_output = node_to_string (instance);
 				g_debug ("%s: Instance: %s", G_STRFUNC, debug_output);
 				g_free (debug_output);
@@ -4700,10 +4985,13 @@ generate_all_properties (WblSchema                       *self,
 			json_builder_reset (builder);
 		}
 
-		g_free (iters);
+		g_hash_table_unref (valid_iters);
+		g_hash_table_unref (invalid_iters);
+		g_ptr_array_unref (validity_objects);
 	}
 
-	g_hash_table_unref (instance_map);
+	g_hash_table_unref (valid_instance_map);
+	g_hash_table_unref (invalid_instance_map);
 
 	/* The final step is to take each of the generated instances, and
 	 * mutate it for each of the relevant schema properties. */
