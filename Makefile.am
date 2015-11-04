@@ -148,6 +148,8 @@ bin_PROGRAMS += utilities/json-validate-@WBL_API_VERSION@
 
 utilities_json_validate_@WBL_API_VERSION@_SOURCES = \
 	utilities/json-validate.c \
+	utilities/wbl-utilities.c \
+	utilities/wbl-utilities.h \
 	$(NULL)
 utilities_json_validate_@WBL_API_VERSION@_CPPFLAGS = \
 	-I$(top_srcdir) \
@@ -180,6 +182,8 @@ bin_PROGRAMS += utilities/json-schema-validate-@WBL_API_VERSION@
 
 utilities_json_schema_validate_@WBL_API_VERSION@_SOURCES = \
 	utilities/json-schema-validate.c \
+	utilities/wbl-utilities.c \
+	utilities/wbl-utilities.h \
 	$(NULL)
 utilities_json_schema_validate_@WBL_API_VERSION@_CPPFLAGS = \
 	-I$(top_srcdir) \
@@ -212,6 +216,8 @@ bin_PROGRAMS += utilities/json-schema-generate-@WBL_API_VERSION@
 
 utilities_json_schema_generate_@WBL_API_VERSION@_SOURCES = \
 	utilities/json-schema-generate.c \
+	utilities/wbl-utilities.c \
+	utilities/wbl-utilities.h \
 	$(NULL)
 utilities_json_schema_generate_@WBL_API_VERSION@_CPPFLAGS = \
 	-I$(top_srcdir) \

@@ -24,6 +24,7 @@
 #include <glib/gi18n.h>
 
 #include "wbl-schema.h"
+#include "utilities/wbl-utilities.h"
 
 /* Exit statuses. */
 typedef enum {
@@ -76,6 +77,9 @@ main (int argc, char *argv[])
 #endif
 
 	setlocale (LC_ALL, "");
+
+	/* Redirect debug output to stderr so that stdout is purely useful. */
+	g_log_set_default_handler (wbl_log, NULL);
 
 	/* Command line parsing. */
 	context = g_option_context_new (_("— validate JSON documents"));
