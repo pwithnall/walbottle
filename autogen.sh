@@ -32,7 +32,7 @@ autoreconf --verbose --force --install -Wno-portability || exit 1
 
 if test x$NOCONFIGURE = x; then
 	$srcdir/configure "$@" && \
-	echo "Now type \`make\' to compile $PKG_NAME" || exit 1
+	echo "Now type ‘make’ to compile $PKG_NAME" || exit 1
 else
 	echo "Skipping configure process."
 fi
