@@ -1087,15 +1087,18 @@ apply_multiple_of (WblSchema *self,
 	}
 
 	if (!retval) {
-		gchar *str = NULL;  /* owned */
+		gchar *str1 = NULL, *str2 = NULL;  /* owned */
 
-		str = wbl_json_number_node_to_string (schema_node);
+		str1 = wbl_json_number_node_to_string (instance_node);
+		str2 = wbl_json_number_node_to_string (schema_node);
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be a multiple of %s "
+		             _("Value %s must be a multiple of %s "
 		               "due to the multipleOf schema keyword. "
-		               "See json-schema-validation§5.1.1."), str);
-		g_free (str);
+		               "See json-schema-validation§5.1.1."),
+		             str1, str2);
+		g_free (str1);
+		g_free (str2);
 	}
 }
 
@@ -1194,6 +1197,7 @@ apply_maximum (WblSchema *self,
                GError **error)
 {
 	gchar *maximum_str = NULL;  /* owned */
+	gchar *value_str = NULL;  /* owned */
 	gboolean exclusive_maximum = FALSE;  /* json-schema-validation§5.1.2.3 */
 	JsonNode *node;  /* unowned */
 	gint comparison;
@@ -1210,6 +1214,7 @@ apply_maximum (WblSchema *self,
 		exclusive_maximum = json_node_get_boolean (node);
 	}
 
+	value_str = wbl_json_number_node_to_string (instance_node);
 	maximum_str = wbl_json_number_node_to_string (schema_node);
 
 	/* Actually perform the validation. */
@@ -1219,19 +1224,20 @@ apply_maximum (WblSchema *self,
 	if (!exclusive_maximum && comparison > 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be less than or equal to %s "
+		             _("Value %s must be less than or equal to %s "
 		               "due to the maximum schema "
 		               "keyword. See json-schema-validation§5.1.2."),
-		             maximum_str);
+		             value_str, maximum_str);
 	} else if (exclusive_maximum && comparison >= 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be less than %s "
+		             _("Value %s must be less than %s "
 		               "due to the maximum and exclusiveMaximum schema "
 		               "keywords. See json-schema-validation§5.1.2."),
-		             maximum_str);
+		             value_str, maximum_str);
 	}
 
+	g_free (value_str);
 	g_free (maximum_str);
 }
 
@@ -1339,6 +1345,7 @@ apply_minimum (WblSchema *self,
                JsonNode *instance_node,
                GError **error)
 {
+	gchar *value_str = NULL;  /* owned */
 	gchar *minimum_str = NULL;  /* owned */
 	gboolean exclusive_minimum = FALSE;  /* json-schema-validation§5.1.3.3 */
 	JsonNode *node;  /* unowned */
@@ -1356,6 +1363,7 @@ apply_minimum (WblSchema *self,
 		exclusive_minimum = json_node_get_boolean (node);
 	}
 
+	value_str = wbl_json_number_node_to_string (instance_node);
 	minimum_str = wbl_json_number_node_to_string (schema_node);
 
 	/* Actually perform the validation. */
@@ -1365,19 +1373,20 @@ apply_minimum (WblSchema *self,
 	if (!exclusive_minimum && comparison < 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be greater than or equal to %s "
+		             _("Value %s must be greater than or equal to %s "
 		               "due to the minimum schema "
 		               "keyword. See json-schema-validation§5.1.3."),
-		             minimum_str);
+		             value_str, minimum_str);
 	} else if (exclusive_minimum && comparison <= 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
-		             _("Value must be greater than %s "
+		             _("Value %s must be greater than %s "
 		               "due to the minimum and exclusiveMinimum schema "
 		               "keywords. See json-schema-validation§5.1.3."),
-		             minimum_str);
+		             value_str, minimum_str);
 	}
 
+	g_free (value_str);
 	g_free (minimum_str);
 }
 
