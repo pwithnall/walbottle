@@ -21,6 +21,7 @@ wbl_schema_load_from_stream_async
 wbl_schema_load_from_stream_finish
 wbl_schema_load_from_json
 wbl_schema_get_root
+wbl_schema_get_validation_messages
 wbl_schema_apply
 wbl_schema_generate_instances
 WblSchemaNode
@@ -37,6 +38,18 @@ wbl_generated_instance_copy
 wbl_generated_instance_free
 wbl_generated_instance_get_json
 wbl_generated_instance_is_valid
+WblValidateMessageLevel
+WblValidateMessage
+wbl_validate_message_copy
+wbl_validate_message_free
+wbl_validate_message_build_specification_link
+wbl_validate_message_get_path
+wbl_validate_message_get_level
+wbl_validate_message_build_json
+wbl_validate_message_get_message
+wbl_validate_message_get_sub_messages
+WBL_SCHEMA_CORE
+WBL_SCHEMA_VALIDATION
 <SUBSECTION Standard>
 WBL_SCHEMA
 WBL_IS_SCHEMA
@@ -49,6 +62,7 @@ wbl_schema_error_quark
 WBL_SCHEMA_ERROR
 wbl_schema_node_get_type
 wbl_generated_instance_get_type
+wbl_validate_message_get_type
 <SUBSECTION Private>
 WblSchemaPrivate
 </SECTION>

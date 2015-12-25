@@ -309,6 +309,367 @@ wbl_schema_node_get_default (WblSchemaNode *self)
 	return json_object_get_member (self->node, "default");
 }
 
+/* Internal definition of a #WblValidateMessage. */
+struct _WblValidateMessage {
+	WblValidateMessageLevel level;
+	gchar *message;  /* owned */
+	gchar *node_path;  /* owned; nullable */
+	JsonNode *node;  /* owned; nullable */
+	gchar *specification;  /* owned; nullable */
+	gchar *specification_section;  /* owned; NULL iff @specification is */
+	GPtrArray/*<owned WblValidateMessage>*/ *sub_messages;  /* owned; nullable */
+};
+
+G_DEFINE_BOXED_TYPE (WblValidateMessage, wbl_validate_message,
+                     wbl_validate_message_copy, wbl_validate_message_free);
+
+static void
+_wbl_validate_message_output (GPtrArray/*<owned WblValidateMessage>*/ *messages,
+                              WblValidateMessageLevel  level,
+                              JsonNode                *node,
+                              const gchar             *specification,
+                              const gchar             *specification_section,
+                              GPtrArray/*<owned WblValidateMessage>*/ *sub_messages,  /* nullable; transfer full */
+                              const gchar             *message_format,
+                              ...) G_GNUC_PRINTF (7, 8);
+
+/* Find the name of the member which points to @child within @object. It is an
+ * error if @child is not in @object. */
+static const gchar *
+object_find_name_of_child (JsonObject *object,
+                           JsonNode   *child)
+{
+	JsonObjectIter iter;
+	const gchar *member_name;
+	JsonNode *node;
+
+	json_object_iter_init (&iter, object);
+
+	while (json_object_iter_next (&iter, &member_name, &node)) {
+		if (child == node)
+			return member_name;
+	}
+
+	g_assert_not_reached ();
+}
+
+/* Find the index which points to @child within @array. It is an error if @child
+ * is not in @array. */
+static guint
+array_find_index_of_child (JsonArray *array,
+                           JsonNode  *child)
+{
+	guint i;
+
+	for (i = 0; i < json_array_get_length (array); i++) {
+		if (child == json_array_get_element (array, i))
+			return i;
+	}
+
+	g_assert_not_reached ();
+}
+
+/*
+ * build_node_path:
+ * @self: a #WblValidateMessage
+ *
+ * Build a JSONPath output path expression for the JSON node relevant to the
+ * validate message. If the node cannot be identified, a generic string
+ * (‘(unknown node)’) is returned.
+ *
+ * See: http://goessner.net/articles/JsonPath/
+ *
+ * Returns: (transfer full): JSONPath for the JSON node
+ * Since: UNRELEASED
+ */
+static gchar *
+build_node_path (JsonNode *node)
+{
+	GString *out = NULL;
+	JsonNode *parent_node;
+
+	if (node == NULL)
+		return g_strdup (_("(unknown node)"));
+
+	/* Build a JSONPath output path for the node location.
+	 * See: http://goessner.net/articles/JsonPath/ */
+	out = g_string_new ("");
+
+	for (parent_node = json_node_get_parent (node);
+	     parent_node != NULL;
+	     node = parent_node, parent_node = json_node_get_parent (parent_node)) {
+		switch (JSON_NODE_TYPE (parent_node)) {
+		case JSON_NODE_OBJECT: {
+			JsonObject *object;
+			const gchar *member_name;
+
+			object = json_node_get_object (parent_node);
+			member_name = object_find_name_of_child (object, node);
+			g_string_prepend (out, "']");
+			g_string_prepend (out, member_name);
+			g_string_prepend (out, "['");
+
+			break;
+		}
+		case JSON_NODE_ARRAY: {
+			JsonArray *array;
+			guint array_index;
+			gchar *s = NULL;
+
+			array = json_node_get_array (parent_node);
+			array_index = array_find_index_of_child (array, node);
+			s = g_strdup_printf ("[%u]", array_index);
+			g_string_prepend (out, s);
+			g_free (s);
+
+			break;
+		}
+		case JSON_NODE_VALUE:
+		case JSON_NODE_NULL:
+			/* It should not be possible for a JsonNode’s parent to
+			 * be a value or null. */
+		default:
+			g_assert_not_reached ();
+		}
+	}
+
+	/* Add the root node. */
+	g_string_prepend_c (out, '$');
+
+	return g_string_free (out, FALSE);
+}
+
+/* Build a new #WblValidateMessage for a message with no children, and add it
+ * to @messages. */
+static void
+_wbl_validate_message_output (GPtrArray/*<owned WblValidateMessage>*/ *messages,
+                              WblValidateMessageLevel  level,
+                              JsonNode                *node,
+                              const gchar             *specification,
+                              const gchar             *specification_section,
+                              GPtrArray/*<owned WblValidateMessage>*/ *sub_messages,  /* nullable; transfer full */
+                              const gchar             *message_format,
+                              ...)
+{
+	WblValidateMessage *out = NULL;  /* owned */
+	va_list args;
+
+	out = g_slice_new0 (WblValidateMessage);
+
+	out->level = level;
+
+	va_start (args, message_format);
+	out->message = g_strdup_vprintf (message_format, args);
+	va_end (args);
+
+	/* The node path is stored separately from the node because
+	 * json_node_copy() drops the parent node pointer. */
+	out->node_path = build_node_path (node);
+	out->node = (node != NULL) ? json_node_copy (node) : NULL;
+
+	out->specification = g_strdup (specification);
+	out->specification_section = g_strdup (specification_section);
+
+	if (sub_messages != NULL)
+		out->sub_messages = sub_messages;
+
+	g_ptr_array_add (messages, out);  /* transfer */
+}
+
+/**
+ * wbl_validate_message_copy:
+ * @self: (transfer none): a #WblValidateMessage
+ *
+ * Copy a #WblValidateMessage into a newly allocated region of memory. This is
+ * a deep copy.
+ *
+ * Returns: (transfer full): newly allocated #WblValidateMessage
+ *
+ * Since: UNRELEASED
+ */
+WblValidateMessage *
+wbl_validate_message_copy (WblValidateMessage *self)
+{
+	WblValidateMessage *message = NULL;  /* owned */
+
+	message = g_slice_new0 (WblValidateMessage);
+
+	message->level = self->level;
+	message->message = g_strdup (self->message);
+	message->node_path = g_strdup (self->node_path);
+	message->node = (self->node != NULL) ? json_node_copy (self->node) : NULL;
+	message->specification = g_strdup (self->specification);
+	message->specification_section = g_strdup (self->specification_section);
+
+	if (self->sub_messages != NULL) {
+		guint i;
+
+		message->sub_messages = g_ptr_array_new_full (self->sub_messages->len,
+		                                              (GDestroyNotify) wbl_validate_message_free);
+
+		for (i = 0; i < self->sub_messages->len; i++) {
+			g_ptr_array_add (message->sub_messages,
+			                 wbl_validate_message_copy (self->sub_messages->pdata[i]));
+		}
+	}
+
+	return message;
+}
+
+/**
+ * wbl_validate_message_free:
+ * @self: (transfer full): a #WblValidateMessage
+ *
+ * Free an allocated #WblValidateMessage.
+ *
+ * Since: UNRELEASED
+ */
+void
+wbl_validate_message_free (WblValidateMessage *self)
+{
+	g_clear_pointer (&self->sub_messages, g_ptr_array_unref);
+	g_free (self->specification_section);
+	g_free (self->specification);
+	g_free (self->node_path);
+	g_clear_pointer (&self->node, (GDestroyNotify) json_node_free);
+	g_free (self->message);
+
+	g_slice_free (WblValidateMessage, self);
+}
+
+/**
+ * wbl_validate_message_build_specification_link:
+ * @self: a #WblValidateMessage
+ *
+ * Build a URI linking to the JSON Schema specification section relevant to the
+ * validate message. If there is no relevant section, %NULL is returned.
+ *
+ * Returns: (transfer full) (nullable): URI for the specification section,
+ *    or %NULL
+ * Since: UNRELEASED
+ */
+gchar *
+wbl_validate_message_build_specification_link (WblValidateMessage *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+
+	if (self->specification == NULL || self->specification_section == NULL)
+		return NULL;
+
+	return g_strdup_printf ("http://json-schema.org/latest/"
+	                        "%s.html#rfc.section.%s",
+	                        self->specification,
+	                        self->specification_section);
+}
+
+/**
+ * wbl_validate_message_get_level:
+ * @self: a #WblValidateMessage
+ *
+ * Get the level of the #WblValidateMessage.
+ *
+ * Returns: the level of the message
+ * Since: UNRELEASED
+ */
+WblValidateMessageLevel
+wbl_validate_message_get_level (WblValidateMessage *self)
+{
+	g_return_val_if_fail (self != NULL, WBL_VALIDATE_MESSAGE_ERROR);
+
+	return self->level;
+}
+
+/**
+ * wbl_validate_message_get_path:
+ * @self: a #WblValidateMessage
+ *
+ * Get a JSONPath output path expression for the JSON node relevant to the
+ * validate message. If the node cannot be identified, a generic string
+ * (‘(unknown node)’) is returned.
+ *
+ * See: http://goessner.net/articles/JsonPath/
+ *
+ * Returns: the JSONPath of the relevant JSON node
+ * Since: UNRELEASED
+ */
+const gchar *
+wbl_validate_message_get_path (WblValidateMessage *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+
+	return self->node_path;
+}
+
+/**
+ * wbl_validate_message_build_json:
+ * @self: a #WblValidateMessage
+ *
+ * Build a string representation of the JSON node relevant to the validate
+ * message.
+ *
+ * Returns: (transfer full) (nullable): a JSON string, or %NULL if there is no
+ *    relevant JSON node
+ * Since: UNRELEASED
+ */
+gchar *
+wbl_validate_message_build_json (WblValidateMessage *self)
+{
+	JsonGenerator *generator = NULL;
+	gchar *output = NULL;
+
+	g_return_val_if_fail (self != NULL, NULL);
+
+	if (self->node == NULL)
+		return NULL;
+
+	generator = json_generator_new ();
+	json_generator_set_pretty (generator, TRUE);
+	json_generator_set_root (generator, self->node);
+	output = json_generator_to_data (generator, NULL);
+	g_object_unref (generator);
+
+	return output;
+}
+
+/**
+ * wbl_validate_message_get_message:
+ * @self: a #WblValidateMessage
+ *
+ * Get the formatted message of the #WblValidateMessage.
+ *
+ * Returns: the formatted message
+ * Since: UNRELEASED
+ */
+const gchar *
+wbl_validate_message_get_message (WblValidateMessage *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+
+	return self->message;
+}
+
+/**
+ * wbl_validate_message_get_sub_messages:
+ * @self: a #WblValidateMessage
+ *
+ * Get the sub-messages of the message, if any exist. If there are no
+ * sub-messages, %NULL is returned.
+ *
+ * Returns: (transfer none) (element-type WblValidateMessage): sub-messages for
+ *    the message, or %NULL
+ * Since: UNRELEASED
+ */
+GPtrArray *
+wbl_validate_message_get_sub_messages (WblValidateMessage *self)
+{
+	g_return_val_if_fail (self != NULL, NULL);
+
+	if (self->sub_messages != NULL && self->sub_messages->len == 0)
+		return NULL;
+
+	return self->sub_messages;
+}
+
 /* Internal definition of a #WblGeneratedInstance. */
 struct _WblGeneratedInstance {
 	gchar *json;  /* owned */
@@ -429,12 +790,13 @@ wbl_generated_instance_is_valid (WblGeneratedInstance *self)
 }
 
 /* Helper functions to validate, apply and generate subschemas. */
-static void
+static GPtrArray/*<owned WblValidateMessage>*/ *
 subschema_validate (WblSchema *self,
                     JsonNode *subschema_node,
                     GError **error)
 {
 	WblSchemaClass *klass;
+	GPtrArray/*<owned WblValidateMessage>*/ *messages = NULL;
 
 	klass = WBL_SCHEMA_GET_CLASS (self);
 
@@ -451,11 +813,13 @@ subschema_validate (WblSchema *self,
 		 *
 		 * For example, json-schema-validation§5.3.1.4. */
 		if (json_object_get_size (node.node) > 0) {
-			klass->validate_schema (self, &node, error);
+			messages = klass->validate_schema (self, &node, error);
 		}
 
 		json_object_unref (node.node);
 	}
+
+	return messages;
 }
 
 static void
@@ -594,7 +958,7 @@ subschema_generate_instances_split (WblSchema                       *self,
 static void
 wbl_schema_dispose (GObject *object);
 
-static void
+static GPtrArray/*<owned WblValidateMessage> */ *
 real_validate_schema (WblSchema *self,
                       WblSchemaNode *schema,
                       GError **error);
@@ -610,6 +974,7 @@ real_generate_instance_nodes (WblSchema      *self,
 struct _WblSchemaPrivate {
 	JsonParser *parser;  /* owned */
 	WblSchemaNode *schema;  /* owned; NULL when not loading */
+	GPtrArray/*<owned WblValidateMessage>*/ *messages;  /* owned; NULL on no validate messages */
 	gboolean debug;
 
 	/* Cached data used during generation. */
@@ -675,6 +1040,7 @@ wbl_schema_dispose (GObject *object)
 		priv->schema = NULL;
 	}
 
+	g_clear_pointer (&priv->messages, g_ptr_array_unref);
 	g_clear_pointer (&priv->schema_instances_cache,
                          (GDestroyNotify) g_hash_table_unref);
 
@@ -761,60 +1127,100 @@ validate_non_empty_unique_string_array (JsonNode *schema_node)
 }
 
 /* Validate a node is a non-empty array of valid JSON schemas.
- * If any of the schemas is invalid, return the first validation error as
- * @schema_error.
+ * If any of the schemas is invalid, return all of the validation errors in
+ * @messages.
  *
  * Complexity: O(N * subschema_validate) in the length of the array */
 static gboolean
 validate_schema_array (WblSchema *self,
                        JsonNode *schema_node,
-                       GError **schema_error)
+                       const gchar *schema_property,
+                       const gchar *specification_section,
+                       GPtrArray/*owned WblValidateMessage>*/ *messages)
 {
 	JsonArray *schema_array;  /* unowned */
 	guint i;
+	gboolean valid;
 
 	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              specification_section,
+		                              NULL,
+		                              _("%s must be a non-empty array "
+		                                "of valid JSON Schemas."),
+		                              schema_property);
 		return FALSE;
 	}
 
 	schema_array = json_node_get_array (schema_node);
 
 	if (json_array_get_length (schema_array) == 0) {
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              specification_section,
+		                              NULL,
+		                              _("%s must be a non-empty array "
+		                                "of valid JSON Schemas."),
+		                              schema_property);
 		return FALSE;
 	}
 
+	valid = TRUE;
+
 	for (i = 0; i < json_array_get_length (schema_array); i++) {
 		JsonNode *child_node;  /* unowned */
+		GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 		GError *child_error = NULL;
 
 		child_node = json_array_get_element (schema_array, i);
 
 		if (!JSON_NODE_HOLDS_OBJECT (child_node)) {
-			return FALSE;
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              specification_section,
+			                              NULL,
+			                              _("%s must be a "
+			                                "non-empty array of "
+			                                "valid JSON Schemas."),
+			                              schema_property);
+			valid = FALSE;
+			continue;
 		}
 
 		/* Validate the child schema. */
-		subschema_validate (self, child_node, &child_error);
+		sub_messages = subschema_validate (self, child_node,
+		                                   &child_error);
 
 		if (child_error != NULL) {
 			/* Invalid. */
-			g_set_error (schema_error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             /* Translators: The parameter is another
-			              * error message. */
-			             _("allOf must be a non-empty array of "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.5.3: "
-			               "%s"), child_error->message);
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              specification_section,
+			                              sub_messages,
+			                              _("%s must be a "
+			                                "non-empty array of "
+			                                "valid JSON Schemas."),
+			                              schema_property);
 			g_error_free (child_error);
 
-			return FALSE;
+			valid = FALSE;
+			continue;
 		}
+
+		g_clear_pointer (&sub_messages, g_ptr_array_unref);
 	}
 
-	/* Valid. */
-	return TRUE;
+	/* Valid? */
+	return valid;
 }
 
 /* Apply an array of schemas to an instance and count how many succeed
@@ -1020,21 +1426,29 @@ object_has_properties (JsonObject *obj,
 /* multipleOf. json-schema-validation§5.1.1.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_multiple_of (WblSchema *self,
                       JsonObject *root,
                       JsonNode *schema_node,
-                      GError **error)
+                      GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if ((!validate_value_type (schema_node, G_TYPE_INT64) ||
 	     json_node_get_int (schema_node) <= 0) &&
 	    (!validate_value_type (schema_node, G_TYPE_DOUBLE) ||
 	     json_node_get_double (schema_node) <= 0.0)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("multipleOf must be a positive number. "
-		               "See json-schema-validation§5.1.1."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.1.1",
+		                              NULL,
+		                              _("multipleOf must be a "
+		                                "positive number."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -1175,43 +1589,63 @@ generate_multiple_of (WblSchema *self,
 /* maximum and exclusiveMaximum. json-schema-validation§5.1.2.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_maximum (WblSchema *self,
                   JsonObject *root,
                   JsonNode *schema_node,
-                  GError **error)
+                  GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) &&
 	    !validate_value_type (schema_node, G_TYPE_DOUBLE)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("maximum must be a number. "
-		               "See json-schema-validation§5.1.2."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.1.2",
+		                              NULL,
+		                              _("maximum must be a number."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
-static void
+static gboolean
 validate_exclusive_maximum (WblSchema *self,
                             JsonObject *root,
                             JsonNode *schema_node,
-                            GError **error)
+                            GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("exclusiveMaximum must be a boolean. "
-		               "See json-schema-validation§5.1.2."));
-		return;
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.1.2",
+		                              NULL,
+		                              _("exclusiveMaximum must be a "
+		                                "boolean."));
+
+		return FALSE;
 	}
 
 	if (!json_object_has_member (root, "maximum")) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("maximum must be present if exclusiveMaximum is "
-		               "present. See json-schema-validation§5.1.2."));
-		return;
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.1.2",
+		                              NULL,
+		                              _("maximum must be present if "
+		                                "exclusiveMaximum is "
+		                                "present."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -1324,43 +1758,63 @@ generate_maximum (WblSchema *self,
 /* minimum and exclusiveMinimum. json-schema-validation§5.1.3.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_minimum (WblSchema *self,
                   JsonObject *root,
                   JsonNode *schema_node,
-                  GError **error)
+                  GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) &&
 	    !validate_value_type (schema_node, G_TYPE_DOUBLE)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("minimum must be a number. "
-		               "See json-schema-validation§5.1.3."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.1.3",
+		                              NULL,
+		                              _("minimum must be a number."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
-static void
+static gboolean
 validate_exclusive_minimum (WblSchema *self,
                             JsonObject *root,
                             JsonNode *schema_node,
-                            GError **error)
+                            GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("exclusiveMinimum must be a boolean. "
-		               "See json-schema-validation§5.1.3."));
-		return;
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.1.3",
+		                              NULL,
+		                              _("exclusiveMinimum must be a "
+		                                "boolean."));
+
+		return FALSE;
 	}
 
 	if (!json_object_has_member (root, "minimum")) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("minimum must be present if exclusiveMinimum is "
-		               "present. See json-schema-validation§5.1.3."));
-		return;
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.1.3",
+		                              NULL,
+		                              _("minimum must be present if "
+		                                "exclusiveMinimum is "
+		                                "present."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -1474,19 +1928,27 @@ generate_minimum (WblSchema *self,
 /* maxLength. json-schema-validation§5.2.1.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_max_length (WblSchema *self,
                      JsonObject *root,
                      JsonNode *schema_node,
-                     GError **error)
+                     GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("maxLength must be a non-negative integer. "
-		               "See json-schema-validation§5.2.1."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.2.1",
+		                              NULL,
+		                              _("maxLength must be a "
+		                                "non-negative integer."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -1542,19 +2004,27 @@ generate_max_length (WblSchema *self,
 /* minLength. json-schema-validation§5.2.2.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_min_length (WblSchema *self,
                      JsonObject *root,
                      JsonNode *schema_node,
-                     GError **error)
+                     GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("minLength must be a non-negative integer. "
-		               "See json-schema-validation§5.2.2."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.2.2",
+		                              NULL,
+		                              _("minLength must be a "
+		                                "non-negative integer."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -1610,19 +2080,27 @@ generate_min_length (WblSchema *self,
 /* pattern. json-schema-validation§5.2.3.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_pattern (WblSchema *self,
                   JsonObject *root,
                   JsonNode *schema_node,
-                  GError **error)
+                  GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_STRING) ||
 	    !validate_regex (json_node_get_string (schema_node))) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("pattern must be a valid regular expression. "
-		               "See json-schema-validation§5.2.3."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.2.3",
+		                              NULL,
+		                              _("pattern must be a valid "
+		                                "regular expression."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -2566,46 +3044,58 @@ generate_all_items (WblSchema                       *self,
 /* additionalItems and items. json-schema-validation§5.3.1.
  *
  * Complexity: O(subschema_validate) */
-static void
+static gboolean
 validate_additional_items (WblSchema *self,
                            JsonObject *root,
                            JsonNode *schema_node,
-                           GError **error)
+                           GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (JSON_NODE_HOLDS_VALUE (schema_node) &&
 	    json_node_get_value_type (schema_node) == G_TYPE_BOOLEAN) {
 		/* Valid. */
-		return;
+		return TRUE;
 	}
 
 	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 		GError *child_error = NULL;
 
 		/* Validate the schema. */
-		subschema_validate (self, schema_node, &child_error);
+		sub_messages = subschema_validate (self, schema_node,
+		                                   &child_error);
 
 		if (child_error == NULL) {
 			/* Valid. */
-			return;
+			g_clear_pointer (&sub_messages, g_ptr_array_unref);
+			return TRUE;
 		}
 
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             /* Translators: The parameter is another error
-		              * message. */
-		             _("additionalItems must be a boolean or a valid "
-		               "JSON Schema. See json-schema-validation§5.3.1: "
-		               "%s"), child_error->message);
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.3.1",
+		                              sub_messages,
+		                              _("additionalItems must be a "
+		                                "boolean or a valid JSON "
+		                                "Schema."));
+
 		g_error_free (child_error);
 
-		return;
+		return FALSE;
 	}
 
 	/* Invalid type. */
-	g_set_error (error,
-	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-	             _("additionalItems must be a boolean or a valid JSON "
-	               "Schema. See json-schema-validation§5.3.1."));
+	_wbl_validate_message_output (messages,
+	                              WBL_VALIDATE_MESSAGE_ERROR,
+	                              schema_node,
+	                              WBL_SCHEMA_VALIDATION,
+	                              "5.3.1",
+	                              NULL,
+	                              _("additionalItems must be a boolean or "
+	                                "a valid JSON Schema."));
+
+	return FALSE;
 }
 
 /* Complexity: O(generate_all_items) */
@@ -2666,43 +3156,47 @@ generate_all_items_wrapper (WblSchema                       *self,
 
 /* Complexity: O(N * subschema_validate) in the length of the array;
  *    N=1 for objects */
-static void
+static gboolean
 validate_items (WblSchema *self,
                 JsonObject *root,
                 JsonNode *schema_node,
-                GError **error)
+                GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (JSON_NODE_HOLDS_OBJECT (schema_node)) {
+		GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 		GError *child_error = NULL;
 
 		/* Validate the schema. */
-		subschema_validate (self, schema_node, &child_error);
+		sub_messages = subschema_validate (self, schema_node, &child_error);
 
 		if (child_error == NULL) {
 			/* Valid. */
-			return;
+			return TRUE;
 		}
 
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             /* Translators: The parameter is another error
-		              * message. */
-		             _("items must be a valid JSON Schema or an array "
-		               "of valid JSON Schemas. See "
-		               "json-schema-validation§5.3.1: %s"),
-		             child_error->message);
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.3.1",
+		                              sub_messages,
+		                              _("items must be a valid JSON "
+		                                "Schema or an array of valid "
+		                                "JSON Schemas."));
 		g_error_free (child_error);
 
-		return;
+		return FALSE;
 	}
 
 	if (JSON_NODE_HOLDS_ARRAY (schema_node)) {
 		JsonArray *array;
 		guint i;
+		gboolean valid = TRUE;
 
 		array = json_node_get_array (schema_node);
 
 		for (i = 0; i < json_array_get_length (array); i++) {
+			GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 			GError *child_error = NULL;
 			JsonNode *array_node;
 
@@ -2710,48 +3204,65 @@ validate_items (WblSchema *self,
 			array_node = json_array_get_element (array, i);
 
 			if (!JSON_NODE_HOLDS_OBJECT (array_node)) {
-				g_set_error (error,
-				             WBL_SCHEMA_ERROR,
-				             WBL_SCHEMA_ERROR_MALFORMED,
-				             _("items must be a valid JSON "
-				               "Schema or an array of valid "
-				               "JSON Schemas. See "
-				               "json-schema-validation§5.3.1."));
+				_wbl_validate_message_output (messages,
+				                              WBL_VALIDATE_MESSAGE_ERROR,
+				                              schema_node,
+				                              WBL_SCHEMA_VALIDATION,
+				                              "5.3.1",
+				                              NULL,
+				                              _("items must be "
+				                                "a valid JSON "
+				                                "Schema or an "
+				                                "array of "
+				                                "valid JSON "
+				                                "Schemas."));
 
-				return;
-			}
-
-			/* Validate the schema. */
-			subschema_validate (self, array_node, &child_error);
-
-			if (child_error == NULL) {
-				/* Valid. */
+				valid = FALSE;
 				continue;
 			}
 
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             /* Translators: The parameter is another
-			              * error message. */
-			             _("items must be a valid JSON Schema or "
-			               "an array of valid JSON Schemas. See "
-			               "json-schema-validation§5.3.1: %s"),
-			             child_error->message);
+			/* Validate the schema. */
+			sub_messages = subschema_validate (self, array_node,
+			                                   &child_error);
+
+			if (child_error == NULL) {
+				/* Valid. */
+				g_clear_pointer (&sub_messages,
+				                 g_ptr_array_unref);
+				continue;
+			}
+
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              "5.3.1",
+			                              sub_messages,
+			                              _("items must be a valid "
+			                                "JSON Schema or an "
+			                                "array of valid JSON "
+			                                "Schemas."));
 			g_error_free (child_error);
 
-			return;
+			valid = FALSE;
+			continue;
 		}
 
-		/* Valid. */
-		return;
+		/* Valid? */
+		return valid;
 	}
 
 	/* Invalid type. */
-	g_set_error (error,
-	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-	             _("items must be a valid JSON Schema or an array of valid "
-	               "JSON Schemas. See json-schema-validation§5.3.1."));
+	_wbl_validate_message_output (messages,
+	                              WBL_VALIDATE_MESSAGE_ERROR,
+	                              schema_node,
+	                              WBL_SCHEMA_VALIDATION,
+	                              "5.3.1",
+	                              NULL,
+	                              _("items must be a valid JSON Schema or "
+	                                "an array of valid JSON Schemas."));
+
+	return FALSE;
 }
 
 /* json-schema-validation§5.3.1.2.
@@ -2933,19 +3444,27 @@ apply_items (WblSchema *self,
 /* maxItems. json-schema-validation§5.3.2.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_max_items (WblSchema *self,
                     JsonObject *root,
                     JsonNode *schema_node,
-                    GError **error)
+                    GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("maxItems must be a non-negative integer. "
-		               "See json-schema-validation§5.3.2."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.3.2",
+		                              NULL,
+		                              _("maxItems must be a "
+		                                "non-negative integer."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -2980,19 +3499,27 @@ apply_max_items (WblSchema *self,
 /* minItems. json-schema-validation§5.3.3.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_min_items (WblSchema *self,
                     JsonObject *root,
                     JsonNode *schema_node,
-                    GError **error)
+                    GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("minItems must be a non-negative integer. "
-		               "See json-schema-validation§5.3.3."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.3.3",
+		                              NULL,
+		                              _("minItems must be a "
+		                                "non-negative integer."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -3027,18 +3554,26 @@ apply_min_items (WblSchema *self,
 /* uniqueItems. json-schema-validation§5.3.3.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_unique_items (WblSchema *self,
                        JsonObject *root,
                        JsonNode *schema_node,
-                       GError **error)
+                       GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("uniqueItems must be a boolean. "
-		               "See json-schema-validation§5.3.3."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.3.3",
+		                              NULL,
+		                              _("uniqueItems must be a "
+		                                "boolean."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(N) in the length of @instance_array */
@@ -3094,19 +3629,27 @@ apply_unique_items (WblSchema *self,
 /* maxProperties. json-schema-validation§5.4.1.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_max_properties (WblSchema *self,
                          JsonObject *root,
                          JsonNode *schema_node,
-                         GError **error)
+                         GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("maxProperties must be a non-negative integer. "
-		               "See json-schema-validation§5.4.1."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.1",
+		                              NULL,
+		                              _("maxProperties must be a "
+		                                "non-negative integer."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -3141,19 +3684,27 @@ apply_max_properties (WblSchema *self,
 /* minProperties. json-schema-validation§5.4.2.
  *
  * Complexity: O(1) */
-static void
+static gboolean
 validate_min_properties (WblSchema *self,
                          JsonObject *root,
                          JsonNode *schema_node,
-                         GError **error)
+                         GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_INT64) ||
 	    json_node_get_int (schema_node) < 0) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("minProperties must be a non-negative integer. "
-		               "See json-schema-validation§5.4.2."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.2",
+		                              NULL,
+		                              _("minProperties must be a "
+		                                "non-negative integer."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(1) */
@@ -3188,18 +3739,26 @@ apply_min_properties (WblSchema *self,
 /* required. json-schema-validation§5.4.3.
  *
  * Complexity: O(validate_non_empty_unique_string_array) */
-static void
+static gboolean
 validate_required (WblSchema *self,
                    JsonObject *root,
                    JsonNode *schema_node,
-                   GError **error)
+                   GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_non_empty_unique_string_array (schema_node)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("required must be a non-empty array of unique "
-		               "strings. See json-schema-validation§5.4.3."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.3",
+		                              NULL,
+		                              _("required must be a non-empty "
+		                                "array of unique strings."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* Complexity: O(S) in the length S of @schema_node */
@@ -3249,134 +3808,168 @@ apply_required (WblSchema *self,
  * json-schema-validation§5.4.4.
  *
  * Complexity: O(subschema_validate) */
-static void
+static gboolean
 validate_additional_properties (WblSchema *self,
                                 JsonObject *root,
                                 JsonNode *schema_node,
-                                GError **error)
+                                GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
+	GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 	GError *child_error = NULL;
 
 	if (validate_value_type (schema_node, G_TYPE_BOOLEAN)) {
 		/* Valid. */
-		return;
+		return TRUE;
 	}
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("additionalProperties must be a boolean or a "
-		               "valid JSON Schema. "
-		               "See json-schema-validation§5.4.4."));
-		return;
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.4",
+		                              NULL,
+		                              _("additionalProperties must be "
+		                                "a boolean or a valid JSON "
+		                                "Schema."));
+
+		return FALSE;
 	}
 
 	/* Validate the child schema. */
-	subschema_validate (self, schema_node, &child_error);
+	sub_messages = subschema_validate (self, schema_node, &child_error);
 
 	if (child_error != NULL) {
 		/* Invalid. */
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             /* Translators: The parameter is another error
-		              * message. */
-		             _("additionalProperties must be a boolean or a "
-		               "valid JSON Schema. "
-		               "See json-schema-validation§5.4.4: %s"),
-		             child_error->message);
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.4",
+		                              sub_messages,
+		                              _("additionalProperties must be "
+		                                "a boolean or a valid JSON "
+		                                "Schema."));
+
 		g_error_free (child_error);
 
-		return;
+		return FALSE;
 	}
+
+	g_clear_pointer (&sub_messages, g_ptr_array_unref);
+
+	return TRUE;
 }
 
 /* Complexity: O(N * subschema_validate) in the number of properties */
-static void
+static gboolean
 validate_properties (WblSchema *self,
                      JsonObject *root,
                      JsonNode *schema_node,
-                     GError **error)
+                     GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	JsonObject *schema_object;  /* unowned */
 	JsonObjectIter iter;
 	JsonNode *child_node;  /* unowned */
+	gboolean valid = TRUE;
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
 		/* Invalid. */
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("properties must be an object of valid JSON "
-		               "Schemas. See json-schema-validation§5.4.4."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.4",
+		                              NULL,
+		                              _("properties must be an object "
+		                                "of valid JSON Schemas."));
 
-		return;
+		return FALSE;
 	}
 
 	schema_object = json_node_get_object (schema_node);
 	json_object_iter_init (&iter, schema_object);
 
 	while (json_object_iter_next (&iter, NULL, &child_node)) {
+		GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 		GError *child_error = NULL;
 
 		if (!JSON_NODE_HOLDS_OBJECT (child_node)) {
 			/* Invalid. */
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             _("properties must be an object of "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.4.4."));
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              "5.4.4",
+			                              NULL,
+			                              _("properties must be an "
+			                                "object of valid JSON "
+			                                "Schemas."));
 
-			break;
+			valid = FALSE;
+			continue;
 		}
 
 		/* Validate the child schema. */
-		subschema_validate (self, child_node, &child_error);
+		sub_messages = subschema_validate (self, child_node,
+		                                   &child_error);
 
 		if (child_error != NULL) {
 			/* Invalid. */
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             /* Translators: The parameter is another
-			              * error message. */
-			             _("properties must be an object of "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.4.4: "
-			               "%s"), child_error->message);
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              "5.4.4",
+			                              sub_messages,
+			                              _("properties must be an "
+			                                "object of valid JSON "
+			                                "Schemas."));
 			g_error_free (child_error);
 
-			break;
+			valid = FALSE;
+			continue;
 		}
+
+		g_clear_pointer (&sub_messages, g_ptr_array_unref);
 	}
+
+	return valid;
 }
 
 /* Complexity: O(N * subschema_validate) in the number of properties */
-static void
+static gboolean
 validate_pattern_properties (WblSchema *self,
                              JsonObject *root,
                              JsonNode *schema_node,
-                             GError **error)
+                             GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	JsonObject *schema_object;  /* unowned */
 	JsonObjectIter iter;
 	const gchar *member_name;
 	JsonNode *child_node;  /* unowned */
+	gboolean valid = TRUE;
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
 		/* Invalid. */
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("patternProperties must be an object of valid "
-		               "JSON Schemas. See "
-		               "json-schema-validation§5.4.4."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.4",
+		                              NULL,
+		                              _("patternProperties must be an "
+		                                "object of valid JSON "
+		                                "Schemas."));
 
-		return;
+		return FALSE;
 	}
 
 	schema_object = json_node_get_object (schema_node);
 	json_object_iter_init (&iter, schema_object);
 
 	while (json_object_iter_next (&iter, &member_name, &child_node)) {
+		GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 		GError *child_error = NULL;
 
 		/* Validate the member name is a valid regex and the value is
@@ -3384,37 +3977,51 @@ validate_pattern_properties (WblSchema *self,
 		if (!validate_regex (member_name) ||
 		    !JSON_NODE_HOLDS_OBJECT (child_node)) {
 			/* Invalid. */
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             _("patternProperties must be an object of "
-			               "valid regular expressions mapping to "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.4.4."));
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              "5.4.4",
+			                              NULL,
+			                              _("patternProperties "
+			                                "must be an object of "
+			                                "valid regular "
+			                                "expressions mapping "
+			                                "to valid JSON "
+			                                "Schemas."));
 
-			break;
+			valid = FALSE;
+			continue;
 		}
 
 		/* Validate the child schema. */
-		subschema_validate (self, child_node, &child_error);
+		sub_messages = subschema_validate (self, child_node,
+		                                   &child_error);
 
 		if (child_error != NULL) {
 			/* Invalid. */
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             /* Translators: The parameter is another
-			              * error message. */
-			             _("patternProperties must be an object of "
-			               "valid regular expressions mapping to "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.4.4: "
-			               "%s"), child_error->message);
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              "5.4.4",
+			                              sub_messages,
+			                              _("patternProperties "
+			                                "must be an object of "
+			                                "valid regular "
+			                                "expressions mapping "
+			                                "to valid JSON "
+			                                "Schemas."));
 			g_error_free (child_error);
 
-			break;
+			valid = FALSE;
+			continue;
 		}
+
+		g_clear_pointer (&sub_messages, g_ptr_array_unref);
 	}
+
+	return valid;
 }
 
 /* Version of g_list_remove() which does string comparison of @data, rather
@@ -5224,11 +5831,11 @@ generate_all_properties_wrapper (WblSchema                       *self,
  *
  * Complexity: O(N * subschema_validate + N * D) in the number N of
  *    properties, D of dependencies per property */
-static void
+static gboolean
 validate_dependencies (WblSchema *self,
                        JsonObject *root,
                        JsonNode *schema_node,
-                       GError **error)
+                       GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	JsonObject *schema_object;  /* unowned */
 	GList/*<unowned JsonNode>*/ *schema_values = NULL;  /* owned */
@@ -5236,8 +5843,18 @@ validate_dependencies (WblSchema *self,
 	gboolean valid = TRUE;
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
-		valid = FALSE;
-		goto done;
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.4.5",
+		                              NULL,
+		                              _("dependencies must be an "
+		                                "object of valid JSON Schemas "
+		                                "or non-empty arrays of unique "
+		                                "strings."));
+
+		return FALSE;
 	}
 
 	schema_object = json_node_get_object (schema_node);
@@ -5249,38 +5866,79 @@ validate_dependencies (WblSchema *self,
 		child_node = l->data;
 
 		if (JSON_NODE_HOLDS_OBJECT (child_node)) {
+			GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 			GError *child_error = NULL;
 
 			/* Must be a valid JSON Schema. */
-			subschema_validate (self, child_node, &child_error);
+			sub_messages = subschema_validate (self, child_node,
+			                                   &child_error);
 
 			if (child_error != NULL) {
+				_wbl_validate_message_output (messages,
+				                              WBL_VALIDATE_MESSAGE_ERROR,
+				                              schema_node,
+				                              WBL_SCHEMA_VALIDATION,
+				                              "5.4.5",
+				                              sub_messages,
+				                              _("dependencies "
+				                                "must be an "
+				                                "object of "
+				                                "valid JSON "
+				                                "Schemas or "
+				                                "non-empty "
+				                                "arrays of "
+				                                "unique "
+				                                "strings."));
 				g_error_free (child_error);
+
 				valid = FALSE;
-				break;
+				continue;
 			}
+
+			g_clear_pointer (&sub_messages, g_ptr_array_unref);
 		} else if (JSON_NODE_HOLDS_ARRAY (child_node)) {
 			/* Must be a non-empty array of unique strings. */
 			if (!validate_non_empty_unique_string_array (child_node)) {
+				_wbl_validate_message_output (messages,
+				                              WBL_VALIDATE_MESSAGE_ERROR,
+				                              schema_node,
+				                              WBL_SCHEMA_VALIDATION,
+				                              "5.4.5",
+				                              NULL,
+				                              _("dependencies "
+				                                "must be an "
+				                                "object of "
+				                                "valid JSON "
+				                                "Schemas or "
+				                                "non-empty "
+				                                "arrays of "
+				                                "unique "
+				                                "strings."));
+
 				valid = FALSE;
-				break;
+				continue;
 			}
 		} else {
+			_wbl_validate_message_output (messages,
+			                              WBL_VALIDATE_MESSAGE_ERROR,
+			                              schema_node,
+			                              WBL_SCHEMA_VALIDATION,
+			                              "5.4.5",
+			                              NULL,
+			                              _("dependencies must be "
+			                                "an object of valid "
+			                                "JSON Schemas or "
+			                                "non-empty arrays of "
+			                                "unique strings."));
+
 			valid = FALSE;
-			break;
+			continue;
 		}
 	}
 
 	g_list_free (schema_values);
 
-done:
-	if (!valid) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("dependencies must be an object of valid JSON "
-		               "Schemas or non-empty arrays of unique strings. "
-		               "See json-schema-validation§5.4.5."));
-	}
+	return valid;
 }
 
 /* Complexity: O(S * (subschema_apply + D)) in the number S of items in
@@ -5369,11 +6027,11 @@ apply_dependencies (WblSchema *self,
 /* enum. json-schema-validation§5.5.1.
  *
  * Complexity: O(N) in the number of enum elements */
-static void
+static gboolean
 validate_enum (WblSchema *self,
                JsonObject *root,
                JsonNode *schema_node,
-               GError **error)
+               GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	JsonArray *schema_array;  /* unowned */
 	GHashTable/*<unowned JsonNode,
@@ -5414,11 +6072,17 @@ validate_enum (WblSchema *self,
 
 done:
 	if (!valid) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("enum must be a non-empty array of unique "
-		               "elements. See json-schema-validation§5.5.1."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.5.1",
+		                              NULL,
+		                              _("enum must be a non-empty "
+		                                "array of unique elements."));
 	}
+
+	return valid;
 }
 
 /* Complexity: O(N) in the length of @schema_node */
@@ -5479,11 +6143,11 @@ generate_enum (WblSchema *self,
 /* type. json-schema-validation§5.5.2.
  *
  * Complexity: O(N) in the number of array elements; N=1 for non-array nodes */
-static void
+static gboolean
 validate_type (WblSchema *self,
                JsonObject *root,
                JsonNode *schema_node,
-               GError **error)
+               GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	guint seen_types;
 	guint i;
@@ -5492,7 +6156,7 @@ validate_type (WblSchema *self,
 	if (validate_value_type (schema_node, G_TYPE_STRING) &&
 	    wbl_primitive_type_validate (json_node_get_string (schema_node))) {
 		/* Valid. */
-		return;
+		return TRUE;
 	}
 
 	if (!JSON_NODE_HOLDS_ARRAY (schema_node)) {
@@ -5535,14 +6199,20 @@ validate_type (WblSchema *self,
 	}
 
 	/* Valid. */
-	return;
+	return TRUE;
 
 invalid:
-	g_set_error (error,
-	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-	             _("type must be a string or array of unique strings, each "
-	               "a valid primitive type. "
-	               "See json-schema-validation§5.5.2."));
+	_wbl_validate_message_output (messages,
+	                              WBL_VALIDATE_MESSAGE_ERROR,
+	                              schema_node,
+	                              WBL_SCHEMA_VALIDATION,
+	                              "5.5.2",
+	                              NULL,
+	                              _("type must be a string or array of "
+	                                "unique strings, each a valid "
+	                                "primitive type."));
+
+	return FALSE;
 }
 
 /* Convert a #JsonNode for the type keyword into a (potentially empty) array of
@@ -5692,36 +6362,14 @@ generate_type (WblSchema *self,
 /* allOf. json-schema-validation§5.5.3.
  *
  * Complexity: O(validate_schema_array) */
-static void
+static gboolean
 validate_all_of (WblSchema *self,
                  JsonObject *root,
                  JsonNode *schema_node,
-                 GError **error)
+                 GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
-	GError *child_error = NULL;
-
-	if (!validate_schema_array (self, schema_node, &child_error)) {
-		if (child_error != NULL) {
-			/* Invalid. */
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             /* Translators: The parameter is another
-			              * error message. */
-			             _("allOf must be a non-empty array of "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.5.3: "
-			               "%s"), child_error->message);
-			g_error_free (child_error);
-		} else {
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             _("allOf must be a non-empty array of "
-			               "valid JSON Schemas. "
-			               "See json-schema-validation§5.5.3."));
-		}
-	}
+	return validate_schema_array (self, schema_node, "allOf", "5.5.3",
+	                              messages);
 }
 
 /* Complexity: O(apply_schema_array) */
@@ -5763,36 +6411,14 @@ generate_all_of (WblSchema *self,
 /* anyOf. json-schema-validation§5.5.4.
  *
  * Complexity: O(validate_schema_array) */
-static void
+static gboolean
 validate_any_of (WblSchema *self,
                  JsonObject *root,
                  JsonNode *schema_node,
-                 GError **error)
+                 GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
-	GError *child_error = NULL;
-
-	if (!validate_schema_array (self, schema_node, &child_error)) {
-		if (child_error != NULL) {
-			/* Invalid. */
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             /* Translators: The parameter is another
-			              * error message. */
-			             _("anyOf must be a non-empty array of "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.5.4: "
-			               "%s"), child_error->message);
-			g_error_free (child_error);
-		} else {
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             _("anyOf must be a non-empty array of "
-			               "valid JSON Schemas. "
-			               "See json-schema-validation§5.5.4."));
-		}
-	}
+	return validate_schema_array (self, schema_node, "anyOf", "5.5.4",
+	                              messages);
 }
 
 /* Complexity: O(apply_schema_array) */
@@ -5834,36 +6460,14 @@ generate_any_of (WblSchema *self,
 /* oneOf. json-schema-validation§5.5.5.
  *
  * Complexity: O(validate_schema_array) */
-static void
+static gboolean
 validate_one_of (WblSchema *self,
                  JsonObject *root,
                  JsonNode *schema_node,
-                 GError **error)
+                 GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
-	GError *child_error = NULL;
-
-	if (!validate_schema_array (self, schema_node, &child_error)) {
-		if (child_error != NULL) {
-			/* Invalid. */
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             /* Translators: The parameter is another
-			              * error message. */
-			             _("oneOf must be a non-empty array of "
-			               "valid JSON Schemas. See "
-			               "json-schema-validation§5.5.4: "
-			               "%s"), child_error->message);
-			g_error_free (child_error);
-		} else {
-			g_set_error (error,
-			             WBL_SCHEMA_ERROR,
-			             WBL_SCHEMA_ERROR_MALFORMED,
-			             _("oneOf must be a non-empty array of "
-			               "valid JSON Schemas. "
-			               "See json-schema-validation§5.5.4."));
-		}
-	}
+	return validate_schema_array (self, schema_node, "oneOf", "5.5.5",
+	                              messages);
 }
 
 /* Complexity: O(apply_schema_array) */
@@ -5905,39 +6509,51 @@ generate_one_of (WblSchema *self,
 /* not. json-schema-validation§5.5.6.
  *
  * Complexity: O(subschema_validate) */
-static void
+static gboolean
 validate_not (WblSchema *self,
               JsonObject *root,
               JsonNode *schema_node,
-              GError **error)
+              GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
+	GPtrArray/*<owned WblValidateMessage>*/ *sub_messages = NULL;
 	GError *child_error = NULL;
 
 	if (!JSON_NODE_HOLDS_OBJECT (schema_node)) {
 		/* Invalid. */
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("not must be a valid JSON Schema. See "
-		               "json-schema-validation§5.5.6."));
-		return;
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.5.6",
+		                              NULL,
+		                              _("not must be a valid JSON "
+		                                "Schema."));
+
+		return FALSE;
 	}
 
 	/* Validate the child schema. */
-	subschema_validate (self, schema_node, &child_error);
+	sub_messages = subschema_validate (self, schema_node, &child_error);
 
 	if (child_error != NULL) {
 		/* Invalid. */
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             /* Translators: The parameter is another error
-		              * message. */
-		             _("not must be a valid JSON Schema. See "
-		               "json-schema-validation§5.5.6: "
-		               "%s"), child_error->message);
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "5.5.6",
+		                              sub_messages,
+		                              _("not must be a valid JSON "
+		                                "Schema."));
+
 		g_error_free (child_error);
 
-		return;
+		return FALSE;
 	}
+
+	g_clear_pointer (&sub_messages, g_ptr_array_unref);
+
+	return TRUE;
 }
 
 /* Complexity: O(subschema_apply) */
@@ -5990,35 +6606,50 @@ generate_not (WblSchema *self,
 /* title. json-schema-validation§6.1.
  *
  * Complexity: O(validate_value_type) */
-static void
+static gboolean
 validate_title (WblSchema *self,
                 JsonObject *root,
                 JsonNode *schema_node,
-                GError **error)
+                GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_STRING)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("title must be a string. "
-		               "See json-schema-validation§6.1."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "6.1",
+		                              NULL,
+		                              _("title must be a string."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* description. json-schema-validation§6.1.
  *
  * Complexity: O(validate_value_type) */
-static void
+static gboolean
 validate_description (WblSchema *self,
                       JsonObject *root,
                       JsonNode *schema_node,
-                      GError **error)
+                      GPtrArray/*<owned WblValidateMessage>*/ *messages)
 {
 	if (!validate_value_type (schema_node, G_TYPE_STRING)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("description must be a string. "
-		               "See json-schema-validation§6.1."));
+		_wbl_validate_message_output (messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              schema_node,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "6.1",
+		                              NULL,
+		                              _("description must be a "
+		                                "string."));
+
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 /* default. json-schema-validation§6.2.
@@ -6035,11 +6666,11 @@ generate_default (WblSchema *self,
 	generate_take_node (output, json_node_copy (schema_node));
 }
 
-typedef void
+typedef gboolean
 (*KeywordValidateFunc) (WblSchema *self,
                         JsonObject *root,
                         JsonNode *schema_node,
-                        GError **error);
+                        GPtrArray/*<owned WblValidateMessage>*/ *messages);
 typedef void
 (*KeywordApplyFunc) (WblSchema *self,
                      JsonObject *root,
@@ -6204,17 +6835,20 @@ parse_default_value (const gchar *json_string)
 	return output;
 }
 
-static void
+static GPtrArray/*<owned WblValidateMessage>*/ *
 real_validate_schema (WblSchema *self,
                       WblSchemaNode *schema,
                       GError **error)
 {
+	GPtrArray/*<owned WblValidateMessage>*/ *messages = NULL;
+	gboolean success = TRUE;
 	guint i;
+
+	messages = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_validate_message_free);
 
 	for (i = 0; i < G_N_ELEMENTS (json_schema_keywords); i++) {
 		const KeywordData *keyword = &json_schema_keywords[i];
 		JsonNode *schema_node, *default_schema_node = NULL;
-		GError *child_error = NULL;
 
 		schema_node = json_object_get_member (schema->node,
 		                                      keyword->name);
@@ -6226,16 +6860,12 @@ real_validate_schema (WblSchema *self,
 		}
 
 		if (schema_node != NULL && keyword->validate != NULL) {
-			keyword->validate (self, schema->node,
-			                   schema_node, &child_error);
+			success = (success &&
+			           keyword->validate (self, schema->node,
+			                              schema_node, messages));
 		}
 
 		g_clear_pointer (&default_schema_node, json_node_free);
-
-		if (child_error != NULL) {
-			g_propagate_error (error, child_error);
-			return;
-		}
 	}
 
 	for (i = 0; i < G_N_ELEMENTS (json_schema_group_keywords); i++) {
@@ -6247,7 +6877,6 @@ real_validate_schema (WblSchema *self,
 		for (j = 0; j < keyword_group->n_keywords; j++) {
 			const KeywordData *keyword;
 			JsonNode *schema_node, *default_schema_node = NULL;
-			GError *child_error = NULL;
 
 			keyword = &keyword_group->keywords[j];
 			schema_node = json_object_get_member (schema->node,
@@ -6261,18 +6890,24 @@ real_validate_schema (WblSchema *self,
 			}
 
 			if (schema_node != NULL && keyword->validate != NULL) {
-				keyword->validate (self, schema->node,
-					           schema_node, &child_error);
+				success = (success &&
+				           keyword->validate (self,
+				                              schema->node,
+				                              schema_node,
+				                              messages));
 			}
 
 			g_clear_pointer (&default_schema_node, json_node_free);
-
-			if (child_error != NULL) {
-				g_propagate_error (error, child_error);
-				return;
-			}
 		}
 	}
+
+	if (!success) {
+		g_set_error_literal (error, WBL_SCHEMA_ERROR,
+		                     WBL_SCHEMA_ERROR_MALFORMED,
+		                     _("JSON Schema is invalid."));
+	}
+
+	return messages;
 }
 
 static void
@@ -6545,6 +7180,9 @@ start_loading (WblSchema *self)
 		priv->schema = NULL;
 	}
 
+	/* And its messages. */
+	g_clear_pointer (&priv->messages, g_ptr_array_unref);
+
 	/* And clear any left-over generation caches. */
 	g_clear_pointer (&priv->schema_instances_cache,
 	                 (GDestroyNotify) g_hash_table_unref);
@@ -6562,10 +7200,21 @@ finish_loading (WblSchema *self, JsonNode *root, GError **error)
 
 	/* A schema must be a JSON object. json-schema-core§3.2. */
 	if (root == NULL || !JSON_NODE_HOLDS_OBJECT (root)) {
-		g_set_error (error,
-		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
-		             _("Root node of schema is not an object. "
-		               "See json-schema-core§3.2."));
+		priv->messages = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_validate_message_free);
+
+		_wbl_validate_message_output (priv->messages,
+		                              WBL_VALIDATE_MESSAGE_ERROR,
+		                              root,
+		                              WBL_SCHEMA_VALIDATION,
+		                              "3.2",
+		                              NULL,
+		                              _("Root node of schema is not an "
+		                                "object."));
+
+		g_set_error_literal (error, WBL_SCHEMA_ERROR,
+		                     WBL_SCHEMA_ERROR_MALFORMED,
+		                     _("JSON Schema is invalid."));
+
 		return;
 	}
 
@@ -6576,12 +7225,15 @@ finish_loading (WblSchema *self, JsonNode *root, GError **error)
 
 	/* Validate the schema. */
 	if (klass->validate_schema != NULL) {
-		klass->validate_schema (self, priv->schema, &child_error);
+		priv->messages = klass->validate_schema (self, priv->schema,
+		                                         &child_error);
 	}
 
 	if (child_error != NULL) {
 		/* Clear out state. */
-		start_loading (self);
+		g_clear_pointer (&priv->schema, wbl_schema_node_unref);
+		g_clear_pointer (&priv->schema_instances_cache,
+		                 (GDestroyNotify) g_hash_table_unref);
 
 		g_propagate_error (error, child_error);
 	}
@@ -6810,6 +7462,38 @@ wbl_schema_get_root (WblSchema *self)
 	priv = wbl_schema_get_instance_private (self);
 
 	return priv->schema;
+}
+
+/**
+ * wbl_schema_get_validation_messages:
+ * @self: a #WblSchema
+ *
+ * Get an array of messages from the validation process of the schema document.
+ * These may be informational messages as well as errors. If no document has
+ * been parsed using wbl_schema_load_from_stream_async() yet, or if there were
+ * no messages from the validation process, %NULL is returned.
+ *
+ * The returned messages are valid as long as the #WblSchema is alive and has
+ * not started parsing another document.
+ *
+ * Returns: (transfer none) (nullable) (element-type WblValidateMessage): a
+ *    non-empty array of messages, or %NULL
+ *
+ * Since: UNRELEASED
+ */
+GPtrArray *
+wbl_schema_get_validation_messages (WblSchema *self)
+{
+	WblSchemaPrivate *priv;
+
+	g_return_val_if_fail (WBL_IS_SCHEMA (self), NULL);
+
+	priv = wbl_schema_get_instance_private (self);
+
+	if (priv->messages != NULL && priv->messages->len == 0)
+		return NULL;
+
+	return priv->messages;
 }
 
 /**

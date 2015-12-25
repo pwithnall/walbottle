@@ -100,7 +100,7 @@ typedef struct {
  * @validate_schema: Walk over a parsed schema and validate that it is a valid
  * schema. The default implementation checks against JSON Schema, but overriding
  * implementations could check extension keywords. If %NULL, no validation
- * will be performed.
+ * will be performed. Information, warning and error messages are returned.
  * @apply_schema: Apply a parsed schema to a JSON instance, validating the
  *   instance against the schema. The default implementation applies standard
  *   JSON Schema keywords, but overriding implementations could implement extension
@@ -120,9 +120,9 @@ typedef struct {
 	GObjectClass parent;
 
 	/*< public >*/
-	void (*validate_schema) (WblSchema *self,
-	                         WblSchemaNode *root,
-	                         GError **error);
+	GPtrArray/*<owned WblValidateMessage>*/ *(*validate_schema) (WblSchema *self,
+	                                                             WblSchemaNode *root,
+	                                                             GError **error);
 	void (*apply_schema) (WblSchema *self,
 	                      WblSchemaNode *root,
 	                      JsonNode *instance,
@@ -164,11 +164,74 @@ void wbl_schema_load_from_json (WblSchema     *self,
 
 WblSchemaNode *
 wbl_schema_get_root (WblSchema *self);
+GPtrArray *
+wbl_schema_get_validation_messages (WblSchema *self);
 
 void
 wbl_schema_apply (WblSchema *self,
                   JsonNode *instance,
                   GError **error);
+
+/**
+ * WblValidateMessageLevel:
+ * @WBL_VALIDATE_MESSAGE_ERROR: Error message.
+ *
+ * Severity levels of messages from the validation process for a JSON Schema.
+ *
+ * Since: UNRELEASED
+ */
+typedef enum {
+	WBL_VALIDATE_MESSAGE_ERROR = 0,
+} WblValidateMessageLevel;
+
+/**
+ * WBL_SCHEMA_CORE:
+ *
+ * Canonical name for the JSON Schema Core standard.
+ *
+ * Since: UNRELEASED
+ */
+#define WBL_SCHEMA_CORE "json-schema-core"
+
+/**
+ * WBL_SCHEMA_VALIDATION:
+ *
+ * Canonical name for the JSON Schema Validation standard.
+ *
+ * Since: UNRELEASED
+ */
+#define WBL_SCHEMA_VALIDATION "json-schema-validation"
+
+/**
+ * WblValidateMessage:
+ *
+ * An allocated structure which represents a message from the validation process
+ * for a JSON Schema. This may be an error message (for an invalid schema), or
+ * an informational or warning message. Associated metadata, such as the
+ * relevant part of the JSON Schema standard, and the location in the schema
+ * input which caused the message, are included.
+ *
+ * All the fields in the #WblValidateMessage structure are private and should
+ * never be accessed directly.
+ *
+ * Since: UNRELEASED
+ */
+typedef struct _WblValidateMessage WblValidateMessage;
+
+GType
+wbl_validate_message_get_type (void) G_GNUC_CONST;
+
+WblValidateMessage *
+wbl_validate_message_copy (WblValidateMessage *self);
+void
+wbl_validate_message_free (WblValidateMessage *self);
+
+gchar *wbl_validate_message_build_specification_link (WblValidateMessage *self);
+const gchar *wbl_validate_message_get_path (WblValidateMessage *self);
+WblValidateMessageLevel wbl_validate_message_get_level (WblValidateMessage *self);
+const gchar *wbl_validate_message_get_message (WblValidateMessage *self);
+GPtrArray *wbl_validate_message_get_sub_messages (WblValidateMessage *self);
+gchar *wbl_validate_message_build_json (WblValidateMessage *self);
 
 /**
  * WblGenerateInstanceFlags:
