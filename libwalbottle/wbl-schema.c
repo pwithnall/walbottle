@@ -6529,6 +6529,7 @@ finish_loading (WblSchema *self, JsonNode *root, GError **error)
 {
 	WblSchemaClass *klass;
 	WblSchemaPrivate *priv;
+	GError *child_error = NULL;
 
 	klass = WBL_SCHEMA_GET_CLASS (self);
 	priv = wbl_schema_get_instance_private (self);
@@ -6549,7 +6550,14 @@ finish_loading (WblSchema *self, JsonNode *root, GError **error)
 
 	/* Validate the schema. */
 	if (klass->validate_schema != NULL) {
-		klass->validate_schema (self, priv->schema, error);
+		klass->validate_schema (self, priv->schema, &child_error);
+	}
+
+	if (child_error != NULL) {
+		/* Clear out state. */
+		start_loading (self);
+
+		g_propagate_error (error, child_error);
 	}
 }
 
