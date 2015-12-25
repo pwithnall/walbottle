@@ -6483,22 +6483,27 @@ wbl_schema_load_from_file (WblSchema *self,
 {
 	GFile *file = NULL;  /* owned */
 	GFileInputStream *stream = NULL;  /* owned */
+	GError *child_error = NULL;
 
 	g_return_if_fail (WBL_IS_SCHEMA (self));
 	g_return_if_fail (filename != NULL);
 	g_return_if_fail (error == NULL || *error == NULL);
 
 	file = g_file_new_for_path (filename);
-	stream = g_file_read (file, NULL, error);
+	stream = g_file_read (file, NULL, &child_error);
 	g_object_unref (file);
 
-	if (stream == NULL) {
-		return;
+	if (stream != NULL) {
+		wbl_schema_load_from_stream (self, G_INPUT_STREAM (stream),
+		                             NULL, &child_error);
+		g_object_unref (stream);
 	}
 
-	wbl_schema_load_from_stream (self, G_INPUT_STREAM (stream),
-	                             NULL, error);
-	g_object_unref (stream);
+	if (child_error != NULL) {
+		g_propagate_prefixed_error (error, child_error,
+		                            _("Error loading schema from file "
+		                              "‘%s’: "), filename);
+	}
 }
 
 static void
