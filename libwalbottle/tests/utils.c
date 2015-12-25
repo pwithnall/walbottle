@@ -196,3 +196,48 @@ wbl_test_assert_generated_instances_match_file (GPtrArray/*<owned WblGeneratedIn
 	                                           expected_filename);
 	g_strfreev (expected);
 }
+
+static const gchar *
+validate_message_level_to_string (WblValidateMessageLevel level)
+{
+	switch (level) {
+	case WBL_VALIDATE_MESSAGE_ERROR:
+		return "error";
+	default:
+		g_assert_not_reached ();
+	}
+}
+
+/* Dump validation messages. */
+void
+wbl_print_validation_messages (GPtrArray/*<owned WblValidateMessage>*/ *messages)
+{
+	guint i;
+
+	if (messages == NULL)
+		return;
+
+	for (i = 0; i < messages->len; i++) {
+		WblValidateMessage *message = messages->pdata[i];
+		const gchar *level, *node_path;
+		gchar *json = NULL;
+		GPtrArray/*<owned WblValidateMessage>*/ *sub_messages;
+
+		node_path = wbl_validate_message_get_path (message);
+		level = validate_message_level_to_string (wbl_validate_message_get_level (message));
+		g_test_message ("%s: %s: %s", level, node_path,
+		                wbl_validate_message_get_message (message));
+
+		sub_messages = wbl_validate_message_get_sub_messages (message);
+
+		/* There is no point in printing the JSON snippet if there are
+		 * sub-messages which are more specific. */
+		if (sub_messages == NULL) {
+			json = wbl_validate_message_build_json (message);
+			g_test_message ("%s", json);
+			g_free (json);
+		} else {
+			wbl_print_validation_messages (sub_messages);
+		}
+	}
+}

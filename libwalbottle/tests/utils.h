@@ -38,6 +38,7 @@ wbl_test_assert_generated_instances_match (GPtrArray/*<owned WblGeneratedInstanc
 void
 wbl_test_assert_generated_instances_match_file (GPtrArray/*<owned WblGeneratedInstance>*/  *actual,
                                                 const gchar                                *expected_filename);
+void wbl_print_validation_messages (GPtrArray/*<owned WblValidateMessage>*/ *messages);
 
 G_END_DECLS
 
