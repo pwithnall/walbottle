@@ -157,6 +157,11 @@ void wbl_schema_load_from_stream_finish (WblSchema *self,
                                          GAsyncResult *result,
                                          GError **error);
 
+void wbl_schema_load_from_json (WblSchema     *self,
+                                JsonNode      *root,
+                                GCancellable  *cancellable,
+                                GError       **error);
+
 WblSchemaNode *
 wbl_schema_get_root (WblSchema *self);
 

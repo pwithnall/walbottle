@@ -6520,18 +6520,15 @@ start_loading (WblSchema *self)
 }
 
 static void
-finish_loading (WblSchema *self, GError **error)
+finish_loading (WblSchema *self, JsonNode *root, GError **error)
 {
 	WblSchemaClass *klass;
 	WblSchemaPrivate *priv;
-	JsonNode *root;  /* unowned */
 
 	klass = WBL_SCHEMA_GET_CLASS (self);
 	priv = wbl_schema_get_instance_private (self);
 
 	/* A schema must be a JSON object. json-schema-core§3.2. */
-	root = json_parser_get_root (priv->parser);
-
 	if (root == NULL || !JSON_NODE_HOLDS_OBJECT (root)) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_MALFORMED,
@@ -6592,7 +6589,8 @@ wbl_schema_load_from_stream (WblSchema *self,
 		goto done;
 	}
 
-	finish_loading (self, &child_error);
+	finish_loading (self, json_parser_get_root (priv->parser),
+	                &child_error);
 
 done:
 	if (child_error != NULL) {
@@ -6626,7 +6624,8 @@ load_from_stream_cb (GObject *source_object,
 	}
 
 	/* Finish loading and validate. */
-	finish_loading (self, &child_error);
+	finish_loading (self, json_parser_get_root (priv->parser),
+	                &child_error);
 
 done:
 	if (child_error != NULL) {
@@ -6715,6 +6714,36 @@ wbl_schema_load_from_stream_finish (WblSchema *self,
 	task = G_TASK (result);
 
 	g_task_propagate_boolean (task, error);
+}
+
+/**
+ * wbl_schema_load_from_json:
+ * @self: a #WblSchema
+ * @root: root node of the parsed JSON data to load
+ * @cancellable: (nullable): a #GCancellable, or %NULL
+ * @error: return location for a #GError, or %NULL
+ *
+ * Load and parse a JSON schema from a pre-parsed JSON tree. To load from a
+ * non-pre-parsed JSON document, use wbl_schema_load_from_stream_async().
+ *
+ * See wbl_schema_load_from_stream_async() for more details.
+ *
+ * Since: UNRELEASED
+ */
+void
+wbl_schema_load_from_json (WblSchema     *self,
+                           JsonNode      *root,
+                           GCancellable  *cancellable,
+                           GError       **error)
+{
+	g_return_if_fail (WBL_IS_SCHEMA (self));
+	g_return_if_fail (root != NULL);
+	g_return_if_fail (cancellable == NULL ||
+	                  G_IS_CANCELLABLE (cancellable));
+	g_return_if_fail (error == NULL || *error == NULL);
+
+	start_loading (self);
+	finish_loading (self, root, error);
 }
 
 /**
