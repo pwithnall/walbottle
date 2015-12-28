@@ -29,6 +29,9 @@ void wbl_log (const gchar     *log_domain,
               const gchar     *message,
               gpointer         user_data);
 
+void wbl_print_validate_messages (WblSchema *schema,
+                                  gboolean   use_colour);
+
 G_END_DECLS
 
 #endif /* !WBL_UTILITIES_H */

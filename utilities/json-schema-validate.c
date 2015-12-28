@@ -126,6 +126,10 @@ main (int argc, char *argv[])
 		wbl_schema_load_from_file (schema, option_schema_filenames[i],
 		                           &error);
 
+		/* Print error or other messages from validation. */
+		wbl_print_validate_messages (schema,
+		                             TRUE  /* use colour */);
+
 		if (error != NULL) {
 			if (!option_quiet) {
 				gchar *message;
