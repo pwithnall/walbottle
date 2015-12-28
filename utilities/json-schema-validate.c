@@ -143,6 +143,7 @@ main (int argc, char *argv[])
 			g_clear_error (&error);
 
 			if (!option_ignore_errors) {
+				g_object_unref (schema);
 				goto done;
 			} else {
 				g_object_unref (schema);
