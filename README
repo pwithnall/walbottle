@@ -15,6 +15,7 @@ What is JSON Schema?
 
  • http://json-schema.org/latest/json-schema-core.html
  • http://json-schema.org/latest/json-schema-validation.html
+ • http://spacetelescope.github.io/understanding-json-schema/index.html
 
 JSON Schema is a way of specifying the permitted format of JSON documents
 (‘instances’). It is entirely analogous to XML schema formats such as XML Schema
