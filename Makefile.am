@@ -64,6 +64,7 @@ libwalbottle_libwalbottle_@WBL_API_VERSION@_la_CFLAGS = \
 
 libwalbottle_libwalbottle_@WBL_API_VERSION@_la_LIBADD = \
 	$(top_builddir)/libwalbottle/libwalbottle-utils.la \
+	$(LIBM) \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
 	$(CODE_COVERAGE_LDFLAGS) \

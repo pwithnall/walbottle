@@ -127,12 +127,17 @@ test_schema_keywords_multiple_of_integer (void)
 		"0",  /* multiple of anything */
 		"5",  /* normal multiple */
 		"10",  /* normal multiple */
+		"-5",  /* normal multiple */
+		"-10",  /* normal multiple */
 		"10.0",  /* mixed type multiple */
+		"-10.0",  /* mixed type multiple */
 		NULL,
 	};
 	const gchar *invalid_instances[] = {
 		"1",  /* not a multiple */
 		"6",  /* not a multiple */
+		"-1",  /* not a multiple */
+		"-6",  /* not a multiple */
 		NULL,
 	};
 	const gchar *expected_instances[] = {
@@ -172,12 +177,17 @@ test_schema_keywords_multiple_of_double (void)
 		"0.0",  /* multiple of anything */
 		"1.2",  /* normal multiple */
 		"2.4",  /* normal multiple */
+		"-1.2",  /* normal multiple */
+		"-2.4",  /* normal multiple */
 		"12",  /* mixed type multiple */
+		"-12",  /* mixed type multiple */
 		NULL,
 	};
 	const gchar *invalid_instances[] = {
 		"1.3",  /* not a multiple */
 		"6.1",  /* not a multiple */
+		"-1.3",  /* not a multiple */
+		"-6.1",  /* not a multiple */
 		NULL,
 	};
 	const gchar *expected_instances[] = {

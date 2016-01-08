@@ -53,6 +53,9 @@ AC_SUBST([WBL_VERSION_MICRO],wbl_version_micro)
 AC_SUBST([WBL_API_VERSION],wbl_api_version)
 
 # Dependencies
+AC_CHECK_LIBM
+AC_SUBST([LIBM])
+
 AX_PKG_CHECK_MODULES([GLIB],[glib-2.0 >= $GLIB_REQS gio-2.0 gobject-2.0],[])
 AX_PKG_CHECK_MODULES([JSON_GLIB],[json-glib-1.0 >= $JSON_GLIB_REQS],[])
 
