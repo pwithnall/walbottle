@@ -1094,7 +1094,8 @@ apply_multiple_of (WblSchema *self,
 
 		divides = (n * s - i <= DBL_EPSILON);
 
-		g_debug ("%s: 2: %.16f, %.16f, %ld, %.16f, %.16f, %.16f, %u",
+		g_debug ("%s: 2: %.16f, %.16f, %" G_GINT64_FORMAT ", %.16f, "
+		         "%.16f, %.16f, %u",
 		         G_STRFUNC, i, s, n, n * s, i, n * s - i, divides);
 	} else if (instance_type == G_TYPE_DOUBLE &&
 	           schema_type == G_TYPE_INT64) {
@@ -1108,7 +1109,8 @@ apply_multiple_of (WblSchema *self,
 
 		divides = (i - n * s <= ABS (n) * DBL_EPSILON);
 
-		g_debug ("%s: 3: %.16f, %.16f, %ld, %.16f, %.16f, %.16f, %u",
+		g_debug ("%s: 3: %.16f, %.16f, %" G_GINT64_FORMAT ", %.16f, "
+		         "%.16f, %.16f, %u",
 		         G_STRFUNC, i, s, n, i, n * s, i - n * s, divides);
 	} else {
 		r = fmod (json_node_get_double (instance_node),
