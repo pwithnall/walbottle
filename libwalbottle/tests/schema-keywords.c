@@ -19,6 +19,7 @@
 
 #include <glib.h>
 #include <locale.h>
+#include <math.h>
 #include <string.h>
 
 #include "utils.h"
@@ -163,6 +164,8 @@ test_schema_keywords_multiple_of_integer (void)
 static void
 test_schema_keywords_multiple_of_double (void)
 {
+	gchar factor_plus_epsilon[G_ASCII_DTOSTR_BUF_SIZE];
+	gdouble factor = 1.2;
 	const gchar *valid_schema = "{ \"multipleOf\": 1.2 }";
 	const gchar *invalid_schemas[] = {
 		"{ \"multipleOf\": null }",  /* not a number */
@@ -188,6 +191,7 @@ test_schema_keywords_multiple_of_double (void)
 		"6.1",  /* not a multiple */
 		"-1.3",  /* not a multiple */
 		"-6.1",  /* not a multiple */
+		factor_plus_epsilon,  /* next representable float */
 		NULL,
 	};
 	const gchar *expected_instances[] = {
@@ -204,6 +208,11 @@ test_schema_keywords_multiple_of_double (void)
 		"\"\"",
 		NULL,
 	};
+
+	/* Work out the next representable floating point number after the
+	 * factor itself, and check that they do not divide. */
+	g_ascii_dtostr (factor_plus_epsilon, sizeof (factor_plus_epsilon),
+	                nextafter (factor, factor + 1.0));
 
 	assert_schema_keyword (valid_schema, invalid_schemas, valid_instances,
 	                       invalid_instances, expected_instances);

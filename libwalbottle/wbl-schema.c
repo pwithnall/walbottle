@@ -1082,36 +1082,30 @@ apply_multiple_of (WblSchema *self,
 		r = json_node_get_int (instance_node) %
 		    json_node_get_int (schema_node);
 		divides = (r == 0.0);
-	} else if (instance_type == G_TYPE_INT64 &&
-	           schema_type == G_TYPE_DOUBLE) {
+	} else if (instance_type != schema_type) {
 		gint64 n;
 		gdouble i, s;
 
-		i = json_node_get_int (instance_node);
-		s = json_node_get_double (schema_node);
+		if (instance_type == G_TYPE_DOUBLE)
+			i = json_node_get_double (instance_node);
+		else
+			i = json_node_get_int (instance_node);
+
+		if (schema_type == G_TYPE_DOUBLE)
+			s = json_node_get_double (schema_node);
+		else
+			s = json_node_get_int (schema_node);
 
 		n = trunc (i / s);
 
-		divides = (n * s - i <= DBL_EPSILON);
+		/* We get n × ε error from s, and ε error from i. */
+		divides = (fabs (n * s - i) <= (ABS (n) + 1) * DBL_EPSILON);
 
-		g_debug ("%s: 2: %.16f, %.16f, %" G_GINT64_FORMAT ", %.16f, "
-		         "%.16f, %.16f, %u",
-		         G_STRFUNC, i, s, n, n * s, i, n * s - i, divides);
-	} else if (instance_type == G_TYPE_DOUBLE &&
-	           schema_type == G_TYPE_INT64) {
-		gint64 n;
-		gdouble i, s;
-
-		i = json_node_get_double (instance_node);
-		s = json_node_get_int (schema_node);
-
-		n = trunc (i / s);
-
-		divides = (i - n * s <= ABS (n) * DBL_EPSILON);
-
-		g_debug ("%s: 3: %.16f, %.16f, %" G_GINT64_FORMAT ", %.16f, "
-		         "%.16f, %.16f, %u",
-		         G_STRFUNC, i, s, n, i, n * s, i - n * s, divides);
+		g_debug ("%s: %.20f, %.20f, %" G_GINT64_FORMAT ", %.20f, "
+		         "%.20f, %.20f, %.20f, %.20f, %u",
+		         G_STRFUNC, i, s, n, i, n * s, n * s - i,
+		         fabs (n * s - i), (ABS (n) + 1) * DBL_EPSILON,
+		         divides);
 	} else {
 		r = fmod (json_node_get_double (instance_node),
 		          json_node_get_double (schema_node));
