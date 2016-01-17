@@ -3187,6 +3187,8 @@ validate_items (WblSchema *self,
 
 		if (child_error == NULL) {
 			/* Valid. */
+			g_clear_pointer (&sub_messages,
+			                 g_ptr_array_unref);
 			return TRUE;
 		}
 
