@@ -62,6 +62,9 @@ test_ldadd = \
 	$(NULL)
 
 @VALGRIND_CHECK_RULES@
+VALGRIND_SUPPRESSIONS_FILES = walbottle.supp
+EXTRA_DIST += walbottle.supp
+check-local: check-valgrind
 
 # TODO: installed-tests
 EXTRA_DIST += \

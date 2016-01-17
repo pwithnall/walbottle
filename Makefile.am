@@ -105,6 +105,9 @@ check-headers:
 		fi; \
 	done; exit "$$any_missing"
 
+# Valgrind checks
+DISTCHECK_CONFIGURE_FLAGS += --enable-valgrind
+
 # Internal utility helper library
 noinst_LTLIBRARIES = libwalbottle/libwalbottle-utils.la
 
