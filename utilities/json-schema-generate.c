@@ -1,7 +1,7 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
 /*
  * Walbottle
- * Copyright (C) Philip Withnall 2015 <philip@tecnocode.co.uk>
+ * Copyright (C) Philip Withnall 2015, 2016 <philip@tecnocode.co.uk>
  *
  * Walbottle is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -51,6 +51,20 @@ static const gchar *output_formats[] = {
 
 G_STATIC_ASSERT (G_N_ELEMENTS (output_formats) == FORMAT_C + 1);
 
+static gint
+sort_schema_info_cb (gconstpointer a,
+                     gconstpointer b)
+{
+	WblSchemaInfo *info_a = *((WblSchemaInfo **) a);
+	WblSchemaInfo *info_b = *((WblSchemaInfo **) b);
+	gint64 time_a, time_b;
+
+	time_a = wbl_schema_info_get_generation_time (info_a);
+	time_b = wbl_schema_info_get_generation_time (info_b);
+
+	return time_b - time_a;
+}
+
 /* Command line parameters. */
 static gboolean option_quiet = FALSE;
 static gboolean option_valid_only = FALSE;
@@ -59,6 +73,7 @@ static gboolean option_no_invalid_json = FALSE;
 static gchar *option_format = NULL;
 static gchar **option_schema_filenames = NULL;
 static gchar *option_c_variable_name = NULL;
+static gboolean option_show_timings = FALSE;
 
 static const GOptionEntry entries[] = {
 	{ "quiet", 'q', 0, G_OPTION_ARG_NONE, &option_quiet,
@@ -75,6 +90,9 @@ static const GOptionEntry entries[] = {
 	{ "c-variable-name", 0, 0, G_OPTION_ARG_STRING, &option_c_variable_name,
 	  N_("Vector array variable name (only with --format=c; default "
 	     "‘json_instances’"), NULL },
+	{ "show-timings", 0, 0, G_OPTION_ARG_NONE, &option_show_timings,
+	  N_("Print timing information to stderr after outputting generated "
+	     "instances"), NULL },
 	{ G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY,
 	  &option_schema_filenames,
 	  N_("JSON schema files to generate from"),
@@ -95,6 +113,8 @@ main (int argc, char *argv[])
 	GError *error = NULL;
 	gboolean generated_any_valid_instances = FALSE;
 	gboolean generated_any_invalid_instances = FALSE;
+	gboolean use_colour = TRUE;
+	const gchar *bold_escape, *reset_escape;
 
 #if !GLIB_CHECK_VERSION (2, 35, 0)
 	g_type_init ();
@@ -288,6 +308,76 @@ main (int argc, char *argv[])
 	/* Final output. */
 	if (output_format == FORMAT_C) {
 		g_print ("};\n");
+	}
+
+	/* Timing output for each of the schemas. */
+	if (use_colour) {
+		/* See: http://misc.flogisoft.com/bash/tip_colors_and_formatting */
+		bold_escape = "\033[1m";
+		reset_escape = "\033[0m";
+	} else {
+		bold_escape = "";
+		reset_escape = "";
+	}
+
+	if (option_show_timings) {
+		for (i = 0; i < schemas->len; i++) {
+			WblSchema *schema;  /* unowned */
+			GPtrArray/*<owned WblSchemaInfo>*/ *infos = NULL;  /* owned */
+			guint j;
+
+			schema = schemas->pdata[i];
+			infos = wbl_schema_get_schema_info (schema);
+
+			/* Sort the schema info by the generation time. */
+			g_ptr_array_sort (infos, sort_schema_info_cb);
+
+			/* Print timing information. */
+			g_printerr ("%s%s%s timings:\n",
+			            bold_escape, option_schema_filenames[i],
+			            reset_escape);
+
+			for (j = 0; j < infos->len; j++) {
+				WblSchemaInfo *info = infos->pdata[j];
+				guint n_instances;
+				gint64 generation_time;
+
+				n_instances = wbl_schema_info_get_n_instances_generated (info);
+				generation_time = wbl_schema_info_get_generation_time (info);
+
+				g_printerr (" • %s%u%s generation took %"
+				            G_GINT64_FORMAT "μs, %u times, "
+				            "generating %u instances "
+				            "(%.2fμs⋅instance⁻¹)\n",
+				            bold_escape,
+				            wbl_schema_info_get_id (info),
+				            reset_escape,
+				            generation_time,
+				            wbl_schema_info_get_n_times_generated (info),
+				            n_instances,
+				            (gdouble) generation_time / n_instances);
+			}
+
+			g_printerr ("%s%s%s schemas (total: %u):\n",
+			            bold_escape, option_schema_filenames[i],
+			            reset_escape, infos->len);
+
+			for (j = 0; j < infos->len; j++) {
+				WblSchemaInfo *info = infos->pdata[j];
+				gchar *json = NULL;
+
+				json = wbl_schema_info_build_json (info);
+				g_printerr (" • %s%u%s:\n"
+				            "      %s\n",
+				            bold_escape,
+				            wbl_schema_info_get_id (info),
+				            reset_escape,
+				            json);
+				g_free (json);
+			}
+
+			g_ptr_array_unref (infos);
+		}
 	}
 
 	/* Sanity check. */

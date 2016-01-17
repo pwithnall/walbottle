@@ -10,6 +10,7 @@ json-schema-generate — JSON instance generator
 .IX Header "SYNOPSIS"
 \fBjson-schema-generate \fPschema-file\fB [\fPschema-file\fB …] [-q] [-v] [-n]
 [-j] [-f \fPformat-name\fB] [--c-variable-name \fPvariable_name\fB]
+[--show-timings]
 
 .SH DESCRIPTION
 .IX Header "DESCRIPTION"
@@ -70,6 +71,11 @@ instances escaped as strings in an array).
 .IP "\fB\-\-c\-variable\-name\fP variable_name"
 Set the name of the JSON instance array output if using \-\-format=c. This
 option must only be used with C-format output.
+.IP "\fB\-\-show\-timings\fP"
+Print debugging and timing information for all schemas and sub-schemas after
+printing the generated instances. This is intended to be used as guidance for
+optimising JSON schema files. If multiple schema files are provided, timing
+information is printed for each in turn.
 
 .SH "ENVIRONMENT"
 .IX Header "ENVIRONMENT"
