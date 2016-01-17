@@ -24,6 +24,7 @@ wbl_schema_get_root
 wbl_schema_get_validation_messages
 wbl_schema_apply
 wbl_schema_generate_instances
+wbl_schema_get_schema_info
 WblSchemaNode
 wbl_schema_node_ref
 wbl_schema_node_unref
@@ -50,6 +51,14 @@ wbl_validate_message_get_message
 wbl_validate_message_get_sub_messages
 WBL_SCHEMA_CORE
 WBL_SCHEMA_VALIDATION
+WblSchemaInfo
+wbl_schema_info_copy
+wbl_schema_info_free
+wbl_schema_info_get_generation_time
+wbl_schema_info_get_n_times_generated
+wbl_schema_info_get_id
+wbl_schema_info_get_n_instances_generated
+wbl_schema_info_build_json
 <SUBSECTION Standard>
 WBL_SCHEMA
 WBL_IS_SCHEMA
@@ -63,6 +72,7 @@ WBL_SCHEMA_ERROR
 wbl_schema_node_get_type
 wbl_generated_instance_get_type
 wbl_validate_message_get_type
+wbl_schema_info_get_type
 <SUBSECTION Private>
 WblSchemaPrivate
 </SECTION>

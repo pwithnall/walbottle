@@ -1,7 +1,7 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
 /*
  * Walbottle
- * Copyright (C) Philip Withnall 2014, 2015 <philip@tecnocode.co.uk>
+ * Copyright (C) Philip Withnall 2014, 2015, 2016 <philip@tecnocode.co.uk>
  * Copyright (C) Collabora Ltd. 2015
  *
  * Walbottle is free software; you can redistribute it and/or
@@ -954,6 +954,22 @@ subschema_generate_instances_split (WblSchema                       *self,
 	}
 }
 
+/* Schema instance cache entries. */
+typedef struct {
+	GHashTable/*<owned JsonNode>*/ *instances;
+	guint n_times_generated;
+	gint64 generation_time;  /* in microseconds */
+	JsonObject *schema;  /* owned */
+} WblSchemaInstanceCacheEntry;
+
+static void
+wbl_schema_instance_cache_entry_free (WblSchemaInstanceCacheEntry *self)
+{
+	json_object_unref (self->schema);
+	g_hash_table_unref (self->instances);
+	g_slice_free (WblSchemaInstanceCacheEntry, self);
+}
+
 /* Schemas. */
 static void
 wbl_schema_dispose (GObject *object);
@@ -978,7 +994,7 @@ struct _WblSchemaPrivate {
 	gboolean debug;
 
 	/* Cached data used during generation. */
-	GHashTable/*<owned JsonObject, owned GHashTable<owned JsonNode>>*/ *schema_instances_cache;  /* owned */
+	GHashTable/*<owned JsonObject, owned WblSchemaInstanceCacheEntry>*/ *schema_instances_cache;  /* owned */
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (WblSchema, wbl_schema, G_TYPE_OBJECT)
@@ -1042,7 +1058,7 @@ wbl_schema_dispose (GObject *object)
 
 	g_clear_pointer (&priv->messages, g_ptr_array_unref);
 	g_clear_pointer (&priv->schema_instances_cache,
-                         (GDestroyNotify) g_hash_table_unref);
+	                 (GDestroyNotify) g_hash_table_unref);
 
 	/* Chain up to the parent class */
 	G_OBJECT_CLASS (wbl_schema_parent_class)->dispose (object);
@@ -7002,6 +7018,7 @@ real_generate_instance_nodes (WblSchema      *self,
 {
 	WblSchemaPrivate *priv;
 	guint i;
+	WblSchemaInstanceCacheEntry *entry = NULL;  /* owned */
 	GHashTable/*<owned JsonNode>*/ *instances = NULL;  /* owned */
 
 	priv = wbl_schema_get_instance_private (self);
@@ -7011,22 +7028,26 @@ real_generate_instance_nodes (WblSchema      *self,
 		priv->schema_instances_cache = g_hash_table_new_full (g_direct_hash,
 		                                                      g_direct_equal,
 		                                                      (GDestroyNotify) json_object_unref,
-		                                                      (GDestroyNotify) g_hash_table_unref);
+		                                                      (GDestroyNotify) wbl_schema_instance_cache_entry_free);
 	}
 
-	instances = g_hash_table_lookup (priv->schema_instances_cache,
-	                                 schema->node);
+	entry = g_hash_table_lookup (priv->schema_instances_cache,
+	                             schema->node);
 
-	if (instances != NULL) {
-		g_hash_table_ref (instances);
+	if (entry != NULL) {
+		instances = g_hash_table_ref (entry->instances);
+		entry->n_times_generated++;
 	} else {
+		gint64 start_time, end_time;
+
 		instances = g_hash_table_new_full (wbl_json_node_hash,
 		                                   wbl_json_node_equal,
 		                                   (GDestroyNotify) json_node_free,
 		                                   NULL);
 
-                g_debug ("%s: Subschema instance cache miss for subschema %p",
+		g_debug ("%s: Subschema instance cache miss for subschema %p",
 		         G_STRFUNC, schema->node);
+		start_time = g_get_monotonic_time ();
 
 		/* Generate for each keyword in turn. Handle individual keywords
 		 * first. */
@@ -7063,10 +7084,17 @@ real_generate_instance_nodes (WblSchema      *self,
 			}
 		}
 
+		end_time = g_get_monotonic_time ();
+
 		/* Add to the cache. */
+		entry = g_slice_new0 (WblSchemaInstanceCacheEntry);
+		entry->n_times_generated = 1;
+		entry->generation_time = end_time - start_time;
+		entry->instances = g_hash_table_ref (instances);
+		entry->schema = json_object_ref (schema->node);
+
 		g_hash_table_insert (priv->schema_instances_cache,
-			             json_object_ref (schema->node),
-		                     g_hash_table_ref (instances));
+		                     json_object_ref (schema->node), entry);
 	}
 
 	return instances;
@@ -7615,4 +7643,189 @@ wbl_schema_generate_instances (WblSchema *self,
 	}
 
 	return output;
+}
+
+/* Internal definition of a #WblSchemaInfo. */
+struct _WblSchemaInfo {
+	WblSchemaInstanceCacheEntry *cache_entry;  /* unowned */
+};
+
+G_DEFINE_BOXED_TYPE (WblSchemaInfo, wbl_schema_info,
+                     wbl_schema_info_copy, wbl_schema_info_free);
+
+/**
+ * wbl_schema_info_copy:
+ * @self: (transfer none): a #WblSchemaInfo
+ *
+ * Copy a #WblSchemaInfo into a newly allocated region of memory. This is
+ * a deep copy.
+ *
+ * Returns: (transfer full): newly allocated #WblSchemaInfo
+ *
+ * Since: UNRELEASED
+ */
+WblSchemaInfo *
+wbl_schema_info_copy (WblSchemaInfo *self)
+{
+	WblSchemaInfo *out = NULL;
+
+	out = g_slice_new0 (WblSchemaInfo);
+	out->cache_entry = self->cache_entry;
+
+	return out;
+}
+
+/**
+ * wbl_schema_info_free:
+ * @self: (transfer full): a #WblSchemaInfo
+ *
+ * Free an allocated #WblSchemaInfo.
+ *
+ * Since: UNRELEASED
+ */
+void
+wbl_schema_info_free (WblSchemaInfo *self)
+{
+	g_slice_free (WblSchemaInfo, self);
+}
+
+/**
+ * wbl_schema_info_get_generation_time:
+ * @self: a #WblSchemaInfo
+ *
+ * Get the time it took to generate all instances of the schema, in
+ * monotonic microseconds.
+ *
+ * Returns: time taken to generate all instances of the schema, in microseconds
+ * Since: UNRELEASED
+ */
+gint64
+wbl_schema_info_get_generation_time (WblSchemaInfo *self)
+{
+	g_return_val_if_fail (self != NULL, 0);
+
+	return self->cache_entry->generation_time;
+}
+
+/**
+ * wbl_schema_info_get_n_times_generated:
+ * @self: a #WblSchemaInfo
+ *
+ * Get the number of times the instances of this schema were requested. They
+ * are only ever actually generated at most once, and further requests are
+ * answered from the cache.
+ *
+ * Returns: number of times the instances of this schema were requested
+ * Since: UNRELEASED
+ */
+guint
+wbl_schema_info_get_n_times_generated (WblSchemaInfo *self)
+{
+	g_return_val_if_fail (self != NULL, 0);
+
+	return self->cache_entry->n_times_generated;
+}
+
+/**
+ * wbl_schema_info_get_id:
+ * @self: a #WblSchemaInfo
+ *
+ * Get an opaque, unique identifier for this schema.
+ *
+ * Returns: opaque, unique identifier for this schema
+ * Since: UNRELEASED
+ */
+guint
+wbl_schema_info_get_id (WblSchemaInfo *self)
+{
+	g_return_val_if_fail (self != NULL, 0);
+
+	return g_direct_hash (self->cache_entry->schema);
+}
+
+/**
+ * wbl_schema_info_get_n_instances_generated:
+ * @self: a #WblSchemaInfo
+ *
+ * Get the number of instances generated from this schema.
+ *
+ * Returns: number of instances generated from this schema
+ * Since: UNRELEASED
+ */
+guint
+wbl_schema_info_get_n_instances_generated (WblSchemaInfo *self)
+{
+	g_return_val_if_fail (self != NULL, 0);
+
+	return g_hash_table_size (self->cache_entry->instances);
+}
+
+/**
+ * wbl_schema_info_build_json:
+ * @self: a #WblSchemaInfo
+ *
+ * Build the JSON string for this schema, in a human-readable format.
+ *
+ * Returns: (transfer full): a newly allocated string containing the JSON form
+ *    of the schema
+ * Since: UNRELEASED
+ */
+gchar *
+wbl_schema_info_build_json (WblSchemaInfo *self)
+{
+	JsonNode *node = NULL;
+	gchar *json = NULL;
+
+	g_return_val_if_fail (self != NULL, NULL);
+
+	node = json_node_new (JSON_NODE_OBJECT);
+	json_node_set_object (node, self->cache_entry->schema);
+	json = node_to_string (node);
+	json_node_free (node);
+
+	return json;
+}
+
+/**
+ * wbl_schema_get_schema_info:
+ * @self: a #WblSchema
+ *
+ * Get an array of #WblSchemaInfo structures, each giving debugging and timing
+ * information for a schema or subschema from this #WblSchema. There will always
+ * be one #WblSchemaInfo for the top-level schema and, depending on the
+ * structure of the schema, there may be other #WblSchemaInfo instances for
+ * sub-schemas of the top-level schema.
+ *
+ * This function is only useful after wbl_schema_generate_instances() has been
+ * called, as all its debugging and timing information pertains to generated
+ * instances, and which parts of a JSON schema file are fast or slow.
+ *
+ * The array of #WblSchemaInfo structures is returned in an undefined order.
+ *
+ * Returns: (transfer full) (element-type WblSchemaInfo): a newly allocated
+ *    array of #WblSchemaInfo structures of timing information
+ * Since: UNRELEASED
+ */
+GPtrArray *
+wbl_schema_get_schema_info (WblSchema *self)
+{
+	WblSchemaPrivate *priv;
+	GHashTableIter iter;
+	WblSchemaInstanceCacheEntry *entry;
+	GPtrArray/*<owned WblSchemaInfo>*/ *out = NULL;
+
+	priv = wbl_schema_get_instance_private (self);
+
+	g_hash_table_iter_init (&iter, priv->schema_instances_cache);
+	out = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_schema_info_free);
+
+	while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &entry)) {
+		WblSchemaInfo *info = NULL;
+
+		info = g_slice_new0 (WblSchemaInfo);
+		info->cache_entry = entry;
+		g_ptr_array_add (out, info);
+	}
+
+	return out;
 }

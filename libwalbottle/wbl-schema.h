@@ -1,7 +1,7 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
 /*
  * Walbottle
- * Copyright (C) Philip Withnall 2014, 2015 <philip@tecnocode.co.uk>
+ * Copyright (C) Philip Withnall 2014, 2015, 2016 <philip@tecnocode.co.uk>
  *
  * Walbottle is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -285,6 +285,33 @@ gboolean
 wbl_generated_instance_is_valid (WblGeneratedInstance *self);
 
 GPtrArray *wbl_schema_generate_instances (WblSchema *self, WblGenerateInstanceFlags flags);
+
+/**
+ * WblSchemaInfo:
+ *
+ * An allocated structure which stores debugging and timing information about a
+ * particular schema or sub-schema, which might be useful in optimising the
+ * schema file design.
+ *
+ * All the fields in the #WblSchemaInfo structure are private and should never
+ * be accessed directly.
+ *
+ * Since: UNRELEASED
+ */
+typedef struct _WblSchemaInfo WblSchemaInfo;
+
+GType wbl_schema_info_get_type (void) G_GNUC_CONST;
+
+WblSchemaInfo *wbl_schema_info_copy (WblSchemaInfo *self);
+void wbl_schema_info_free (WblSchemaInfo *self);
+
+gint64 wbl_schema_info_get_generation_time (WblSchemaInfo *self);
+guint wbl_schema_info_get_n_times_generated (WblSchemaInfo *self);
+guint wbl_schema_info_get_id (WblSchemaInfo *self);
+guint wbl_schema_info_get_n_instances_generated (WblSchemaInfo *self);
+gchar *wbl_schema_info_build_json (WblSchemaInfo *self);
+
+GPtrArray *wbl_schema_get_schema_info (WblSchema *self);
 
 G_END_DECLS
 
