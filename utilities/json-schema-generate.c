@@ -291,7 +291,7 @@ main (int argc, char *argv[])
 			case FORMAT_C: {
 				gchar *escaped = g_strescape (json, "");
 				g_print ("\t{ \"%s\", %" G_GSIZE_FORMAT ", "
-                                         "%u },  /* %u */\n",
+				         "%u },  /* %u */\n",
 				         escaped, strlen (json),
 				         is_valid ? 1 : 0, j);
 				g_free (escaped);
