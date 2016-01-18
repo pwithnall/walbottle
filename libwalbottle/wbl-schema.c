@@ -53,9 +53,9 @@
  * AC_PATH_PROG([JSON_SCHEMA_VALIDATE],[json-schema-validate])
  * AC_PATH_PROG([JSON_SCHEMA_GENERATE],[json-schema-generate])
  *
- * AS_IF([test "$JSON_SCHEMA_VALIDATE" == ""],
+ * AS_IF([test "$JSON_SCHEMA_VALIDATE" = ""],
  *       [AC_MSG_ERROR([json-schema-validate not found])])
- * AS_IF([test "$JSON_SCHEMA_GENERATE" == ""],
+ * AS_IF([test "$JSON_SCHEMA_GENERATE" = ""],
  *       [AC_MSG_ERROR([json-schema-generate not found])])
  * ]|
  *
@@ -75,11 +75,11 @@
  * check-local: check-json-schema
  * .PHONY: check-json-schema
  *
- * json_schemas_c = $(json_schemas:.schema.json=.schema.c)
+ * json_schemas_h = $(json_schemas:.schema.json=.schema.h)
+ * BUILT_SOURCES += $(json_schemas_h)
+ * CLEANFILES += $(json_schemas_h)
  *
- * CLEANFILES += $(json_schemas_c)
- *
- * %.schema.c: %.schema.json
+ * %.schema.h: %.schema.json
  * 	$(AM_V_GEN)$(JSON_SCHEMA_GENERATE) \
  * 		--c-variable-name=$(subst -,_,$(notdir $*))_json_instances \
  * 		--format c $^ > $@
@@ -89,12 +89,13 @@
  * test vectors in a test suite is to include the generated C file and add a
  * unit test for each vector. In `Makefile.am:`
  * |[
- * my_test_suite_SOURCES = my-test-suite.c my-format.schema.c
+ * my_test_suite_SOURCES = my-test-suite.c
+ * nodist_my_test_suite_SOURCES = $(json_schemas_h)
  * ]|
  *
  * And in the test suite code itself (`my-test-suite.c`):
  * |[
- * #include "my-format.schema.c"
+ * #include "my-format.schema.h"
  *
  * …
  *
