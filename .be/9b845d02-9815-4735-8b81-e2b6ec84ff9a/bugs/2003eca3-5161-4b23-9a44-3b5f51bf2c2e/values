@@ -1,0 +1,50 @@
+{
+
+
+
+
+
+
+    "creator": "Philip Withnall <philip@tecnocode.co.uk>", 
+
+
+
+
+
+
+    "reporter": "Philip Withnall <philip@tecnocode.co.uk>", 
+
+
+
+
+
+
+    "severity": "minor", 
+
+
+
+
+
+
+    "status": "open", 
+
+
+
+
+
+
+    "summary": "Include timing information in json-schema-generate output", 
+
+
+
+
+
+
+    "time": "Sat, 19 Dec 2015 00:33:35 +0000"
+
+
+
+
+
+
+}
