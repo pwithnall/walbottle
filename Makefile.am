@@ -258,7 +258,7 @@ utilities = json-validate json-schema-validate json-schema-generate
 install-exec-hook:
 	for i in $(utilities); do \
 		(cd $(DESTDIR)$(bindir) && \
-		 $(LN_S) $$i-@WBL_API_VERSION@$(EXEEXT) $$i$(EXEEXT)); \
+		 $(LN_S) -f $$i-@WBL_API_VERSION@$(EXEEXT) $$i$(EXEEXT)); \
 	done
 
 uninstall-hook:
