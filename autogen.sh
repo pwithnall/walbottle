@@ -1,9 +1,9 @@
 #!/bin/sh
 # Run this to generate all the initial makefiles, etc.
-test -n "$srcdir" || srcdir=`dirname "$0"`
+test -n "$srcdir" || srcdir=$(dirname "$0")
 test -n "$srcdir" || srcdir=.
 
-olddir=`pwd`
+olddir=$(pwd)
 
 cd $srcdir
 
@@ -12,7 +12,8 @@ cd $srcdir
 	exit 1
 }
 
-PKG_NAME=`autoconf --trace 'AC_INIT:$1' configure.ac`
+# shellcheck disable=SC2016
+PKG_NAME=$(autoconf --trace 'AC_INIT:$1' configure.ac)
 
 if [ "$#" = 0 -a "x$NOCONFIGURE" = "x" ]; then
 	echo "*** WARNING: I am going to run 'configure' with no arguments." >&2
@@ -24,7 +25,7 @@ fi
 gtkdocize --copy || exit 1
 autoreconf --verbose --force --install || exit 1
 
-cd $olddir
+cd "$olddir"
 if [ "$NOCONFIGURE" = "" ]; then
 	$srcdir/configure "$@" || exit 1
 
