@@ -345,9 +345,15 @@ main (int argc, char *argv[])
 				WblSchemaInfo *info = infos->pdata[j];
 				guint n_instances;
 				gint64 generation_time;
+				gdouble time_per_instance;
 
 				n_instances = wbl_schema_info_get_n_instances_generated (info);
 				generation_time = wbl_schema_info_get_generation_time (info);
+
+				if (n_instances > 0)
+					time_per_instance = (gdouble) generation_time / n_instances;
+				else
+					time_per_instance = 0.0;
 
 				g_printerr (" • %s%u%s generation took %"
 				            G_GINT64_FORMAT "μs, %u times, "
@@ -359,7 +365,7 @@ main (int argc, char *argv[])
 				            generation_time,
 				            wbl_schema_info_get_n_times_generated (info),
 				            n_instances,
-				            (gdouble) generation_time / n_instances);
+				            time_per_instance);
 			}
 
 			g_printerr ("%s%s%s schemas (total: %u):\n",
