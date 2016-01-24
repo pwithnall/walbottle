@@ -2,6 +2,7 @@
 /*
  * Walbottle
  * Copyright © Collabora Ltd. 2015
+ * Copyright © Philip Withnall 2016
  *
  * Walbottle is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,8 +22,11 @@
 #define WBL_UTILITIES_H
 
 #include <glib.h>
+#include <stdio.h>
 
 G_BEGIN_DECLS
+
+gboolean wbl_is_colour_supported (FILE *file);
 
 void wbl_log (const gchar     *log_domain,
               GLogLevelFlags   log_level,

@@ -2,6 +2,7 @@
 /*
  * Walbottle
  * Copyright © Collabora Ltd. 2015
+ * Copyright © Philip Withnall 2016
  *
  * Walbottle is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,10 +21,19 @@
 #include "config.h"
 
 #include <glib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "wbl-schema.h"
 #include "utilities/wbl-utilities.h"
+
+/* Whether colour output is supported. Let’s assume it’s supported by all
+ * TTYs. */
+gboolean
+wbl_is_colour_supported (FILE *file)
+{
+	return isatty (fileno (file));
+}
 
 void
 wbl_log (const gchar     *log_domain,

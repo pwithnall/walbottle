@@ -22,6 +22,7 @@
 #include <locale.h>
 #include <glib.h>
 #include <glib/gi18n.h>
+#include <stdio.h>
 
 #include "wbl-schema.h"
 #include "wbl-meta-schema.h"
@@ -113,7 +114,7 @@ main (int argc, char *argv[])
 	GError *error = NULL;
 	gboolean generated_any_valid_instances = FALSE;
 	gboolean generated_any_invalid_instances = FALSE;
-	gboolean use_colour = TRUE;
+	gboolean use_colour_stderr;
 	const gchar *bold_escape, *reset_escape;
 
 #if !GLIB_CHECK_VERSION (2, 35, 0)
@@ -121,6 +122,9 @@ main (int argc, char *argv[])
 #endif
 
 	setlocale (LC_ALL, "");
+
+	/* Can we use colour output? */
+	use_colour_stderr = wbl_is_colour_supported (stderr);
 
 	/* Redirect debug output to stderr so that stdout is purely generated
 	 * test vectors. */
@@ -311,7 +315,7 @@ main (int argc, char *argv[])
 	}
 
 	/* Timing output for each of the schemas. */
-	if (use_colour) {
+	if (use_colour_stderr) {
 		/* See: http://misc.flogisoft.com/bash/tip_colors_and_formatting */
 		bold_escape = "\033[1m";
 		reset_escape = "\033[0m";
