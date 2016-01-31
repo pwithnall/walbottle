@@ -314,8 +314,7 @@ libwalbottle_Walbottle_@WBL_API_VERSION@_gir_SCANNERFLAGS = \
 	--identifier-prefix=Wbl \
 	--symbol-prefix=wbl \
 	--c-include="libwalbottle/walbottle.h" \
-	--warn-all \
-	--warn-error \
+	$(WARN_SCANNERFLAGS) \
 	$(NULL)
 
 INTROSPECTION_GIRS += libwalbottle/Walbottle-@WBL_API_VERSION@.gir
