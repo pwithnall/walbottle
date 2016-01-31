@@ -2,7 +2,7 @@ SUBDIRS = . libwalbottle/tests libwalbottle/docs
 
 ACLOCAL_AMFLAGS = -I m4
 
-DISTCHECK_CONFIGURE_FLAGS =
+AM_DISTCHECK_CONFIGURE_FLAGS =
 CLEANFILES =
 MAINTAINERCLEANFILES =
 EXTRA_DIST =
@@ -106,7 +106,7 @@ check-headers:
 	done; exit "$$any_missing"
 
 # Valgrind checks
-DISTCHECK_CONFIGURE_FLAGS += --enable-valgrind
+AM_DISTCHECK_CONFIGURE_FLAGS += --enable-valgrind
 
 # Internal utility helper library
 noinst_LTLIBRARIES = libwalbottle/libwalbottle-utils.la
@@ -283,9 +283,9 @@ EXTRA_DIST += \
 # Introspection
 -include $(INTROSPECTION_MAKEFILE)
 INTROSPECTION_GIRS =
-INTROSPECTION_SCANNER_ARGS = --warn-all
+INTROSPECTION_SCANNER_ARGS =
 INTROSPECTION_COMPILER_ARGS =
-DISTCHECK_CONFIGURE_FLAGS += --enable-introspection
+AM_DISTCHECK_CONFIGURE_FLAGS += --enable-introspection
 EXTRA_DIST += m4/introspection.m4
 
 if HAVE_INTROSPECTION
@@ -378,7 +378,7 @@ MAINTAINERCLEANFILES += \
 
 GITIGNOREFILES = .be/id-cache
 
-DISTCHECK_CONFIGURE_FLAGS += --enable-gtk-doc
+AM_DISTCHECK_CONFIGURE_FLAGS += --enable-gtk-doc
 
 # pkg-config data
 # Note that the template file is called libwalbottle.pc.in, but generates a
