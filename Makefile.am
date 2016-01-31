@@ -68,7 +68,6 @@ libwalbottle_libwalbottle_@WBL_API_VERSION@_la_LIBADD = \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
 	$(CODE_COVERAGE_LDFLAGS) \
-	$(WARN_LDFLAGS) \
 	$(AM_LIBADD) \
 	$(NULL)
 
@@ -76,6 +75,7 @@ libwalbottle_libwalbottle_@WBL_API_VERSION@_la_LDFLAGS = \
 	-version-info $(WBL_LT_VERSION) \
 	-export-symbols $(srcdir)/libwalbottle/libwalbottle.symbols \
 	-no-undefined \
+	$(WARN_LDFLAGS) \
 	$(AM_LDFLAGS) \
 	$(NULL)
 
@@ -139,11 +139,11 @@ libwalbottle_libwalbottle_utils_la_LIBADD = \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
 	$(CODE_COVERAGE_LDFLAGS) \
-	$(WARN_LDFLAGS) \
 	$(AM_LIBADD) \
 	$(NULL)
 
 libwalbottle_libwalbottle_utils_la_LDFLAGS = \
+	$(WARN_LDFLAGS) \
 	$(AM_LDFLAGS) \
 	$(NULL)
 
@@ -173,8 +173,11 @@ utilities_json_validate_@WBL_API_VERSION@_LDADD = \
 	libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
-	$(WARN_LDFLAGS) \
 	$(AM_LIBADD) \
+	$(NULL)
+utilities_json_validate_@WBL_API_VERSION@_LDFLAGS = \
+	$(WARN_LDFLAGS) \
+	$(AM_LDFLAGS) \
 	$(NULL)
 
 EXTRA_DIST += utilities/docs/json-validate.8
@@ -207,8 +210,11 @@ utilities_json_schema_validate_@WBL_API_VERSION@_LDADD = \
 	libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
-	$(WARN_LDFLAGS) \
 	$(AM_LIBADD) \
+	$(NULL)
+utilities_json_schema_validate_@WBL_API_VERSION@_LDFLAGS = \
+	$(WARN_LDFLAGS) \
+	$(AM_LDFLAGS) \
 	$(NULL)
 
 EXTRA_DIST += utilities/docs/json-schema-validate.8
@@ -241,8 +247,11 @@ utilities_json_schema_generate_@WBL_API_VERSION@_LDADD = \
 	libwalbottle/libwalbottle-@WBL_API_VERSION@.la \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
-	$(WARN_LDFLAGS) \
 	$(AM_LIBADD) \
+	$(NULL)
+utilities_json_schema_generate_@WBL_API_VERSION@_LDFLAGS = \
+	$(WARN_LDFLAGS) \
+	$(AM_LDFLAGS) \
 	$(NULL)
 
 EXTRA_DIST += utilities/docs/json-schema-generate.8
