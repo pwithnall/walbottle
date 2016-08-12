@@ -138,12 +138,12 @@ libwalbottle_libwalbottle_utils_la_CFLAGS = \
 libwalbottle_libwalbottle_utils_la_LIBADD = \
 	$(GLIB_LIBS) \
 	$(JSON_GLIB_LIBS) \
-	$(CODE_COVERAGE_LDFLAGS) \
 	$(AM_LIBADD) \
 	$(NULL)
 
 libwalbottle_libwalbottle_utils_la_LDFLAGS = \
 	$(WARN_LDFLAGS) \
+	$(CODE_COVERAGE_LDFLAGS) \
 	$(AM_LDFLAGS) \
 	$(NULL)
 
