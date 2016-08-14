@@ -90,7 +90,7 @@ static const GOptionEntry entries[] = {
 	  N_("Output format (‘plain’ [default], ‘c’)"), NULL },
 	{ "c-variable-name", 0, 0, G_OPTION_ARG_STRING, &option_c_variable_name,
 	  N_("Vector array variable name (only with --format=c; default "
-	     "‘json_instances’"), NULL },
+	     "‘json_instances’)"), NULL },
 	{ "show-timings", 0, 0, G_OPTION_ARG_NONE, &option_show_timings,
 	  N_("Print timing information to stderr after outputting generated "
 	     "instances"), NULL },
