@@ -210,6 +210,16 @@ main (int argc, char *argv[])
 		goto done;
 	}
 
+	if (option_schema_filenames == NULL || option_schema_filenames[0] == NULL) {
+		const gchar *message = NULL;
+
+		message = _("At least one schema file must be specified.");
+		g_printerr ("%s: %s\n", argv[0], message);
+
+		retval = EXIT_INVALID_OPTIONS;
+		goto done;
+	}
+
 	/* Load the schemas. */
 	schemas = g_ptr_array_new_with_free_func ((GDestroyNotify) g_object_unref);
 
