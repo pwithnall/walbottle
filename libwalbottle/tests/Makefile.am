@@ -62,7 +62,7 @@ test_ldadd = \
 	$(NULL)
 
 @VALGRIND_CHECK_RULES@
-VALGRIND_SUPPRESSIONS_FILES = walbottle.supp
+VALGRIND_SUPPRESSIONS_FILES = $(top_srcdir)/libwalbottle/tests/walbottle.supp
 EXTRA_DIST += walbottle.supp
 check-local: check-valgrind
 
