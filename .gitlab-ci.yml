@@ -1,0 +1,25 @@
+image: debian:unstable
+
+before_script:
+  - apt update -qq
+  - apt install -y -qq build-essential autoconf automake pkg-config libtool m4 autoconf-archive gtk-doc-tools libxml2-utils gobject-introspection libgirepository1.0-dev libglib2.0-dev libjson-glib-dev
+
+stages:
+  - build
+
+# FIXME: Re-enable valgrind once running the tests under it doesn’t take forever (it causes timeouts).
+# Re-add valgrind to apt-install line above
+build-distcheck:
+  stage: build
+  script:
+    - mkdir build
+    - cd build
+    - ../autogen.sh --disable-valgrind
+    - make V=1 VERBOSE=1
+    - DISTCHECK_CONFIGURE_FLAGS=--disable-valgrind make distcheck V=1 VERBOSE=1
+
+  # The files which are to be made available in GitLab
+  artifacts:
+    paths:
+      - build/*
+
