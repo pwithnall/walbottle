@@ -381,7 +381,7 @@ array_find_index_of_child (JsonArray *array,
  * See: http://goessner.net/articles/JsonPath/
  *
  * Returns: (transfer full): JSONPath for the JSON node
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 static gchar *
 build_node_path (JsonNode *node)
@@ -486,7 +486,7 @@ _wbl_validate_message_output (GPtrArray/*<owned WblValidateMessage>*/ *messages,
  *
  * Returns: (transfer full): newly allocated #WblValidateMessage
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 WblValidateMessage *
 wbl_validate_message_copy (WblValidateMessage *self)
@@ -523,7 +523,7 @@ wbl_validate_message_copy (WblValidateMessage *self)
  *
  * Free an allocated #WblValidateMessage.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 void
 wbl_validate_message_free (WblValidateMessage *self)
@@ -547,7 +547,7 @@ wbl_validate_message_free (WblValidateMessage *self)
  *
  * Returns: (transfer full) (nullable): URI for the specification section,
  *    or %NULL
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 gchar *
 wbl_validate_message_build_specification_link (WblValidateMessage *self)
@@ -570,7 +570,7 @@ wbl_validate_message_build_specification_link (WblValidateMessage *self)
  * Get the level of the #WblValidateMessage.
  *
  * Returns: the level of the message
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 WblValidateMessageLevel
 wbl_validate_message_get_level (WblValidateMessage *self)
@@ -591,7 +591,7 @@ wbl_validate_message_get_level (WblValidateMessage *self)
  * See: http://goessner.net/articles/JsonPath/
  *
  * Returns: the JSONPath of the relevant JSON node
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 const gchar *
 wbl_validate_message_get_path (WblValidateMessage *self)
@@ -610,7 +610,7 @@ wbl_validate_message_get_path (WblValidateMessage *self)
  *
  * Returns: (transfer full) (nullable): a JSON string, or %NULL if there is no
  *    relevant JSON node
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 gchar *
 wbl_validate_message_build_json (WblValidateMessage *self)
@@ -639,7 +639,7 @@ wbl_validate_message_build_json (WblValidateMessage *self)
  * Get the formatted message of the #WblValidateMessage.
  *
  * Returns: the formatted message
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 const gchar *
 wbl_validate_message_get_message (WblValidateMessage *self)
@@ -658,7 +658,7 @@ wbl_validate_message_get_message (WblValidateMessage *self)
  *
  * Returns: (transfer none) (element-type WblValidateMessage): sub-messages for
  *    the message, or %NULL
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 GPtrArray *
 wbl_validate_message_get_sub_messages (WblValidateMessage *self)
@@ -5119,7 +5119,7 @@ instance_add_non_matching_property (JsonObject  *instance,
  *
  * Complexity: O(N) in the size N of @property_names
  * Returns: (transfer full): validity object for @property_names
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 static GHashTable/*<owned utf8, boolean>*/ *
 generate_boolean_object (WblStringSet  *property_names,
@@ -5156,7 +5156,7 @@ generate_boolean_object (WblStringSet  *property_names,
  *
  * Complexity: O(N) in the size N of @property_names
  * Returns: (transfer full): validity object for @property_names
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 static GHashTable/*<owned utf8, boolean>*/ *
 generate_boolean_object_uniform (WblStringSet  *property_names,
@@ -5208,7 +5208,7 @@ generate_boolean_object_uniform (WblStringSet  *property_names,
  *               max_n_invalid_instances * S)
  *    in the size S of @valid_property_set
  * Returns: (transfer full): collection of boolean validity objects
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 static GPtrArray/*<owned GHashTable<boolean>>*/ *
 generate_validity_objects (WblStringSet  *valid_property_set,
@@ -7450,7 +7450,7 @@ wbl_schema_load_from_stream_finish (WblSchema *self,
  *
  * See wbl_schema_load_from_stream_async() for more details.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 void
 wbl_schema_load_from_json (WblSchema     *self,
@@ -7510,7 +7510,7 @@ wbl_schema_get_root (WblSchema *self)
  * Returns: (transfer none) (nullable) (element-type WblValidateMessage): a
  *    non-empty array of messages, or %NULL
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 GPtrArray *
 wbl_schema_get_validation_messages (WblSchema *self)
@@ -7665,7 +7665,7 @@ G_DEFINE_BOXED_TYPE (WblSchemaInfo, wbl_schema_info,
  *
  * Returns: (transfer full): newly allocated #WblSchemaInfo
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 WblSchemaInfo *
 wbl_schema_info_copy (WblSchemaInfo *self)
@@ -7684,7 +7684,7 @@ wbl_schema_info_copy (WblSchemaInfo *self)
  *
  * Free an allocated #WblSchemaInfo.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 void
 wbl_schema_info_free (WblSchemaInfo *self)
@@ -7700,7 +7700,7 @@ wbl_schema_info_free (WblSchemaInfo *self)
  * monotonic microseconds.
  *
  * Returns: time taken to generate all instances of the schema, in microseconds
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 gint64
 wbl_schema_info_get_generation_time (WblSchemaInfo *self)
@@ -7719,7 +7719,7 @@ wbl_schema_info_get_generation_time (WblSchemaInfo *self)
  * answered from the cache.
  *
  * Returns: number of times the instances of this schema were requested
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 guint
 wbl_schema_info_get_n_times_generated (WblSchemaInfo *self)
@@ -7736,7 +7736,7 @@ wbl_schema_info_get_n_times_generated (WblSchemaInfo *self)
  * Get an opaque, unique identifier for this schema.
  *
  * Returns: opaque, unique identifier for this schema
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 guint
 wbl_schema_info_get_id (WblSchemaInfo *self)
@@ -7753,7 +7753,7 @@ wbl_schema_info_get_id (WblSchemaInfo *self)
  * Get the number of instances generated from this schema.
  *
  * Returns: number of instances generated from this schema
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 guint
 wbl_schema_info_get_n_instances_generated (WblSchemaInfo *self)
@@ -7771,7 +7771,7 @@ wbl_schema_info_get_n_instances_generated (WblSchemaInfo *self)
  *
  * Returns: (transfer full): a newly allocated string containing the JSON form
  *    of the schema
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 gchar *
 wbl_schema_info_build_json (WblSchemaInfo *self)
@@ -7807,7 +7807,7 @@ wbl_schema_info_build_json (WblSchemaInfo *self)
  *
  * Returns: (transfer full) (element-type WblSchemaInfo): a newly allocated
  *    array of #WblSchemaInfo structures of timing information
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 GPtrArray *
 wbl_schema_get_schema_info (WblSchema *self)

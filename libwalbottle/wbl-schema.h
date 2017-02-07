@@ -178,7 +178,7 @@ wbl_schema_apply (WblSchema *self,
  *
  * Severity levels of messages from the validation process for a JSON Schema.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 typedef enum {
 	WBL_VALIDATE_MESSAGE_ERROR = 0,
@@ -189,7 +189,7 @@ typedef enum {
  *
  * Canonical name for the JSON Schema Core standard.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 #define WBL_SCHEMA_CORE "json-schema-core"
 
@@ -198,7 +198,7 @@ typedef enum {
  *
  * Canonical name for the JSON Schema Validation standard.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 #define WBL_SCHEMA_VALIDATION "json-schema-validation"
 
@@ -214,7 +214,7 @@ typedef enum {
  * All the fields in the #WblValidateMessage structure are private and should
  * never be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 typedef struct _WblValidateMessage WblValidateMessage;
 
@@ -296,7 +296,7 @@ GPtrArray *wbl_schema_generate_instances (WblSchema *self, WblGenerateInstanceFl
  * All the fields in the #WblSchemaInfo structure are private and should never
  * be accessed directly.
  *
- * Since: UNRELEASED
+ * Since: 0.3.0
  */
 typedef struct _WblSchemaInfo WblSchemaInfo;
 
