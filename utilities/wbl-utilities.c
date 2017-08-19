@@ -65,6 +65,8 @@ validate_message_level_to_string (WblValidateMessageLevel level)
 	switch (level) {
 	case WBL_VALIDATE_MESSAGE_ERROR:
 		return "error";
+	case WBL_VALIDATE_MESSAGE_WARNING:
+		return "warning";
 	default:
 		g_assert_not_reached ();
 	}
@@ -78,6 +80,9 @@ validate_message_level_to_colour (WblValidateMessageLevel level)
 	case WBL_VALIDATE_MESSAGE_ERROR:
 		/* Bold, red. */
 		return "\033[1;31m";
+	case WBL_VALIDATE_MESSAGE_WARNING:
+		/* Bold, yellow. */
+		return "\033[3;31m";
 	default:
 		g_assert_not_reached ();
 	}

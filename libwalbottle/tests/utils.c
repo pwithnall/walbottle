@@ -203,6 +203,8 @@ validate_message_level_to_string (WblValidateMessageLevel level)
 	switch (level) {
 	case WBL_VALIDATE_MESSAGE_ERROR:
 		return "error";
+	case WBL_VALIDATE_MESSAGE_WARNING:
+		return "warning";
 	default:
 		g_assert_not_reached ();
 	}

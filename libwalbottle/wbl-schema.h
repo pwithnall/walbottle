@@ -174,7 +174,10 @@ wbl_schema_apply (WblSchema *self,
 
 /**
  * WblValidateMessageLevel:
- * @WBL_VALIDATE_MESSAGE_ERROR: Error message.
+ * @WBL_VALIDATE_MESSAGE_ERROR: Error message. The Schema violates a ‘MUST’
+ *    clause of the JSON Schema specification.
+ * @WBL_VALIDATE_MESSAGE_WARNING: Warning message. The Schema violates a
+ *    ‘SHOULD’ clause of the JSON Schema specification. (Since: UNRELEASED)
  *
  * Severity levels of messages from the validation process for a JSON Schema.
  *
@@ -182,6 +185,7 @@ wbl_schema_apply (WblSchema *self,
  */
 typedef enum {
 	WBL_VALIDATE_MESSAGE_ERROR = 0,
+	WBL_VALIDATE_MESSAGE_WARNING,
 } WblValidateMessageLevel;
 
 /**
