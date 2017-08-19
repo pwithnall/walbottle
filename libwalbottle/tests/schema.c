@@ -512,7 +512,7 @@ test_schema_parsing_varied (gconstpointer user_data)
 }
 
 /* Test applying a schema to an instance using items and additionalItems.
- * Taken from json-schema-validation§5.3.1.3. */
+ * Taken from draft-fge-json-schema-validation-00§5.3.1.3. */
 static void
 test_schema_application (void)
 {

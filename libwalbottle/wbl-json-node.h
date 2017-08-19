@@ -27,7 +27,7 @@
 
 G_BEGIN_DECLS
 
-/* Primitive type handling. Reference: json-schema-core§3.5. */
+/* Primitive type handling. Reference: draft-zyp-json-schema-04§3.5. */
 /**
  * WblPrimitiveType:
  * @WBL_PRIMITIVE_TYPE_ARRAY: an array node
@@ -38,7 +38,7 @@ G_BEGIN_DECLS
  * @WBL_PRIMITIVE_TYPE_OBJECT: an object node
  * @WBL_PRIMITIVE_TYPE_STRING: a string value
  *
- * Reference: http://json-schema.org/latest/json-schema-core.html#rfc.section.3.5
+ * Reference: https://tools.ietf.org/html/draft-zyp-json-schema-04#section-3.5
  *
  * Since: 0.2.0
  */

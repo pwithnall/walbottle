@@ -557,8 +557,7 @@ wbl_validate_message_build_specification_link (WblValidateMessage *self)
 	if (self->specification == NULL || self->specification_section == NULL)
 		return NULL;
 
-	return g_strdup_printf ("http://json-schema.org/latest/"
-	                        "%s.html#rfc.section.%s",
+	return g_strdup_printf ("https://tools.ietf.org/html/%s#section-%s",
 	                        self->specification,
 	                        self->specification_section);
 }
@@ -812,7 +811,7 @@ subschema_validate (WblSchema *self,
 		 * several schema properties is an empty subschema, which can
 		 * cause infinite recursion on this path.
 		 *
-		 * For example, json-schema-validation§5.3.1.4. */
+		 * For example, draft-fge-json-schema-validation-00§5.3.1.4. */
 		if (json_object_get_size (node.node) > 0) {
 			messages = klass->validate_schema (self, &node, error);
 		}
@@ -1440,7 +1439,7 @@ object_has_properties (JsonObject *obj,
 	return TRUE;
 }
 
-/* multipleOf. json-schema-validation§5.1.1.
+/* multipleOf. draft-fge-json-schema-validation-00§5.1.1.
  *
  * Complexity: O(1) */
 static gboolean
@@ -1552,7 +1551,7 @@ apply_multiple_of (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Value %s must be a multiple of %s "
 		               "due to the multipleOf schema keyword. "
-		               "See json-schema-validation§5.1.1."),
+		               "See draft-fge-json-schema-validation-00§5.1.1."),
 		             str1, str2);
 		g_free (str1);
 		g_free (str2);
@@ -1603,7 +1602,7 @@ generate_multiple_of (WblSchema *self,
 	}
 }
 
-/* maximum and exclusiveMaximum. json-schema-validation§5.1.2.
+/* maximum and exclusiveMaximum. draft-fge-json-schema-validation-00§5.1.2.
  *
  * Complexity: O(1) */
 static gboolean
@@ -1675,7 +1674,7 @@ apply_maximum (WblSchema *self,
 {
 	gchar *maximum_str = NULL;  /* owned */
 	gchar *value_str = NULL;  /* owned */
-	gboolean exclusive_maximum = FALSE;  /* json-schema-validation§5.1.2.3 */
+	gboolean exclusive_maximum = FALSE;  /* draft-fge-json-schema-validation-00§5.1.2.3 */
 	JsonNode *node;  /* unowned */
 	gint comparison;
 
@@ -1703,14 +1702,14 @@ apply_maximum (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Value %s must be less than or equal to %s "
 		               "due to the maximum schema "
-		               "keyword. See json-schema-validation§5.1.2."),
+		               "keyword. See draft-fge-json-schema-validation-00§5.1.2."),
 		             value_str, maximum_str);
 	} else if (exclusive_maximum && comparison >= 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Value %s must be less than %s "
 		               "due to the maximum and exclusiveMaximum schema "
-		               "keywords. See json-schema-validation§5.1.2."),
+		               "keywords. See draft-fge-json-schema-validation-00§5.1.2."),
 		             value_str, maximum_str);
 	}
 
@@ -1725,7 +1724,7 @@ generate_maximum (WblSchema *self,
                   JsonNode *schema_node,
                   GHashTable/*<owned JsonNode>*/ *output)
 {
-	gboolean exclusive_maximum = FALSE;  /* json-schema-validation§5.1.2.3 */
+	gboolean exclusive_maximum = FALSE;  /* draft-fge-json-schema-validation-00§5.1.2.3 */
 	JsonNode *node;  /* unowned */
 
 	node = json_object_get_member (root, "exclusiveMaximum");
@@ -1772,7 +1771,7 @@ generate_maximum (WblSchema *self,
 	}
 }
 
-/* minimum and exclusiveMinimum. json-schema-validation§5.1.3.
+/* minimum and exclusiveMinimum. draft-fge-json-schema-validation-00§5.1.3.
  *
  * Complexity: O(1) */
 static gboolean
@@ -1844,7 +1843,7 @@ apply_minimum (WblSchema *self,
 {
 	gchar *value_str = NULL;  /* owned */
 	gchar *minimum_str = NULL;  /* owned */
-	gboolean exclusive_minimum = FALSE;  /* json-schema-validation§5.1.3.3 */
+	gboolean exclusive_minimum = FALSE;  /* draft-fge-json-schema-validation-00§5.1.3.3 */
 	JsonNode *node;  /* unowned */
 	gint comparison;
 
@@ -1872,14 +1871,14 @@ apply_minimum (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Value %s must be greater than or equal to %s "
 		               "due to the minimum schema "
-		               "keyword. See json-schema-validation§5.1.3."),
+		               "keyword. See draft-fge-json-schema-validation-00§5.1.3."),
 		             value_str, minimum_str);
 	} else if (exclusive_minimum && comparison <= 0) {
 		g_set_error (error,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Value %s must be greater than %s "
 		               "due to the minimum and exclusiveMinimum schema "
-		               "keywords. See json-schema-validation§5.1.3."),
+		               "keywords. See draft-fge-json-schema-validation-00§5.1.3."),
 		             value_str, minimum_str);
 	}
 
@@ -1894,7 +1893,7 @@ generate_minimum (WblSchema *self,
                   JsonNode *schema_node,
                   GHashTable/*<owned JsonNode>*/ *output)
 {
-	gboolean exclusive_minimum = FALSE;  /* json-schema-validation§5.1.3.3 */
+	gboolean exclusive_minimum = FALSE;  /* draft-fge-json-schema-validation-00§5.1.3.3 */
 	JsonNode *node;  /* unowned */
 
 	/* Grab useful data. */
@@ -1942,7 +1941,7 @@ generate_minimum (WblSchema *self,
 	}
 }
 
-/* maxLength. json-schema-validation§5.2.1.
+/* maxLength. draft-fge-json-schema-validation-00§5.2.1.
  *
  * Complexity: O(1) */
 static gboolean
@@ -1984,7 +1983,7 @@ apply_max_length (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Value must be at most %" G_GINT64_FORMAT " "
 		               "characters long due to the maxLength schema "
-		               "keyword. See json-schema-validation§5.2.1."),
+		               "keyword. See draft-fge-json-schema-validation-00§5.2.1."),
 		             json_node_get_int (schema_node));
 	}
 }
@@ -2018,7 +2017,7 @@ generate_max_length (WblSchema *self,
 	}
 }
 
-/* minLength. json-schema-validation§5.2.2.
+/* minLength. draft-fge-json-schema-validation-00§5.2.2.
  *
  * Complexity: O(1) */
 static gboolean
@@ -2060,7 +2059,7 @@ apply_min_length (WblSchema *self,
 		             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Value must be at least %" G_GINT64_FORMAT " "
 		               "characters long due to the maxLength schema "
-		               "keyword. See json-schema-validation§5.2.2."),
+		               "keyword. See draft-fge-json-schema-validation-00§5.2.2."),
 		             json_node_get_int (schema_node));
 	}
 }
@@ -2094,7 +2093,7 @@ generate_min_length (WblSchema *self,
 	}
 }
 
-/* pattern. json-schema-validation§5.2.3.
+/* pattern. draft-fge-json-schema-validation-00§5.2.3.
  *
  * Complexity: O(1) */
 static gboolean
@@ -2153,7 +2152,7 @@ apply_pattern (WblSchema *self,
 		              * expression. */
 		             _("Value must match the regular expression ‘%s’ "
 		               "from the pattern schema keyword. "
-		               "See json-schema-validation§5.2.3."),
+		               "See draft-fge-json-schema-validation-00§5.2.3."),
 		             regex_str);
 	}
 
@@ -2338,7 +2337,7 @@ generate_subschema_arrays (JsonNode    *items_node,
 
 		/* Output a fixed repetition of @items_subschema and ignore
 		 * @additional_items_subschema.
-		 * json-schema-validation§8.2.3.1. */
+		 * draft-fge-json-schema-validation-00§8.2.3.1. */
 		if (max_items != G_MAXINT64) {
 			limit = max_items;
 		} else if (additional_items_boolean) {
@@ -3058,7 +3057,7 @@ generate_all_items (WblSchema                       *self,
 	g_object_unref (builder);
 }
 
-/* additionalItems and items. json-schema-validation§5.3.1.
+/* additionalItems and items. draft-fge-json-schema-validation-00§5.3.1.
  *
  * Complexity: O(subschema_validate) */
 static gboolean
@@ -3128,7 +3127,7 @@ generate_all_items_wrapper (WblSchema                       *self,
 	if (json_object_has_member (root, "items")) {
 		items_node = json_object_dup_member (root, "items");
 	} else {
-		/* json-schema-validation§5.3.1.4. */
+		/* draft-fge-json-schema-validation-00§5.3.1.4. */
 		items_node = json_node_new (JSON_NODE_OBJECT);
 		json_node_take_object (items_node, json_object_new ());
 	}
@@ -3137,7 +3136,7 @@ generate_all_items_wrapper (WblSchema                       *self,
 		additional_items_node = json_object_dup_member (root,
 		                                                "additionalItems");
 	} else {
-		/* json-schema-validation§5.3.1.4. */
+		/* draft-fge-json-schema-validation-00§5.3.1.4. */
 		additional_items_node = json_node_new (JSON_NODE_OBJECT);
 		json_node_take_object (additional_items_node,
 		                       json_object_new ());
@@ -3146,7 +3145,7 @@ generate_all_items_wrapper (WblSchema                       *self,
 	if (json_object_has_member (root, "minItems")) {
 		min_items = json_object_get_int_member (root, "minItems");
 	} else {
-		/* json-schema-validation§5.3.3.3. */
+		/* draft-fge-json-schema-validation-00§5.3.3.3. */
 		min_items = 0;
 	}
 
@@ -3160,7 +3159,7 @@ generate_all_items_wrapper (WblSchema                       *self,
 		unique_items = json_object_get_boolean_member (root,
 		                                               "uniqueItems");
 	} else {
-		/* json-schema-validation§5.3.4.3. */
+		/* draft-fge-json-schema-validation-00§5.3.4.3. */
 		unique_items = FALSE;
 	}
 
@@ -3284,7 +3283,7 @@ validate_items (WblSchema *self,
 	return FALSE;
 }
 
-/* json-schema-validation§5.3.1.2.
+/* draft-fge-json-schema-validation-00§5.3.1.2.
  *
  * Complexity: O(1) */
 static void
@@ -3299,7 +3298,7 @@ apply_items_parent_schema (WblSchema *self,
 
 	if (JSON_NODE_HOLDS_OBJECT (items_schema_node)) {
 		/* Validation of the parent node always succeeds if items is an
-		 * object (json-schema-validation§5.3.1.2). */
+		 * object (draft-fge-json-schema-validation-00§5.3.1.2). */
 		return;
 	}
 
@@ -3326,7 +3325,7 @@ apply_items_parent_schema (WblSchema *self,
 
 		/* Validation succeeds if the instance size is less than or
 		 * equal to the size of items
-		 * (json-schema-validation§5.3.1.2). */
+		 * (draft-fge-json-schema-validation-00§5.3.1.2). */
 		schema_array = json_node_get_array (items_schema_node);
 
 		instance_size = json_array_get_length (instance_array);
@@ -3338,13 +3337,13 @@ apply_items_parent_schema (WblSchema *self,
 			             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 			             _("Array elements do not conform to items "
 			               "and additionalItems schema keywords. "
-			               "See json-schema-validation§5.3.1."));
+			               "See draft-fge-json-schema-validation-00§5.3.1."));
 			return;
 		}
 	}
 }
 
-/* json-schema-validation§8.2.3.
+/* draft-fge-json-schema-validation-00§8.2.3.
  *
  * Complexity: O(N * subschema_apply) in the length of @instance_array */
 static void
@@ -3372,13 +3371,13 @@ apply_items_child_schema (WblSchema *self,
 		/* Work out which schema to apply. */
 		if (JSON_NODE_HOLDS_OBJECT (items_schema_node)) {
 			/* All child nodes of the instance must be valid against
-			 * this schema (json-schema-validation§8.2.3.1). */
+			 * this schema (draft-fge-json-schema-validation-00§8.2.3.1). */
 			sub_schema_node = items_schema_node;
 			schema_keyword_name = "items";
 		} else if (JSON_NODE_HOLDS_ARRAY (items_schema_node)) {
 			/* …and if each child element validates against the
 			 * corresponding items or additionalItems schema
-			 * (json-schema-validation§8.2.3.2). */
+			 * (draft-fge-json-schema-validation-00§8.2.3.2). */
 			if (i < schema_size) {
 				sub_schema_node = json_array_get_element (schema_array,
 				                                          i);
@@ -3393,7 +3392,7 @@ apply_items_child_schema (WblSchema *self,
 
 		/* Check the schema type. additionalItems may be a boolean,
 		 * which we consider as an empty schema (which always applies
-		 * successfully). (json-schema-validation§8.2.2.) */
+		 * successfully). (draft-fge-json-schema-validation-00§8.2.2.) */
 		if (sub_schema_node == NULL ||
 		    !JSON_NODE_HOLDS_OBJECT (sub_schema_node)) {
 			continue;
@@ -3413,7 +3412,7 @@ apply_items_child_schema (WblSchema *self,
 			             _("Array element does not validate "
 			               "against the schemas in the %s schema "
 			               "keyword. "
-			               "See json-schema-validation§8.2."),
+			               "See draft-fge-json-schema-validation-00§8.2."),
 			             schema_keyword_name);
 			g_error_free (child_error);
 			return;
@@ -3460,7 +3459,7 @@ apply_items (WblSchema *self,
 	}
 }
 
-/* maxItems. json-schema-validation§5.3.2.
+/* maxItems. draft-fge-json-schema-validation-00§5.3.2.
  *
  * Complexity: O(1) */
 static gboolean
@@ -3510,12 +3509,12 @@ apply_max_items (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Array must have at most %" G_GINT64_FORMAT " "
 		               "elements due to the maxItems schema keyword. "
-		               "See json-schema-validation§5.3.2."),
+		               "See draft-fge-json-schema-validation-00§5.3.2."),
 		             max_items);
 	}
 }
 
-/* minItems. json-schema-validation§5.3.3.
+/* minItems. draft-fge-json-schema-validation-00§5.3.3.
  *
  * Complexity: O(1) */
 static gboolean
@@ -3565,12 +3564,12 @@ apply_min_items (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Array must have at least %" G_GINT64_FORMAT " "
 		               "elements due to the minItems schema keyword. "
-		               "See json-schema-validation§5.3.3."),
+		               "See draft-fge-json-schema-validation-00§5.3.3."),
 		             min_items);
 	}
 }
 
-/* uniqueItems. json-schema-validation§5.3.3.
+/* uniqueItems. draft-fge-json-schema-validation-00§5.3.3.
  *
  * Complexity: O(1) */
 static gboolean
@@ -3635,7 +3634,7 @@ apply_unique_items (WblSchema *self,
 			             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 			             _("Array must have unique elements due to "
 			               "the uniqueItems schema keyword. "
-			               "See json-schema-validation§5.3.4."));
+			               "See draft-fge-json-schema-validation-00§5.3.4."));
 			break;
 		}
 
@@ -3645,7 +3644,7 @@ apply_unique_items (WblSchema *self,
 	g_hash_table_unref (unique_hash);
 }
 
-/* maxProperties. json-schema-validation§5.4.1.
+/* maxProperties. draft-fge-json-schema-validation-00§5.4.1.
  *
  * Complexity: O(1) */
 static gboolean
@@ -3695,12 +3694,12 @@ apply_max_properties (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Object must have at most %" G_GINT64_FORMAT " "
 		               "properties due to the maxProperties schema "
-		               "keyword. See json-schema-validation§5.4.1."),
+		               "keyword. See draft-fge-json-schema-validation-00§5.4.1."),
 		             max_properties);
 	}
 }
 
-/* minProperties. json-schema-validation§5.4.2.
+/* minProperties. draft-fge-json-schema-validation-00§5.4.2.
  *
  * Complexity: O(1) */
 static gboolean
@@ -3750,12 +3749,12 @@ apply_min_properties (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Object must have at least %" G_GINT64_FORMAT " "
 		               "properties due to the minProperties schema "
-		               "keyword. See json-schema-validation§5.4.2."),
+		               "keyword. See draft-fge-json-schema-validation-00§5.4.2."),
 		             min_properties);
 	}
 }
 
-/* required. json-schema-validation§5.4.3.
+/* required. draft-fge-json-schema-validation-00§5.4.3.
  *
  * Complexity: O(validate_non_empty_unique_string_array) */
 static gboolean
@@ -3816,7 +3815,7 @@ apply_required (WblSchema *self,
 			              * property name. */
 			             _("Object must have property ‘%s’ due to "
 			               "the required schema keyword. "
-			               "See json-schema-validation§5.4.3."),
+			               "See draft-fge-json-schema-validation-00§5.4.3."),
 			             member_name);
 			break;
 		}
@@ -3824,7 +3823,7 @@ apply_required (WblSchema *self,
 }
 
 /* additionalProperties, properties, patternProperties.
- * json-schema-validation§5.4.4.
+ * draft-fge-json-schema-validation-00§5.4.4.
  *
  * Complexity: O(subschema_validate) */
 static gboolean
@@ -4071,7 +4070,7 @@ list_contains_string (GList *list, const gchar *data)
 	return (l != NULL);
 }
 
-/* json-schema-validation§5.4.4
+/* draft-fge-json-schema-validation-00§5.4.4
  *
  * Complexity: O(P * S + PP * S) in the length P of @p_node, length S of
  *    @instance_object, and length PP of @pp_node */
@@ -4092,12 +4091,12 @@ apply_properties_parent_schema (WblSchema *self,
 	GList/*<unowned utf8>*/ *l = NULL;  /* unowned */
 
 	/* If additionalProperties is missing, its default value is an empty
-	 * schema. json-schema-validation§5.4.4.3. */
+	 * schema. draft-fge-json-schema-validation-00§5.4.4.3. */
 	ap_is_false = (ap_node != NULL &&
 	               validate_value_type (ap_node, G_TYPE_BOOLEAN) &&
 	               !json_node_get_boolean (ap_node));
 
-	/* As per json-schema-validation§5.4.4.2, validation always succeeds if
+	/* As per draft-fge-json-schema-validation-00§5.4.4.2, validation always succeeds if
 	 * additionalProperties is effectively true. */
 	if (!ap_is_false) {
 		return;
@@ -4111,7 +4110,7 @@ apply_properties_parent_schema (WblSchema *self,
 	         (p_object != NULL) ? json_object_get_size (p_object) : 0,
 	         (pp_object != NULL) ? json_object_get_size (pp_object) : 0);
 
-	/* Follow the algorithm in json-schema-validation§5.4.4.4. */
+	/* Follow the algorithm in draft-fge-json-schema-validation-00§5.4.4.4. */
 	set_s = json_object_get_members (instance_object);
 	if (p_object != NULL) {
 		set_p = json_object_get_members (p_object);
@@ -4170,7 +4169,7 @@ apply_properties_parent_schema (WblSchema *self,
 		             _("Object properties do not conform to "
 		               "additionalProperties, properties and "
 		               "patternProperties schema keywords. "
-		               "See json-schema-validation§5.4.4."));
+		               "See draft-fge-json-schema-validation-00§5.4.4."));
 	}
 
 	g_list_free (set_pp);
@@ -4178,7 +4177,7 @@ apply_properties_parent_schema (WblSchema *self,
 	g_list_free (set_s);
 }
 
-/* json-schema-validation§8.3.3
+/* draft-fge-json-schema-validation-00§8.3.3
  *
  * Complexity: O(S * (P + PP + (P + PP) * subschema_apply)) in the length P of
  *    @p_node, length S of @instance_object, and length PP of @pp_node */
@@ -4209,7 +4208,7 @@ apply_properties_child_schema (WblSchema *self,
 	         (p_object != NULL) ? json_object_get_size (p_object) : 0,
 	         (pp_object != NULL) ? json_object_get_size (pp_object) : 0);
 
-	/* Follow the algorithm in json-schema-validation§8.3.3. */
+	/* Follow the algorithm in draft-fge-json-schema-validation-00§8.3.3. */
 	set_s = g_hash_table_new_full (g_direct_hash, g_direct_equal,
 	                               NULL, NULL);
 
@@ -4229,7 +4228,7 @@ apply_properties_child_schema (WblSchema *self,
 
 		/* If @set_p contains @member_name, then the corresponding
 		 * schema in ‘properties’ is added to @set_s.
-		 * (json-schema-validation§8.3.3.2.) */
+		 * (draft-fge-json-schema-validation-00§8.3.3.2.) */
 		if (list_contains_string (set_p, member_name)) {
 			child_schema = json_object_get_member (p_object,
 			                                       member_name);
@@ -4238,7 +4237,7 @@ apply_properties_child_schema (WblSchema *self,
 
 		/* For each regex in @set_pp, if it matches @member_name
 		 * successfully, the corresponding schema in ‘patternProperties’
-		 * is added to @set_s. (json-schema-validation§8.3.3.3.) */
+		 * is added to @set_s. (draft-fge-json-schema-validation-00§8.3.3.3.) */
 		for (l = set_pp; l != NULL; l = l->next) {
 			const gchar *regex_str;
 			GRegex *regex = NULL;  /* owned */
@@ -4262,12 +4261,12 @@ apply_properties_child_schema (WblSchema *self,
 
 		/* The schema defined by ‘additionalProperties’ is added to
 		 * @set_s if and only if, at this stage, @set_s is empty.
-		 * (json-schema-validation§8.3.3.4.)
+		 * (draft-fge-json-schema-validation-00§8.3.3.4.)
 		 *
 		 * Note that if @ap_node is %NULL or holds a boolean, it is
 		 * considered equivalent to an empty schema, which is guaranteed
 		 * to apply, so we don’t add that to @set_s.
-		 * (json-schema-validation§8.3.2.) */
+		 * (draft-fge-json-schema-validation-00§8.3.2.) */
 		if (g_hash_table_size (set_s) == 0 &&
 		    ap_node != NULL && JSON_NODE_HOLDS_OBJECT (ap_node)) {
 			g_hash_table_add (set_s, ap_node);
@@ -4294,7 +4293,7 @@ apply_properties_child_schema (WblSchema *self,
 				               "against the schemas in the "
 				               "‘%s’ child of the properties "
 				               "schema keyword. See "
-				               "json-schema-validation§8.3: "
+				               "draft-fge-json-schema-validation-00§8.3: "
 				               "%s"),
 				             member_name, child_error->message);
 				g_clear_error (&child_error);
@@ -4777,7 +4776,7 @@ generate_valid_property_sets (WblStringSet  *required,
  * @additional_properties if it defines a subschema and no other subschemas
  * match.
  *
- * Reference: json-schema-validation§8.3.3
+ * Reference: draft-fge-json-schema-validation-00§8.3.3
  * Complexity: O(A) in the number A of @pattern_properties
  * Returns: (transfer full) (element-type JsonObject): a collection of
  *    subschemas which must apply to @property; the collection may be empty
@@ -4828,7 +4827,7 @@ get_subschemas_for_property (JsonObject   *properties,
 
 	/* @additionalProperties should be a subschema if it’s non-%FALSE.
 	 *
-	 * Note that by json-schema-validation§8.3.3.4, this is only added if
+	 * Note that by draft-fge-json-schema-validation-00§8.3.3.4, this is only added if
 	 * no other subschemas have been added. */
 	if (output->len == 0) {
 		if (JSON_NODE_HOLDS_OBJECT (additional_properties)) {
@@ -5846,7 +5845,7 @@ generate_all_properties_wrapper (WblSchema                       *self,
 	json_array_unref (required);
 }
 
-/* dependencies. json-schema-validation§5.4.5.
+/* dependencies. draft-fge-json-schema-validation-00§5.4.5.
  *
  * Complexity: O(N * subschema_validate + N * D) in the number N of
  *    properties, D of dependencies per property */
@@ -5992,7 +5991,7 @@ apply_dependencies (WblSchema *self,
 
 		if (JSON_NODE_HOLDS_OBJECT (child_node)) {
 			/* Schema dependency.
-			 * json-schema-validation§5.4.5.2.1.
+			 * draft-fge-json-schema-validation-00§5.4.5.2.1.
 			 *
 			 * Instance must validate successfully against this
 			 * schema. */
@@ -6010,14 +6009,14 @@ apply_dependencies (WblSchema *self,
 				               "against the schemas in the "
 				               "dependencies schema keyword. "
 				               "See "
-				               "json-schema-validation§5.4.5."));
+				               "draft-fge-json-schema-validation-00§5.4.5."));
 				break;
 			}
 		} else if (JSON_NODE_HOLDS_ARRAY (child_node)) {
 			JsonArray *child_array;  /* unowned */
 
 			/* Property dependency.
-			 * json-schema-validation§5.4.5.2.2.
+			 * draft-fge-json-schema-validation-00§5.4.5.2.2.
 			 *
 			 * Instance must have all properties listed in the
 			 * @child_node array. */
@@ -6035,7 +6034,7 @@ apply_dependencies (WblSchema *self,
 				               "the ‘%s’ dependencies array in "
 				               "the dependencies schema "
 				               "keyword. See "
-				               "json-schema-validation§5.4.5."),
+				               "draft-fge-json-schema-validation-00§5.4.5."),
 				             member_name);
 				break;
 			}
@@ -6043,7 +6042,7 @@ apply_dependencies (WblSchema *self,
 	}
 }
 
-/* enum. json-schema-validation§5.5.1.
+/* enum. draft-fge-json-schema-validation-00§5.5.1.
  *
  * Complexity: O(N) in the number of enum elements */
 static gboolean
@@ -6132,7 +6131,7 @@ apply_enum (WblSchema *self,
 	g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 	             _("Instance does not equal any of the elements of the "
 	               "enum schema keyword. "
-	               "See json-schema-validation§5.5.1."));
+	               "See draft-fge-json-schema-validation-00§5.5.1."));
 }
 
 /* Complexity: O(N) in the number of enum elements */
@@ -6159,7 +6158,7 @@ generate_enum (WblSchema *self,
 	 * members? How would we generate one of those? */
 }
 
-/* type. json-schema-validation§5.5.2.
+/* type. draft-fge-json-schema-validation-00§5.5.2.
  *
  * Complexity: O(N) in the number of array elements; N=1 for non-array nodes */
 static gboolean
@@ -6182,7 +6181,7 @@ validate_type (WblSchema *self,
 		goto invalid;
 	}
 
-	/* FIXME: The specification (json-schema-validation§5.5.2.1) does not
+	/* FIXME: The specification (draft-fge-json-schema-validation-00§5.5.2.1) does not
 	 * require that the array is non-empty, as it does for some other
 	 * arrays. However, it would make sense for this to be a requirement.
 	 *
@@ -6307,7 +6306,7 @@ apply_type (WblSchema *self,
 	g_set_error (error,
 	             WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 	             _("Instance type does not conform to type schema "
-	               "keyword. See json-schema-validation§5.5.2."));
+	               "keyword. See draft-fge-json-schema-validation-00§5.5.2."));
 
 done:
 	g_array_unref (schema_types);
@@ -6378,7 +6377,7 @@ generate_type (WblSchema *self,
 	g_array_unref (schema_types);
 }
 
-/* allOf. json-schema-validation§5.5.3.
+/* allOf. draft-fge-json-schema-validation-00§5.5.3.
  *
  * Complexity: O(validate_schema_array) */
 static gboolean
@@ -6409,7 +6408,7 @@ apply_all_of (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Instance does not validate against one of the "
 		               "schemas in the allOf schema keyword. See "
-		               "json-schema-validation§5.5.3."));
+		               "draft-fge-json-schema-validation-00§5.5.3."));
 	}
 }
 
@@ -6427,7 +6426,7 @@ generate_all_of (WblSchema *self,
 	generate_schema_array (self, schema_array, output);
 }
 
-/* anyOf. json-schema-validation§5.5.4.
+/* anyOf. draft-fge-json-schema-validation-00§5.5.4.
  *
  * Complexity: O(validate_schema_array) */
 static gboolean
@@ -6458,7 +6457,7 @@ apply_any_of (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Instance does not validate against any of the "
 		               "schemas in the anyOf schema keyword. "
-		               "See json-schema-validation§5.5.4."));
+		               "See draft-fge-json-schema-validation-00§5.5.4."));
 	}
 }
 
@@ -6476,7 +6475,7 @@ generate_any_of (WblSchema *self,
 	generate_schema_array (self, schema_array, output);
 }
 
-/* oneOf. json-schema-validation§5.5.5.
+/* oneOf. draft-fge-json-schema-validation-00§5.5.5.
  *
  * Complexity: O(validate_schema_array) */
 static gboolean
@@ -6507,7 +6506,7 @@ apply_one_of (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Instance does not validate against exactly one "
 		               "of the schemas in the oneOf schema keyword. "
-		               "See json-schema-validation§5.5.5."));
+		               "See draft-fge-json-schema-validation-00§5.5.5."));
 	}
 }
 
@@ -6525,7 +6524,7 @@ generate_one_of (WblSchema *self,
 	generate_schema_array (self, schema_array, output);
 }
 
-/* not. json-schema-validation§5.5.6.
+/* not. draft-fge-json-schema-validation-00§5.5.6.
  *
  * Complexity: O(subschema_validate) */
 static gboolean
@@ -6593,7 +6592,7 @@ apply_not (WblSchema *self,
 		g_set_error (error, WBL_SCHEMA_ERROR, WBL_SCHEMA_ERROR_INVALID,
 		             _("Instance validates against the schemas in the "
 		               "not schema keyword. "
-		               "See json-schema-validation§5.5.6."));
+		               "See draft-fge-json-schema-validation-00§5.5.6."));
 	}
 
 	g_clear_error (&child_error);
@@ -6622,7 +6621,7 @@ generate_not (WblSchema *self,
 	g_hash_table_unref (child_output);
 }
 
-/* title. json-schema-validation§6.1.
+/* title. draft-fge-json-schema-validation-00§6.1.
  *
  * Complexity: O(validate_value_type) */
 static gboolean
@@ -6646,7 +6645,7 @@ validate_title (WblSchema *self,
 	return TRUE;
 }
 
-/* description. json-schema-validation§6.1.
+/* description. draft-fge-json-schema-validation-00§6.1.
  *
  * Complexity: O(validate_value_type) */
 static gboolean
@@ -6671,7 +6670,7 @@ validate_description (WblSchema *self,
 	return TRUE;
 }
 
-/* default. json-schema-validation§6.2.
+/* default. draft-fge-json-schema-validation-00§6.2.
  *
  * Complexity: O(1) */
 static void
@@ -6681,7 +6680,7 @@ generate_default (WblSchema *self,
                   GHashTable/*<owned JsonNode>*/ *output)
 {
 	/* Add the default value to the output. Technically, it could be invalid
-	 * (json-schema-validation§6.2.2), but we can’t really know. */
+	 * (draft-fge-json-schema-validation-00§6.2.2), but we can’t really know. */
 	generate_take_node (output, json_node_copy (schema_node));
 }
 
@@ -6713,8 +6712,8 @@ typedef void
                              GHashTable/*<owned JsonNode, unowned JsonNode>*/ *output);
 
 /* Structure holding information about a single JSON Schema keyword, as defined
- * in json-schema-core§3.2. Default keywords are described in
- * json-schema-validation§4.3. */
+ * in draft-zyp-json-schema-04§3.2. Default keywords are described in
+ * draft-fge-json-schema-validation-00§4.3. */
 typedef struct {
 	const gchar *name;
 	const gchar *default_value;  /* NULL if there is no default */
@@ -6741,75 +6740,75 @@ typedef struct {
  * keywords.
  */
 static const KeywordData json_schema_items_keywords[] = {
-	/* json-schema-validation§5.3.1 */
+	/* draft-fge-json-schema-validation-00§5.3.1 */
 	{ "additionalItems", "{}", validate_additional_items, NULL, NULL },
 	{ "items", "{}", validate_items, apply_items, NULL },
-	/* json-schema-validation§5.3.2 */
+	/* draft-fge-json-schema-validation-00§5.3.2 */
 	{ "maxItems", NULL, validate_max_items, apply_max_items, NULL },
-	/* json-schema-validation§5.3.3 */
+	/* draft-fge-json-schema-validation-00§5.3.3 */
 	{ "minItems", "0", validate_min_items, apply_min_items, NULL },
-	/* json-schema-validation§5.3.3 */
+	/* draft-fge-json-schema-validation-00§5.3.3 */
 	{ "uniqueItems", "false", validate_unique_items, apply_unique_items, NULL },
 };
 
 static const KeywordData json_schema_properties_keywords[] = {
-	/* json-schema-validation§5.4.1 */
+	/* draft-fge-json-schema-validation-00§5.4.1 */
 	{ "maxProperties", NULL, validate_max_properties, apply_max_properties, NULL },
-	/* json-schema-validation§5.4.2 */
+	/* draft-fge-json-schema-validation-00§5.4.2 */
 	{ "minProperties", "0", validate_min_properties, apply_min_properties, NULL },
-	/* json-schema-validation§5.4.3 */
+	/* draft-fge-json-schema-validation-00§5.4.3 */
 	{ "required", NULL, validate_required, apply_required, NULL },
-	/* json-schema-validation§5.4.4 */
+	/* draft-fge-json-schema-validation-00§5.4.4 */
 	{ "additionalProperties", "{}", validate_additional_properties, NULL, NULL },
 	{ "properties", "{}", validate_properties, NULL, NULL },
 	{ "patternProperties", "{}", validate_pattern_properties, NULL, NULL },
-	/* json-schema-validation§5.4.5 */
+	/* draft-fge-json-schema-validation-00§5.4.5 */
 	{ "dependencies", NULL, validate_dependencies, apply_dependencies, NULL },
 };
 
 static const KeywordGroupData json_schema_group_keywords[] = {
-	/* json-schema-validation§5.3 */
+	/* draft-fge-json-schema-validation-00§5.3 */
 	{ NULL, generate_all_items_wrapper, json_schema_items_keywords, G_N_ELEMENTS (json_schema_items_keywords) },
-	/* json-schema-validation§5.4 */
+	/* draft-fge-json-schema-validation-00§5.4 */
 	{ apply_all_properties, generate_all_properties_wrapper, json_schema_properties_keywords, G_N_ELEMENTS (json_schema_properties_keywords) },
 };
 
 static const KeywordData json_schema_keywords[] = {
-	/* json-schema-validation§5.1.1 */
+	/* draft-fge-json-schema-validation-00§5.1.1 */
 	{ "multipleOf", NULL, validate_multiple_of, apply_multiple_of, generate_multiple_of },
-	/* json-schema-validation§5.1.2 */
+	/* draft-fge-json-schema-validation-00§5.1.2 */
 	{ "maximum", NULL, validate_maximum, apply_maximum, generate_maximum },
 	{ "exclusiveMaximum", NULL, validate_exclusive_maximum, NULL, NULL },
-	/* json-schema-validation§5.1.3. */
+	/* draft-fge-json-schema-validation-00§5.1.3. */
 	{ "minimum", NULL, validate_minimum, apply_minimum, generate_minimum },
 	{ "exclusiveMinimum", NULL, validate_exclusive_minimum, NULL, NULL },
-	/* json-schema-validation§5.2.1 */
+	/* draft-fge-json-schema-validation-00§5.2.1 */
 	{ "maxLength", NULL, validate_max_length, apply_max_length, generate_max_length },
-	/* json-schema-validation§5.2.2 */
+	/* draft-fge-json-schema-validation-00§5.2.2 */
 	{ "minLength", "0", validate_min_length, apply_min_length, generate_min_length },
-	/* json-schema-validation§5.2.3 */
+	/* draft-fge-json-schema-validation-00§5.2.3 */
 	{ "pattern", NULL, validate_pattern, apply_pattern, generate_pattern },
-	/* json-schema-validation§5.5.1 */
+	/* draft-fge-json-schema-validation-00§5.5.1 */
 	{ "enum", NULL, validate_enum, apply_enum, generate_enum },
-	/* json-schema-validation§5.5.2 */
+	/* draft-fge-json-schema-validation-00§5.5.2 */
 	{ "type", NULL, validate_type, apply_type, generate_type },
-	/* json-schema-validation§5.5.3 */
+	/* draft-fge-json-schema-validation-00§5.5.3 */
 	{ "allOf", NULL, validate_all_of, apply_all_of, generate_all_of },
-	/* json-schema-validation§5.5.4 */
+	/* draft-fge-json-schema-validation-00§5.5.4 */
 	{ "anyOf", NULL, validate_any_of, apply_any_of, generate_any_of },
-	/* json-schema-validation§5.5.5 */
+	/* draft-fge-json-schema-validation-00§5.5.5 */
 	{ "oneOf", NULL, validate_one_of, apply_one_of, generate_one_of },
-	/* json-schema-validation§5.5.6 */
+	/* draft-fge-json-schema-validation-00§5.5.6 */
 	{ "not", NULL, validate_not, apply_not, generate_not },
-	/* json-schema-validation§6.1 */
+	/* draft-fge-json-schema-validation-00§6.1 */
 	{ "title", NULL, validate_title, NULL, NULL },
 	{ "description", NULL, validate_description, NULL, NULL },
-	/* json-schema-validation§6.2 */
+	/* draft-fge-json-schema-validation-00§6.2 */
 	{ "default", NULL, NULL, NULL, generate_default },
 
 	/* TODO:
-	 *  • definitions (json-schema-validation§5.5.7)
-	 *  • format (json-schema-validation§7.1)
+	 *  • definitions (draft-fge-json-schema-validation-00§5.5.7)
+	 *  • format (draft-fge-json-schema-validation-00§7.1)
 	 *  • json-schema-core
 	 *  • json-schema-hypermedia
 	 */
@@ -7229,7 +7228,7 @@ finish_loading (WblSchema *self, JsonNode *root, GError **error)
 	klass = WBL_SCHEMA_GET_CLASS (self);
 	priv = wbl_schema_get_instance_private (self);
 
-	/* A schema must be a JSON object. json-schema-core§3.2. */
+	/* A schema must be a JSON object. draft-zyp-json-schema-04§3.2. */
 	if (root == NULL || !JSON_NODE_HOLDS_OBJECT (root)) {
 		priv->messages = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_validate_message_free);
 

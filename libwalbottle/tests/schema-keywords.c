@@ -25,7 +25,7 @@
 #include "utils.h"
 #include "wbl-schema.h"
 
-/* multipleOf. json-schema-validation§5.1.1. */
+/* multipleOf. draft-fge-json-schema-validation-00§5.1.1. */
 static void
 assert_schema_keyword (const gchar *valid_schema,
                        const gchar **invalid_schemas,
@@ -111,7 +111,7 @@ assert_schema_keyword (const gchar *valid_schema,
 	g_object_unref (schema);
 }
 
-/* multipleOf using an integer. json-schema-validation§5.1.1. */
+/* multipleOf using an integer. draft-fge-json-schema-validation-00§5.1.1. */
 static void
 test_schema_keywords_multiple_of_integer (void)
 {
@@ -160,7 +160,7 @@ test_schema_keywords_multiple_of_integer (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* multipleOf using a double. json-schema-validation§5.1.1. */
+/* multipleOf using a double. draft-fge-json-schema-validation-00§5.1.1. */
 static void
 test_schema_keywords_multiple_of_double (void)
 {
@@ -218,7 +218,7 @@ test_schema_keywords_multiple_of_double (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* maximum as integer. json-schema-validation§5.1.2. */
+/* maximum as integer. draft-fge-json-schema-validation-00§5.1.2. */
 static void
 test_schema_keywords_maximum_integer (void)
 {
@@ -269,7 +269,7 @@ test_schema_keywords_maximum_integer (void)
 	g_strfreev (invalid_instances);
 }
 
-/* maximum as float. json-schema-validation§5.1.2. */
+/* maximum as float. draft-fge-json-schema-validation-00§5.1.2. */
 static void
 test_schema_keywords_maximum_float (void)
 {
@@ -320,7 +320,7 @@ test_schema_keywords_maximum_float (void)
 	g_strfreev (invalid_instances);
 }
 
-/* exclusiveMaximum as integer. json-schema-validation§5.1.2. */
+/* exclusiveMaximum as integer. draft-fge-json-schema-validation-00§5.1.2. */
 static void
 test_schema_keywords_exclusive_maximum_integer (void)
 {
@@ -360,7 +360,7 @@ test_schema_keywords_exclusive_maximum_integer (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* exclusiveMaximum as float. json-schema-validation§5.1.2. */
+/* exclusiveMaximum as float. draft-fge-json-schema-validation-00§5.1.2. */
 static void
 test_schema_keywords_exclusive_maximum_float (void)
 {
@@ -401,7 +401,7 @@ test_schema_keywords_exclusive_maximum_float (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* minimum as integer. json-schema-validation§5.1.3. */
+/* minimum as integer. draft-fge-json-schema-validation-00§5.1.3. */
 static void
 test_schema_keywords_minimum_integer (void)
 {
@@ -451,7 +451,7 @@ test_schema_keywords_minimum_integer (void)
 	g_strfreev (invalid_instances);
 }
 
-/* minimum as float. json-schema-validation§5.1.3. */
+/* minimum as float. draft-fge-json-schema-validation-00§5.1.3. */
 static void
 test_schema_keywords_minimum_float (void)
 {
@@ -500,7 +500,7 @@ test_schema_keywords_minimum_float (void)
 	g_strfreev (invalid_instances);
 }
 
-/* exclusiveMinimum as integer. json-schema-validation§5.1.3. */
+/* exclusiveMinimum as integer. draft-fge-json-schema-validation-00§5.1.3. */
 static void
 test_schema_keywords_exclusive_minimum_integer (void)
 {
@@ -539,7 +539,7 @@ test_schema_keywords_exclusive_minimum_integer (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* exclusiveMinimum as float. json-schema-validation§5.1.3. */
+/* exclusiveMinimum as float. draft-fge-json-schema-validation-00§5.1.3. */
 static void
 test_schema_keywords_exclusive_minimum_float (void)
 {
@@ -579,7 +579,7 @@ test_schema_keywords_exclusive_minimum_float (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* maxLength. json-schema-validation§5.2.1. */
+/* maxLength. draft-fge-json-schema-validation-00§5.2.1. */
 static void
 test_schema_keywords_max_length (void)
 {
@@ -620,7 +620,7 @@ test_schema_keywords_max_length (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* minLength. json-schema-validation§5.2.2. */
+/* minLength. draft-fge-json-schema-validation-00§5.2.2. */
 static void
 test_schema_keywords_min_length (void)
 {
@@ -660,7 +660,7 @@ test_schema_keywords_min_length (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* pattern. json-schema-validation§5.2.3. */
+/* pattern. draft-fge-json-schema-validation-00§5.2.3. */
 static void
 test_schema_keywords_pattern (void)
 {
@@ -699,7 +699,7 @@ test_schema_keywords_pattern (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* additionalItems set to true. json-schema-validation§5.3.1. */
+/* additionalItems set to true. draft-fge-json-schema-validation-00§5.3.1. */
 static void
 test_schema_keywords_additional_items_true (void)
 {
@@ -735,7 +735,7 @@ test_schema_keywords_additional_items_true (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* additionalItems set to a schema. json-schema-validation§5.3.1. */
+/* additionalItems set to a schema. draft-fge-json-schema-validation-00§5.3.1. */
 static void
 test_schema_keywords_additional_items_schema (void)
 {
@@ -810,7 +810,7 @@ test_schema_keywords_additional_items_schema (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* additionalItems set to false. json-schema-validation§5.3.1. */
+/* additionalItems set to false. draft-fge-json-schema-validation-00§5.3.1. */
 static void
 test_schema_keywords_additional_items_false (void)
 {
@@ -858,7 +858,7 @@ test_schema_keywords_additional_items_false (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* items set to an array. json-schema-validation§5.3.1. */
+/* items set to an array. draft-fge-json-schema-validation-00§5.3.1. */
 static void
 test_schema_keywords_items_array (void)
 {
@@ -929,7 +929,7 @@ test_schema_keywords_items_array (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* items set to a subschema. json-schema-validation§5.3.1. */
+/* items set to a subschema. draft-fge-json-schema-validation-00§5.3.1. */
 static void
 test_schema_keywords_items_subschema (void)
 {
@@ -981,7 +981,7 @@ test_schema_keywords_items_subschema (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* maxItems. json-schema-validation§5.3.2. */
+/* maxItems. draft-fge-json-schema-validation-00§5.3.2. */
 static void
 test_schema_keywords_max_items (void)
 {
@@ -1019,7 +1019,7 @@ test_schema_keywords_max_items (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* minItems. json-schema-validation§5.3.3. */
+/* minItems. draft-fge-json-schema-validation-00§5.3.3. */
 static void
 test_schema_keywords_min_items (void)
 {
@@ -1056,7 +1056,7 @@ test_schema_keywords_min_items (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* uniqueItems with false value. json-schema-validation§5.3.4. */
+/* uniqueItems with false value. draft-fge-json-schema-validation-00§5.3.4. */
 static void
 test_schema_keywords_unique_items_false (void)
 {
@@ -1094,7 +1094,7 @@ test_schema_keywords_unique_items_false (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* uniqueItems with true value. json-schema-validation§5.3.4. */
+/* uniqueItems with true value. draft-fge-json-schema-validation-00§5.3.4. */
 static void
 test_schema_keywords_unique_items_true (void)
 {
@@ -1131,7 +1131,7 @@ test_schema_keywords_unique_items_true (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* maxProperties. json-schema-validation§5.4.1. */
+/* maxProperties. draft-fge-json-schema-validation-00§5.4.1. */
 static void
 test_schema_keywords_max_properties (void)
 {
@@ -1175,7 +1175,7 @@ test_schema_keywords_max_properties (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* minProperties. json-schema-validation§5.4.2. */
+/* minProperties. draft-fge-json-schema-validation-00§5.4.2. */
 static void
 test_schema_keywords_min_properties (void)
 {
@@ -1213,7 +1213,7 @@ test_schema_keywords_min_properties (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* required. json-schema-validation§5.4.3. */
+/* required. draft-fge-json-schema-validation-00§5.4.3. */
 static void
 test_schema_keywords_required (void)
 {
@@ -1258,7 +1258,7 @@ test_schema_keywords_required (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* additionalProperties set to true. json-schema-validation§5.4.4. */
+/* additionalProperties set to true. draft-fge-json-schema-validation-00§5.4.4. */
 static void
 test_schema_keywords_additional_properties_true (void)
 {
@@ -1295,7 +1295,7 @@ test_schema_keywords_additional_properties_true (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* additionalProperties set to a schema. json-schema-validation§5.4.4. */
+/* additionalProperties set to a schema. draft-fge-json-schema-validation-00§5.4.4. */
 static void
 test_schema_keywords_additional_properties_schema (void)
 {
@@ -1371,7 +1371,7 @@ test_schema_keywords_additional_properties_schema (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* additionalProperties set to false. json-schema-validation§5.4.4. */
+/* additionalProperties set to false. draft-fge-json-schema-validation-00§5.4.4. */
 static void
 test_schema_keywords_additional_properties_false (void)
 {
@@ -1408,7 +1408,7 @@ test_schema_keywords_additional_properties_false (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* properties. json-schema-validation§5.4.4. */
+/* properties. draft-fge-json-schema-validation-00§5.4.4. */
 static void
 test_schema_keywords_properties (void)
 {
@@ -1505,7 +1505,7 @@ test_schema_keywords_properties (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* patternProperties. json-schema-validation§5.4.4. */
+/* patternProperties. draft-fge-json-schema-validation-00§5.4.4. */
 static void
 test_schema_keywords_pattern_properties (void)
 {
@@ -1601,7 +1601,7 @@ test_schema_keywords_pattern_properties (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* enum. json-schema-validation§5.5.1. */
+/* enum. draft-fge-json-schema-validation-00§5.5.1. */
 static void
 test_schema_keywords_enum (void)
 {
@@ -1641,7 +1641,7 @@ test_schema_keywords_enum (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type set to array. json-schema-validation§5.5.2. */
+/* type set to array. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_string_array (void)
 {
@@ -1677,7 +1677,7 @@ test_schema_keywords_type_string_array (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type set to boolean. json-schema-validation§5.5.2. */
+/* type set to boolean. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_string_boolean (void)
 {
@@ -1714,7 +1714,7 @@ test_schema_keywords_type_string_boolean (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type set to integer. json-schema-validation§5.5.2. */
+/* type set to integer. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_string_integer (void)
 {
@@ -1751,7 +1751,7 @@ test_schema_keywords_type_string_integer (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type set to number. json-schema-validation§5.5.2. */
+/* type set to number. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_string_number (void)
 {
@@ -1789,7 +1789,7 @@ test_schema_keywords_type_string_number (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type set to null. json-schema-validation§5.5.2. */
+/* type set to null. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_string_null (void)
 {
@@ -1826,7 +1826,7 @@ test_schema_keywords_type_string_null (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type set to object. json-schema-validation§5.5.2. */
+/* type set to object. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_string_object (void)
 {
@@ -1862,7 +1862,7 @@ test_schema_keywords_type_string_object (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type set to string. json-schema-validation§5.5.2. */
+/* type set to string. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_string_string (void)
 {
@@ -1898,7 +1898,7 @@ test_schema_keywords_type_string_string (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* type as an array. json-schema-validation§5.5.2. */
+/* type as an array. draft-fge-json-schema-validation-00§5.5.2. */
 static void
 test_schema_keywords_type_array (void)
 {
@@ -1936,7 +1936,7 @@ test_schema_keywords_type_array (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* allOf. json-schema-validation§5.5.3. */
+/* allOf. draft-fge-json-schema-validation-00§5.5.3. */
 static void
 test_schema_keywords_all_of (void)
 {
@@ -1993,7 +1993,7 @@ test_schema_keywords_all_of (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* anyOf. json-schema-validation§5.5.4. */
+/* anyOf. draft-fge-json-schema-validation-00§5.5.4. */
 static void
 test_schema_keywords_any_of (void)
 {
@@ -2050,7 +2050,7 @@ test_schema_keywords_any_of (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* oneOf. json-schema-validation§5.5.5. */
+/* oneOf. draft-fge-json-schema-validation-00§5.5.5. */
 static void
 test_schema_keywords_one_of (void)
 {
@@ -2107,7 +2107,7 @@ test_schema_keywords_one_of (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* not. json-schema-validation§5.5.6. */
+/* not. draft-fge-json-schema-validation-00§5.5.6. */
 static void
 test_schema_keywords_not (void)
 {
@@ -2145,7 +2145,7 @@ test_schema_keywords_not (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* title. json-schema-validation§6.1. */
+/* title. draft-fge-json-schema-validation-00§6.1. */
 static void
 test_schema_keywords_title (void)
 {
@@ -2179,7 +2179,7 @@ test_schema_keywords_title (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* description. json-schema-validation§6.1. */
+/* description. draft-fge-json-schema-validation-00§6.1. */
 static void
 test_schema_keywords_description (void)
 {
@@ -2213,7 +2213,7 @@ test_schema_keywords_description (void)
 	                       invalid_instances, expected_instances);
 }
 
-/* default. json-schema-validation§6.2. */
+/* default. draft-fge-json-schema-validation-00§6.2. */
 static void
 test_schema_keywords_default (void)
 {

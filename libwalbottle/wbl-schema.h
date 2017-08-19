@@ -191,7 +191,7 @@ typedef enum {
  *
  * Since: 0.3.0
  */
-#define WBL_SCHEMA_CORE "json-schema-core"
+#define WBL_SCHEMA_CORE "draft-zyp-json-schema-04"
 
 /**
  * WBL_SCHEMA_VALIDATION:
@@ -200,7 +200,7 @@ typedef enum {
  *
  * Since: 0.3.0
  */
-#define WBL_SCHEMA_VALIDATION "json-schema-validation"
+#define WBL_SCHEMA_VALIDATION "draft-fge-json-schema-validation-00"
 
 /**
  * WblValidateMessage:

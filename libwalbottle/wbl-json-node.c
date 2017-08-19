@@ -155,7 +155,7 @@ wbl_primitive_type_validate (const gchar *str)
  *
  * Formally, this function calculates: `@sub <: @super`.
  *
- * Reference: http://json-schema.org/latest/json-schema-core.html#rfc.section.3.5
+ * Reference: https://tools.ietf.org/html/draft-zyp-json-schema-04#section-3.5
  *
  * Returns: %TRUE if @sub is a sub-type of, or equal to, @super; %FALSE
  *    otherwise
@@ -339,7 +339,7 @@ wbl_json_string_compare (gconstpointer a,
  *
  * Calculate a hash value for the given @key (a #JsonNode).
  *
- * Reference: http://json-schema.org/latest/json-schema-core.html#rfc.section.3.6
+ * Reference: https://tools.ietf.org/html/draft-zyp-json-schema-04#section-3.6
  *
  * Returns: hash value for @key
  * Since: 0.2.0
@@ -417,7 +417,7 @@ wbl_json_node_hash (gconstpointer key)
 	}
 }
 
-/* Reference: json-schema-core§3.6. */
+/* Reference: draft-zyp-json-schema-04§3.6. */
 /**
  * wbl_json_node_equal:
  * @a: (type JsonNode): a #JsonNode
@@ -426,7 +426,7 @@ wbl_json_node_hash (gconstpointer key)
  * Check whether @a and @b are equal #JsonNodes, in the sense defined by JSON
  * Schema.
  *
- * Reference: http://json-schema.org/latest/json-schema-core.html#rfc.section.3.6
+ * Reference: https://tools.ietf.org/html/draft-zyp-json-schema-04#section-3.6
  *
  * Returns: %TRUE if @a and @b are equal; %FALSE otherwise
  * Since: 0.2.0
