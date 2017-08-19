@@ -1,1 +1,0 @@
-Ensure the macros obey the automake V variable, so use --quiet as appropriate.

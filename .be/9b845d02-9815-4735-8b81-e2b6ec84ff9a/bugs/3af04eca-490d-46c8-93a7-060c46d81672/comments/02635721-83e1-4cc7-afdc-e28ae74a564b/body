@@ -1,6 +1,0 @@
-Add autoconf/automake macros for users of Walbottle.
-
-They should include rules to:
- • Validate JSON files against a schema.
- • Validate JSON schemas.
- • Automatically generate test vectors from a JSON schema.

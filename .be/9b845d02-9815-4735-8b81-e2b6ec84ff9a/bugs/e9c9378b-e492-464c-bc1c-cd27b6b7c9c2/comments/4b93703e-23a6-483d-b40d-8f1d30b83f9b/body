@@ -1,3 +1,0 @@
-The unit tests currently fail on systems where the (undefined) hash table ordering differs from the (undefined) hash table ordering on my amd64 system. For the purposes of reliable `make distcheck`, it would be good to make the unit tests not depend on this undefined behaviour.
-
-(For the record, it's fine for the output of json-schema-generate to depend on this undefined behaviour, because it's only used in places where undefinedness doesn't matter; as long as that doesn't leak into the unit tests.)

@@ -1,1 +1,0 @@
-Add an output mode to json-schema-generate which outputs the result as a C string array (const char * const *) to make it easier to embed the test vectors in a set of unit tests.

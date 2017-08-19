@@ -123,8 +123,10 @@ libwalbottle is licensed under the LGPL; see COPYING.LIB for more details.
 Bugs
 ====
 
-Bug reports and (git formatted) patches should be e-mailed to one of the
-addresses listed in the ‘Contact’ section below. Thank you!
+Bug reports and patches should be added on gitlab:
+https://gitlab.com/walbottle/walbottle/issues/new
+
+Thank you!
 
 Contact
 =======
