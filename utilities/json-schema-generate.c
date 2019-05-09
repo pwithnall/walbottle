@@ -31,7 +31,7 @@
 /* Exit statuses. */
 typedef enum {
 	/* Success. */
-	EXIT_SUCCESS = 0,
+	EXIT_OK = 0,
 	/* Error parsing command line options. */
 	EXIT_INVALID_OPTIONS = 1,
 	/* JSON schema could not be parsed. */
@@ -105,7 +105,7 @@ int
 main (int argc, char *argv[])
 {
 	GOptionContext *context = NULL;  /* owned */
-	ExitStatus retval = EXIT_SUCCESS;
+	ExitStatus retval = EXIT_OK;
 	guint i;
 	GPtrArray/*<owned WblSchema>*/ *schemas = NULL;  /* owned */
 	WblGenerateInstanceFlags flags;
