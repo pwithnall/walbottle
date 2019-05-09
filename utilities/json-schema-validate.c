@@ -30,7 +30,7 @@
 /* Exit statuses. */
 typedef enum {
 	/* Success. */
-	EXIT_SUCCESS = 0,
+	EXIT_OK = 0,
 	/* Error parsing command line options. */
 	EXIT_INVALID_OPTIONS = 1,
 	/* JSON schema could not be parsed. */
@@ -65,7 +65,7 @@ int
 main (int argc, char *argv[])
 {
 	GOptionContext *context = NULL;  /* owned */
-	ExitStatus retval = EXIT_SUCCESS;
+	ExitStatus retval = EXIT_OK;
 	guint i;
 	GPtrArray/*<owned WblSchema>*/ *schemas = NULL;  /* owned */
 	WblSchema *meta_schema = NULL;  /* owned */
@@ -141,7 +141,7 @@ main (int argc, char *argv[])
 				g_free (message);
 			}
 
-			if (retval == EXIT_SUCCESS) {
+			if (retval == EXIT_OK) {
 				retval = EXIT_INVALID_SCHEMA;
 			}
 			g_clear_error (&error);
@@ -221,7 +221,7 @@ main (int argc, char *argv[])
 				g_free (message);
 			}
 
-			if (retval == EXIT_SUCCESS) {
+			if (retval == EXIT_OK) {
 				retval = EXIT_SCHEMA_VALIDATION_FAILED;
 			}
 			g_clear_error (&error);

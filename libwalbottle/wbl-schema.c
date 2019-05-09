@@ -532,7 +532,7 @@ wbl_validate_message_free (WblValidateMessage *self)
 	g_free (self->specification_section);
 	g_free (self->specification);
 	g_free (self->node_path);
-	g_clear_pointer (&self->node, (GDestroyNotify) json_node_free);
+	g_clear_pointer (&self->node, json_node_free);
 	g_free (self->message);
 
 	g_slice_free (WblValidateMessage, self);
@@ -1058,8 +1058,7 @@ wbl_schema_dispose (GObject *object)
 	}
 
 	g_clear_pointer (&priv->messages, g_ptr_array_unref);
-	g_clear_pointer (&priv->schema_instances_cache,
-	                 (GDestroyNotify) g_hash_table_unref);
+	g_clear_pointer (&priv->schema_instances_cache, g_hash_table_unref);
 
 	/* Chain up to the parent class */
 	G_OBJECT_CLASS (wbl_schema_parent_class)->dispose (object);
@@ -3053,8 +3052,7 @@ generate_all_items (WblSchema                       *self,
 	g_hash_table_unref (mutation_set);
 	g_hash_table_unref (instance_set);
 	g_ptr_array_unref (subschema_arrays);
-	g_clear_pointer (&additional_items_subschema,
-	                 (GDestroyNotify) json_object_unref);
+	g_clear_pointer (&additional_items_subschema, json_object_unref);
 	g_object_unref (builder);
 }
 
@@ -7215,8 +7213,7 @@ start_loading (WblSchema *self)
 	g_clear_pointer (&priv->messages, g_ptr_array_unref);
 
 	/* And clear any left-over generation caches. */
-	g_clear_pointer (&priv->schema_instances_cache,
-	                 (GDestroyNotify) g_hash_table_unref);
+	g_clear_pointer (&priv->schema_instances_cache, g_hash_table_unref);
 }
 
 static void
@@ -7263,8 +7260,7 @@ finish_loading (WblSchema *self, JsonNode *root, GError **error)
 	if (child_error != NULL) {
 		/* Clear out state. */
 		g_clear_pointer (&priv->schema, wbl_schema_node_unref);
-		g_clear_pointer (&priv->schema_instances_cache,
-		                 (GDestroyNotify) g_hash_table_unref);
+		g_clear_pointer (&priv->schema_instances_cache, g_hash_table_unref);
 
 		g_propagate_error (error, child_error);
 	}
