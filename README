@@ -109,12 +109,6 @@ Dependencies
  • gio-2.0 ≥ 2.17.3
  • json-glib
 
-Deprecation guards
-==================
-
-If LIBWALBOTTLE_DISABLE_DEPRECATED is defined when compiling against
-libwalbottle, all deprecated API will be removed from included headers.
-
 Licensing
 =========
 

@@ -1,0 +1,13 @@
+option(
+  'gtk_doc',
+  type : 'boolean',
+  value : false,
+  description : 'use gtk-doc to build documentation'
+)
+
+option(
+  'installed_tests',
+  type: 'boolean',
+  value: false,
+  description: 'enable installed tests'
+)

@@ -137,8 +137,6 @@ deprecating API:
  - A “Deprecated:” line is added to the gtk-doc comment for the API. This should mention what API replaces it, give a brief explanation of why the
    API has been deprecated, and finish with “(Since: [version].)” to list the version the API was deprecated.
 
- - “#ifndef LIBWALBOTTLE_DISABLE_DEPRECATED” should be wrapped around the API in the public header file.
-
  - All references to the API/uses of the API in libwalbottle code (including demos and the test suite) should be ported to use the replacement API
    instead. If this isn't possible, the deprecated function should be split into a static function which contains all the code, and the public
    symbol should become a simple wrapper of this static function. This allows the static function to be used inside libwalbottle without causing

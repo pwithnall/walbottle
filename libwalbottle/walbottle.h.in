@@ -20,9 +20,6 @@
 #ifndef WBL_H
 #define WBL_H
 
-/* Core files */
-#include <walbottle/wbl-schema.h>
-#include <walbottle/wbl-meta-schema.h>
-#include <walbottle/wbl-version.h>
+@INCLUDES@
 
 #endif /* !WBL_H */
