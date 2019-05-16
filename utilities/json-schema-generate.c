@@ -307,7 +307,7 @@ main (int argc, char *argv[])
 				g_print ("\t{ \"%s\", %" G_GSIZE_FORMAT ", "
 				         "%u },  /* %u */\n",
 				         escaped, strlen (json),
-				         is_valid ? 1 : 0, j);
+				         is_valid ? 1u : 0u, j);
 				g_free (escaped);
 				break;
 			}

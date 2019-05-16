@@ -1531,10 +1531,10 @@ apply_multiple_of (WblSchema *self,
 		divides = (fabs (n * s - i) <= (ABS (n) + 1) * DBL_EPSILON);
 
 		g_debug ("%s: %.20f, %.20f, %" G_GINT64_FORMAT ", %.20f, "
-		         "%.20f, %.20f, %.20f, %.20f, %u",
+		         "%.20f, %.20f, %.20f, %.20f, %s",
 		         G_STRFUNC, i, s, n, i, n * s, n * s - i,
 		         fabs (n * s - i), (ABS (n) + 1) * DBL_EPSILON,
-		         divides);
+		         divides ? "divides" : "doesn’t divide");
 	} else {
 		r = fmod (json_node_get_double (instance_node),
 		          json_node_get_double (schema_node));
@@ -4432,7 +4432,7 @@ generate_n_additional_properties (gint64         num_additional_properties,
 	WblStringSet *output = NULL;
 	gint64 i;
 
-	g_debug ("%s: O(%" G_GUINT64_FORMAT " * %u)",
+	g_debug ("%s: O(%" G_GINT64_FORMAT " * %u)",
 	         G_STRFUNC, num_additional_properties,
 	         json_object_get_size (pattern_properties));
 
@@ -5296,7 +5296,7 @@ validity_object_to_string (GHashTable/*<owned utf8, boolean>*/  *obj)
 		}
 
 		g_string_append_printf (out, "%s: %u", property_name,
-		                        GPOINTER_TO_UINT (valid) ? 1 : 0);
+		                        GPOINTER_TO_UINT (valid) ? 1u : 0u);
 
 		is_first = FALSE;
 	}
