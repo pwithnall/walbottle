@@ -907,7 +907,7 @@ subschema_generate_instances_split (WblSchema                       *self,
 	for (j = 0; j < n_subschemas; j++) {
 		GHashTable/*<owned JsonNode>*/ *instances = NULL;  /* owned */
 		GHashTableIter iter;
-		JsonNode *node;
+		gpointer key;
 
 		instances = subschema_generate_instances (self, subschemas[j]);
 
@@ -915,7 +915,8 @@ subschema_generate_instances_split (WblSchema                       *self,
 		 * valid if //all// subschemas apply to it successfully. */
 		g_hash_table_iter_init (&iter, instances);
 
-		while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+		while (g_hash_table_iter_next (&iter, &key, NULL)) {
+			JsonNode *node = key;
 			GError *child_error = NULL;
 			guint i;
 
@@ -1287,13 +1288,14 @@ generate_schema_array (WblSchema *self,
 		JsonObject *child_object;  /* unowned */
 		GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
 		GHashTableIter iter;
-		JsonNode *instance = NULL;  /* owned */
+		gpointer key;
 
 		child_object = json_array_get_object_element (schema_array, i);
 		child_output = subschema_generate_instances (self, child_object);
 
 		g_hash_table_iter_init (&iter, child_output);
-		while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
+		while (g_hash_table_iter_next (&iter, &key, NULL)) {
+			JsonNode *instance = key;  /* unowned */
 			g_assert (instance != NULL);
 			g_hash_table_add (output, json_node_copy (instance));
 		}
@@ -2704,7 +2706,7 @@ generate_all_items (WblSchema                       *self,
 	guint i, j, k;
 	JsonBuilder *builder = NULL;
 	GHashTableIter iter;
-	JsonNode *node;
+	gpointer key;
 	GHashTable/*<unowned JsonObject,
 	             owned GHashTable<owned JsonNode>>*/ *valid_instances_map = NULL;
 	GHashTable/*<unowned JsonObject,
@@ -2911,6 +2913,7 @@ generate_all_items (WblSchema                       *self,
 			for (k = 0; k < validity_array->len; k++) {
 				GHashTable/*<owned JsonNode>*/ *instances;
 				GHashTableIter *instances_iter;
+				gpointer inner_key;
 				JsonNode *generated_instance;
 
 				if (g_array_index (validity_array, gboolean, k)) {
@@ -2924,17 +2927,21 @@ generate_all_items (WblSchema                       *self,
 				if (g_hash_table_size (instances) == 0) {
 					generated_instance = NULL;
 				} else if (!g_hash_table_iter_next (instances_iter,
-				                                    (gpointer *) &generated_instance,
+				                                    &inner_key,
 				                                    NULL)) {
 					/* Arbitrarily loop round and start
 					 * again. */
 					g_hash_table_iter_init (instances_iter,
 					                        instances);
 					if (!g_hash_table_iter_next (instances_iter,
-					                             (gpointer *) &generated_instance,
+					                             &inner_key,
 					                             NULL)) {
 						generated_instance = NULL;
+					} else {
+						generated_instance = inner_key;
 					}
+				} else {
+					generated_instance = inner_key;
 				}
 
 				if (generated_instance != NULL) {
@@ -2982,7 +2989,8 @@ generate_all_items (WblSchema                       *self,
 	g_hash_table_iter_init (&iter, instance_set);
 
         /* Complexity: O((M + N) * N) */
-	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		JsonNode *node = key;
 		JsonNode *mutated_instance = NULL;
 		JsonArray *array;
 
@@ -3038,13 +3046,15 @@ generate_all_items (WblSchema                       *self,
 	/* Throw the output over the fence. */
 	g_hash_table_iter_init (&iter, instance_set);
 
-	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		JsonNode *node = key;
 		generate_take_node (output, json_node_copy (node));
 	}
 
 	g_hash_table_iter_init (&iter, mutation_set);
 
-	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		JsonNode *node = key;
 		generate_take_node (output, json_node_copy (node));
 	}
 
@@ -4222,6 +4232,7 @@ apply_properties_child_schema (WblSchema *self,
 	while (json_object_iter_next (&instance_object_iter,
 	                              &member_name, &child_node)) {
 		GHashTableIter/*<unowned JsonNode, unowned JsonNode>*/ iter;
+		gpointer key;
 		JsonNode *child_schema;  /* unowned */
 
 		/* If @set_p contains @member_name, then the corresponding
@@ -4274,10 +4285,10 @@ apply_properties_child_schema (WblSchema *self,
 		 * this property value, apply them. */
 		g_hash_table_iter_init (&iter, set_s);
 
-		while (g_hash_table_iter_next (&iter, NULL,
-		                               (gpointer *) &child_schema)) {
+		while (g_hash_table_iter_next (&iter, NULL, &key)) {
 			GError *child_error = NULL;
 
+			child_schema = key;
 			subschema_apply (self,
 			                 json_node_get_object (child_schema),
 			                 child_node, &child_error);
@@ -4576,7 +4587,7 @@ generate_valid_property_sets (WblStringSet  *required,
 	WblStringSetIter iter;
 	const gchar *element;
 	GHashTableIter hash_iter;
-	WblStringSet *property_set;
+	gpointer key;
 
 	g_debug ("%s: O((%u + %u + %u + %" G_GINT64_FORMAT ") * %u)",
 	         G_STRFUNC, json_object_get_size (dependencies),
@@ -4725,7 +4736,8 @@ generate_valid_property_sets (WblStringSet  *required,
 	g_hash_table_iter_init (&hash_iter, set_family);
 
         /* Complexity: O((D + P + A + max_properties) * D) */
-	while (g_hash_table_iter_next (&hash_iter, (gpointer *) &property_set, NULL)) {
+	while (g_hash_table_iter_next (&hash_iter, &key, NULL)) {
+		WblStringSet *property_set = key;
 		WblStringSet *candidate = NULL;
 		guint candidate_size;
 
@@ -5282,15 +5294,16 @@ validity_object_to_string (GHashTable/*<owned utf8, boolean>*/  *obj)
 {
 	GHashTableIter iter;
 	GString *out = NULL;
-	const gchar *property_name;
+	gpointer key;
 	gpointer valid;
 	gboolean is_first = TRUE;
 
 	out = g_string_new ("{");
 	g_hash_table_iter_init (&iter, obj);
 
-	while (g_hash_table_iter_next (&iter, (gpointer *) &property_name,
-	                               &valid)) {
+	while (g_hash_table_iter_next (&iter, &key, &valid)) {
+		const gchar *property_name = key;
+
 		if (!is_first) {
 			g_string_append (out, ", ");
 		}
@@ -5365,7 +5378,7 @@ generate_all_properties (WblSchema                       *self,
 	GHashTable/*<owned JsonNode>*/ *instance_set = NULL;
 	GHashTable/*<owned JsonNode>*/ *mutation_set = NULL;
 	GHashTableIter property_sets_iter;
-	WblStringSet *valid_property_set;
+	gpointer key;
 	JsonBuilder *builder = NULL;
 	GHashTableIter instance_set_iter, mutation_set_iter;
 	JsonNode *node;
@@ -5430,9 +5443,8 @@ generate_all_properties (WblSchema                       *self,
 	 *               V * generate_validity_objects +
 	 *               V * P +
 	 *               V * X * P) */
-	while (g_hash_table_iter_next (&property_sets_iter,
-	                               (gpointer *) &valid_property_set,
-	                               NULL)) {
+	while (g_hash_table_iter_next (&property_sets_iter, &key, NULL)) {
+		WblStringSet *valid_property_set = key;
 		WblStringSetIter string_iter;
 		const gchar *property_name;
 		GPtrArray/*<owned GHashTable<boolean>>*/ *validity_objects = NULL;  /* owned */
@@ -5575,6 +5587,7 @@ generate_all_properties (WblSchema                       *self,
 			gchar *debug_output = NULL;
 			GHashTableIter validity_iter;
 			gpointer is_valid;
+			gpointer inner_key;
 
 			validity_object = validity_objects->pdata[i];
 
@@ -5583,10 +5596,13 @@ generate_all_properties (WblSchema                       *self,
 			/* Complexity: O(P) */
 			g_hash_table_iter_init (&validity_iter, validity_object);
 
-			while (g_hash_table_iter_next (&validity_iter, (gpointer *) &property_name, (gpointer *) &is_valid)) {
+			while (g_hash_table_iter_next (&validity_iter, &inner_key, &is_valid)) {
 				GHashTable/*<owned JsonNode>*/ *instances;
 				GHashTableIter *instances_iter;
 				JsonNode *generated_instance;
+				gpointer inner_key2;
+
+				property_name = inner_key;
 
 				if (GPOINTER_TO_UINT (is_valid)) {
 					instances = g_hash_table_lookup (valid_instance_map, property_name);
@@ -5599,17 +5615,21 @@ generate_all_properties (WblSchema                       *self,
 				if (g_hash_table_size (instances) == 0) {
 					generated_instance = NULL;
 				} else if (!g_hash_table_iter_next (instances_iter,
-				                                    (gpointer *) &generated_instance,
+				                                    &inner_key2,
 				                                    NULL)) {
 					/* Arbitrarily loop round and start
 					 * again. */
 					g_hash_table_iter_init (instances_iter,
 					                        instances);
 					if (!g_hash_table_iter_next (instances_iter,
-					                             (gpointer *) &generated_instance,
+					                             &inner_key2,
 					                             NULL)) {
 						generated_instance = NULL;
+					} else {
+						generated_instance = inner_key2;
 					}
+				} else {
+					generated_instance = inner_key2;
 				}
 
 				json_builder_set_member_name (builder,
@@ -5657,14 +5677,14 @@ generate_all_properties (WblSchema                       *self,
 	 * patternProperties and properties. */
 	g_hash_table_iter_init (&instance_set_iter, instance_set);
 
-	while (g_hash_table_iter_next (&instance_set_iter,
-	                               (gpointer *) &node, NULL)) {
+	while (g_hash_table_iter_next (&instance_set_iter, &key, NULL)) {
 		JsonNode *mutated_instance = NULL;
 		JsonObject *obj;
 		JsonObjectIter dependencies_iter;
 		const gchar *dependency_key;
 		JsonNode *dependency_node;
 
+		node = key;
 		obj = json_node_get_object (node);
 
 		/* minProperties. */
@@ -5744,15 +5764,15 @@ generate_all_properties (WblSchema                       *self,
 	/* Throw the output over the fence. */
 	g_hash_table_iter_init (&instance_set_iter, instance_set);
 
-	while (g_hash_table_iter_next (&instance_set_iter,
-	                               (gpointer *) &node, NULL)) {
+	while (g_hash_table_iter_next (&instance_set_iter, &key, NULL)) {
+		node = key;
 		generate_take_node (output, json_node_copy (node));
 	}
 
 	g_hash_table_iter_init (&mutation_set_iter, mutation_set);
 
-	while (g_hash_table_iter_next (&mutation_set_iter,
-	                               (gpointer *) &node, NULL)) {
+	while (g_hash_table_iter_next (&mutation_set_iter, &key, NULL)) {
+		node = key;
 		generate_take_node (output, json_node_copy (node));
 	}
 
@@ -6605,13 +6625,14 @@ generate_not (WblSchema *self,
 {
 	GHashTable/*<owned JsonNode>*/ *child_output = NULL;  /* owned */
 	GHashTableIter iter;
-	JsonNode *instance = NULL;
+	gpointer key;
 
 	/* Generate instances for the schema. */
 	child_output = subschema_generate_instances (self, json_node_get_object (schema_node));
 
 	g_hash_table_iter_init (&iter, child_output);
-	while (g_hash_table_iter_next (&iter, (gpointer *) &instance, NULL)) {
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		JsonNode *instance = key;
 		g_assert (instance != NULL);
 		g_hash_table_add (output, json_node_copy (instance));
 	}
@@ -7585,7 +7606,7 @@ wbl_schema_generate_instances (WblSchema *self,
 	GHashTableIter iter;
 	GPtrArray/*<owned WblGeneratedInstance>*/ *output = NULL;  /* owned */
 	JsonParser *parser = NULL;  /* owned */
-	JsonNode *node;  /* unowned */
+	gpointer key;
 
 	g_return_val_if_fail (WBL_IS_SCHEMA (self), NULL);
 
@@ -7607,7 +7628,8 @@ wbl_schema_generate_instances (WblSchema *self,
 
 	g_hash_table_iter_init (&iter, node_output);
 
-	while (g_hash_table_iter_next (&iter, (gpointer *) &node, NULL)) {
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		JsonNode *node = key;  /* unowned */
 		gboolean valid;
 		GError *error = NULL;
 
@@ -7809,7 +7831,7 @@ wbl_schema_get_schema_info (WblSchema *self)
 {
 	WblSchemaPrivate *priv;
 	GHashTableIter iter;
-	WblSchemaInstanceCacheEntry *entry;
+	gpointer key;
 	GPtrArray/*<owned WblSchemaInfo>*/ *out = NULL;
 
 	priv = wbl_schema_get_instance_private (self);
@@ -7817,7 +7839,8 @@ wbl_schema_get_schema_info (WblSchema *self)
 	g_hash_table_iter_init (&iter, priv->schema_instances_cache);
 	out = g_ptr_array_new_with_free_func ((GDestroyNotify) wbl_schema_info_free);
 
-	while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &entry)) {
+	while (g_hash_table_iter_next (&iter, NULL, &key)) {
+		WblSchemaInstanceCacheEntry *entry = key;
 		WblSchemaInfo *info = NULL;
 
 		info = g_slice_new0 (WblSchemaInfo);

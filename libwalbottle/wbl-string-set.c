@@ -343,7 +343,7 @@ wbl_string_set_union (WblStringSet  *a,
 {
 	WblStringSet *output = NULL;
 	GHashTableIter iter;
-	const gchar *key;
+	gpointer key;
 
 	output = _wbl_string_set_new ();
 
@@ -353,15 +353,17 @@ wbl_string_set_union (WblStringSet  *a,
 	/* Add all from @a. */
 	g_hash_table_iter_init (&iter, a->set);
 
-	while (g_hash_table_iter_next (&iter, (gpointer *) &key, NULL)) {
-		_wbl_string_set_add (output, key);
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		const gchar *key_str = key;
+		_wbl_string_set_add (output, key_str);
 	}
 
 	/* Add all from @b. */
 	g_hash_table_iter_init (&iter, b->set);
 
 	while (g_hash_table_iter_next (&iter, (gpointer *) &key, NULL)) {
-		_wbl_string_set_add (output, key);
+		const gchar *key_str = key;
+		_wbl_string_set_add (output, key_str);
 	}
 
 	wbl_string_set_unref (b);
@@ -404,13 +406,14 @@ wbl_string_set_union_dependencies (WblStringSet  *set,
 
 	do {
 		GHashTableIter iter;
-		const gchar *property_name;
+		gpointer key;
 
 		old_output_size = g_hash_table_size (output->set);
 
 		g_hash_table_iter_init (&iter, set->set);
 
-		while (g_hash_table_iter_next (&iter, (gpointer *) &property_name, NULL)) {
+		while (g_hash_table_iter_next (&iter, &key, NULL)) {
+			const gchar *property_name = key;
 			JsonNode *dependency_value;
 			guint i, len;
 
@@ -530,7 +533,7 @@ wbl_string_set_equal (WblStringSet  *a,
                       WblStringSet  *b)
 {
 	GHashTableIter iter;
-	const gchar *key;
+	gpointer key;
 
 	g_return_val_if_fail (_wbl_string_set_is_valid (a), FALSE);
 	g_return_val_if_fail (_wbl_string_set_is_valid (b), FALSE);
@@ -546,8 +549,9 @@ wbl_string_set_equal (WblStringSet  *a,
 	/* Compare elements. */
 	g_hash_table_iter_init (&iter, a->set);
 
-	while (g_hash_table_iter_next (&iter, (gpointer *) &key, NULL)) {
-		if (!g_hash_table_contains (b->set, key)) {
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		const gchar *key_str = key;
+		if (!g_hash_table_contains (b->set, key_str)) {
 			return FALSE;
 		}
 	}
