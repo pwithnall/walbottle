@@ -7591,8 +7591,8 @@ wbl_schema_apply (WblSchema *self,
  * successfully. By design, however, some of the instances will not validate
  * according to the given #WblSchema.
  *
- * Returns: (transfer full) (element-type WblGeneratedInstance): newly allocated
- *   array of #WblGeneratedInstances
+ * Returns: (transfer container) (element-type WblGeneratedInstance): newly
+ *   allocated array of #WblGeneratedInstances
  *
  * Since: 0.1.0
  */
