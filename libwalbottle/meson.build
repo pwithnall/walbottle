@@ -43,7 +43,7 @@ libwalbottle_main_public_header = configure_file(
   input: 'walbottle.h.in',
   output: 'walbottle.h',
   configuration: {
-    'INCLUDES': '#include <walbottle/' + '>\n#include <walbottle/'.join(libwalbottle_nonmain_nongenerated_public_headers + ['wbl-version.h']) + '>\n',
+    'INCLUDES': '#include <libwalbottle/' + '>\n#include <libwalbottle/'.join(libwalbottle_nonmain_nongenerated_public_headers + ['wbl-version.h']) + '>\n',
   },
 )
 
