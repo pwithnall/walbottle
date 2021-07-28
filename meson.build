@@ -32,7 +32,6 @@ test_c_args = [
   '-fno-strict-aliasing',
   '-fstack-protector-strong',
   '-Waggregate-return',
-  '-Wall',
   '-Wunused',
   '-Warray-bounds',
   '-Wcast-align',

@@ -19,6 +19,7 @@ build-and-test:
   script:
     - meson ${MESON_COMMON_OPTIONS}
             --werror
+            -Dwarning_level=2
             -Dinstalled_tests=true
             _build
     - ninja -C _build
