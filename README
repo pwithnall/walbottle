@@ -105,8 +105,8 @@ JSON schema. See the API documentation for more explanation and examples.
 Dependencies
 ============
 
- • glib-2.0 ≥ 2.31.0
- • gio-2.0 ≥ 2.17.3
+ • glib-2.0 ≥ 2.34.0
+ • gio-2.0 ≥ 2.34.0
  • json-glib
 
 Licensing

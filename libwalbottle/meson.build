@@ -7,8 +7,8 @@ libwalbottle_utils_sources = [
 ]
 
 libwalbottle_utils_deps = [
-  dependency('gio-2.0', version: '>= 2.31.0'),
-  dependency('glib-2.0', version: '>= 2.31.0'),
+  dependency('gio-2.0', version: '>= 2.34.0'),
+  dependency('glib-2.0', version: '>= 2.34.0'),
   dependency('gobject-2.0', version: '>= 2.31.0'),
   dependency('json-glib-1.0', version: '>= 1.1.1'),
 ]
