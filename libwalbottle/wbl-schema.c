@@ -7155,7 +7155,9 @@ wbl_schema_load_from_data (WblSchema *self,
                            gssize length,
                            GError **error)
 {
+	GBytes *bytes = NULL;  /* owned */
 	GInputStream *stream = NULL;  /* owned */
+	gsize length_unsigned;
 
 	g_return_if_fail (WBL_IS_SCHEMA (self));
 	g_return_if_fail (data != NULL);
@@ -7163,11 +7165,14 @@ wbl_schema_load_from_data (WblSchema *self,
 	g_return_if_fail (error == NULL || *error == NULL);
 
 	if (length < 0) {
-		length = strlen (data);
+		length_unsigned = strlen (data);
+	} else {
+		length_unsigned = (gsize) length;
 	}
 
-	stream = g_memory_input_stream_new_from_data (g_memdup (data, length),
-	                                              length, g_free);
+	bytes = g_bytes_new (data, length_unsigned);
+	stream = g_memory_input_stream_new_from_bytes (bytes);
+	g_bytes_unref (bytes);
 	wbl_schema_load_from_stream (self, stream, NULL, error);
 	g_object_unref (stream);
 }
