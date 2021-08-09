@@ -118,20 +118,22 @@ pkgconfig.generate(
   requires: libwalbottle_public_deps,
 )
 
-gnome.generate_gir(libwalbottle,
-  # FIXME: Use libwalbottle_public_headers
-  sources: libwalbottle_sources + libwalbottle_nonmain_nongenerated_public_headers,
-  nsversion: libwalbottle_api_version,
-  # FIXME: Use libwalbottle_main_public_header instead; https://github.com/mesonbuild/meson/issues/5398
-  #header: 'walbottle.h',
-  namespace: 'Walbottle',
-  symbol_prefix: 'wbl_',
-  identifier_prefix: 'Wbl',
-  export_packages: 'libwalbottle',
-  includes: ['GObject-2.0', 'Gio-2.0', 'Json-1.0'],
-  install: true,
-  dependencies: libwalbottle_dep,
-)
+if get_option('introspection').auto() or get_option('introspection').enabled()
+  gnome.generate_gir(libwalbottle,
+    # FIXME: Use libwalbottle_public_headers
+    sources: libwalbottle_sources + libwalbottle_nonmain_nongenerated_public_headers,
+    nsversion: libwalbottle_api_version,
+    # FIXME: Use libwalbottle_main_public_header instead; https://github.com/mesonbuild/meson/issues/5398
+    #header: 'walbottle.h',
+    namespace: 'Walbottle',
+    symbol_prefix: 'wbl_',
+    identifier_prefix: 'Wbl',
+    export_packages: 'libwalbottle',
+    includes: ['GObject-2.0', 'Gio-2.0', 'Json-1.0'],
+    install: true,
+    dependencies: libwalbottle_dep,
+  )
+endif
 
 subdir('docs')
 subdir('tests')

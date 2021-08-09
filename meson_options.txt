@@ -11,3 +11,10 @@ option(
   value: false,
   description: 'enable installed tests'
 )
+
+option(
+  'introspection',
+  type: 'feature',
+  value: 'auto',
+  description: 'enable gobject-introspection'
+)
